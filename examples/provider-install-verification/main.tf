@@ -8,4 +8,6 @@ terraform {
 
 provider "stytch" {}
 
-data "stytch_password_config_policy" "example" {}
+resource "stytch_password_config" "example" {
+  project_id = "project-id"
+}
