@@ -1,0 +1,1 @@
+# stytch-terraform-provider
