@@ -78,27 +78,33 @@ func (r *passwordConfigResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Computed: true,
 			},
 			"check_breach_on_create": schema.BoolAttribute{
+				Optional:    true,
 				Computed:    true,
 				Description: "Whether to check if a user's password has been breached at the time of password creation using the HaveIBeenPwned database",
 			},
 			"check_breach_on_authentication": schema.BoolAttribute{
+				Optional:    true,
 				Computed:    true,
 				Description: "Whether to check if a user's password has been breached at the time of password authentication using the HaveIBeenPwned database",
 			},
 			"validate_on_authentication": schema.BoolAttribute{
+				Optional:    true,
 				Computed:    true,
 				Description: "Whether to validate that a password meets the project's password strength configuration at the time of authentication",
 			},
 			"validation_policy": schema.StringAttribute{
+				Optional:    true,
 				Computed:    true,
 				Description: "The policy to use for password strength validation, either ZXCVBN or LUDS",
 			},
 			"luds_min_password_length": schema.Int32Attribute{
+				Optional: true,
 				Computed: true,
 				Description: "The minimum password length when using a LUDS validation policy. " +
 					"If present, this value must be between 8 and 32.",
 			},
 			"luds_min_password_complexity": schema.Int32Attribute{
+				Optional: true,
 				Computed: true,
 				Description: "The minimum number of character types (lowercase letters, uppercase letters, digits, and symbols) to require when using a LUDS validation policy. " +
 					"If present, this value must be between 1 and 4.",
