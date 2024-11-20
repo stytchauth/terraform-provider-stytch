@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
-	"github.com/stytchauth/terraform-provider-stytch/internal/provider/datasources"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/resources"
 )
 
 // Ensure StytchProvider satisfies various provider interfaces.
@@ -153,17 +153,17 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 }
 
 func (p *StytchProvider) Resources(ctx context.Context) []func() resource.Resource {
-	return []func() resource.Resource{}
-}
-
-func (p *StytchProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{
-		datasources.NewPasswordConfigPolicyDataSource,
+	return []func() resource.Resource{
+		resources.NewPasswordConfigResource,
 	}
 }
 
+func (p *StytchProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+	return nil
+}
+
 func (p *StytchProvider) Functions(ctx context.Context) []func() function.Function {
-	return []func() function.Function{}
+	return nil
 }
 
 func New(version string) func() provider.Provider {
