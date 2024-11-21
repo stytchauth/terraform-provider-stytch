@@ -1,1 +1,1 @@
-# stytch-terraform-provider
+# terraform-provider-stytch
