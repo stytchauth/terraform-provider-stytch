@@ -5,14 +5,17 @@ package provider
 
 import (
 	"context"
-	"net/http"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/stytchauth/stytch-management-go/pkg/api"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/datasources"
 )
 
 // Ensure StytchProvider satisfies various provider interfaces.
@@ -31,7 +34,9 @@ type StytchProvider struct {
 
 // StytchProviderModel describes the provider data model.
 type StytchProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
+	WorkspaceKeyID     types.String `tfsdk:"workspace_key_id"`
+	WorkspaceKeySecret types.String `tfsdk:"workspace_key_secret"`
+	BaseURI            types.String `tfsdk:"base_uri"`
 }
 
 func (p *StytchProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -42,28 +47,107 @@ func (p *StytchProvider) Metadata(ctx context.Context, req provider.MetadataRequ
 func (p *StytchProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "Example provider attribute",
-				Optional:            true,
+			"workspace_key_id": schema.StringAttribute{
+				Description: "The key ID for a workspace management key obtained from the Stytch workspace management page",
+				Optional:    true,
+			},
+			"workspace_key_secret": schema.StringAttribute{
+				Description: "The key secret corresponding for the workspace key obtained from the Stytch workspace management page",
+				Optional:    true,
+				Sensitive:   true,
+			},
+			"base_uri": schema.StringAttribute{
+				Description: "Base URI override to use instead of Stytch's API. This is used for internal testing only.",
+				Optional:    true,
 			},
 		},
 	}
 }
 
 func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data StytchProviderModel
+	var config StytchProviderModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	// If practitioner provided a configuration value for any of the attributes, it must be a known value.
+
+	if config.WorkspaceKeyID.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("workspace_key_id"),
+			"Unknown workspace key ID",
+			"The provider cannot create the Stytch management client as there is an unknown configuration value for the Stytch Workspace Key ID. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the STYTCH_WORKSPACE_KEY_ID environment variable.",
+		)
+	}
+	if config.WorkspaceKeySecret.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("workspace_key_secret"),
+			"Unknown workspace key secret",
+			"The provider cannot create the Stytch management client as there is an unknown configuration value for the Stytch Workspace Key Secret. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the STYTCH_WORKSPACE_KEY_SECRET environment variable.",
+		)
+	}
+
+	if config.BaseURI.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("base_uri"),
+			"Unknown base URI",
+			"The provider cannot create the Stytch management client as there is an unknown configuration value for the Stytch Base URI. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the STYTCH_BASE_URI environment variable.",
+		)
+	}
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Configuration values are now available.
-	// if data.Endpoint.IsNull() { /* ... */ }
+	// Now we default values to environment variables, but override with Terraform configuration values if set.
 
-	// Example client configuration for data sources and resources
-	client := http.DefaultClient
+	workspaceKeyID := os.Getenv("STYTCH_WORKSPACE_KEY_ID")
+	workspaceKeySecret := os.Getenv("STYTCH_WORKSPACE_KEY_SECRET")
+	baseURI := os.Getenv("STYTCH_BASE_URI")
+
+	if !config.WorkspaceKeyID.IsNull() {
+		workspaceKeyID = config.WorkspaceKeyID.ValueString()
+	}
+	if !config.WorkspaceKeySecret.IsNull() {
+		workspaceKeySecret = config.WorkspaceKeySecret.ValueString()
+	}
+	if !config.BaseURI.IsNull() {
+		baseURI = config.BaseURI.ValueString()
+	}
+
+	// Now we make sure the keyID and secret are not empty strings
+	if workspaceKeyID == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("workspace_key_id"),
+			"Missing workspace key ID",
+			"The provider cannot create the Stytch management client as there is a missing or empty value for the Stytch Workspace Key ID. "+
+				"Set the value in the configuration or use the STYTCH_WORKSPACE_KEY_ID environment variable. "+
+				"If either is already set, ensure the value is not empty.",
+		)
+	}
+	if workspaceKeySecret == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("workspace_key_secret"),
+			"Missing workspace key secret",
+			"The provider cannot create the Stytch management client as there is a missing or empty value for the Stytch Workspace Key Secret. "+
+				"Set the value in the configuration or use the STYTCH_WORKSPACE_KEY_SECRET environment variable. "+
+				"If either is already set, ensure the value is not empty.",
+		)
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Now we're finally ready to create the stytch-management-go client.
+	var opts []api.APIOption
+	if baseURI != "" {
+		opts = append(opts, api.WithBaseURI(baseURI))
+	}
+	client := api.NewClient(workspaceKeyID, workspaceKeySecret, opts...)
+
+	// Make the client available to the provider.
 	resp.DataSourceData = client
 	resp.ResourceData = client
 }
@@ -73,7 +157,9 @@ func (p *StytchProvider) Resources(ctx context.Context) []func() resource.Resour
 }
 
 func (p *StytchProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+	return []func() datasource.DataSource{
+		datasources.NewPasswordConfigPolicyDataSource,
+	}
 }
 
 func (p *StytchProvider) Functions(ctx context.Context) []func() function.Function {
