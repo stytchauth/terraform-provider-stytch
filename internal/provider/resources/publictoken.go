@@ -25,8 +25,8 @@ type publicTokenResource struct {
 }
 
 type publicTokenModel struct {
-	PublicToken types.String `tfsdk:"public_token"`
 	ProjectID   types.String `tfsdk:"project_id"`
+	PublicToken types.String `tfsdk:"public_token"`
 	CreatedAt   types.String `tfsdk:"created_at"`
 }
 

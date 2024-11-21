@@ -27,8 +27,8 @@ type secretResource struct {
 }
 
 type secretModel struct {
-	SecretID  types.String `tfsdk:"secret_id"`
 	ProjectID types.String `tfsdk:"project_id"`
+	SecretID  types.String `tfsdk:"secret_id"`
 	CreatedAt types.String `tfsdk:"created_at"`
 	Secret    types.String `tfsdk:"secret"`
 }

@@ -30,8 +30,8 @@ type projectResource struct {
 type projectModel struct {
 	LiveProjectID types.String `tfsdk:"live_project_id"`
 	TestProjectID types.String `tfsdk:"test_project_id"`
-	CreatedAt     types.String `tfsdk:"created_at"`
 	LastUpdated   types.String `tfsdk:"last_updated"`
+	CreatedAt     types.String `tfsdk:"created_at"`
 	Name          types.String `tfsdk:"name"`
 	Vertical      types.String `tfsdk:"vertical"`
 }
