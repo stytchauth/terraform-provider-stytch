@@ -8,6 +8,12 @@ terraform {
 
 provider "stytch" {}
 
-resource "stytch_password_config" "example" {
-  project_id = "project-id"
+resource "stytch_project" "consumer_project" {
+  name     = "tf-consumer"
+  vertical = "CONSUMER"
+}
+
+resource "stytch_project" "b2b_project" {
+  name     = "tf-b2b"
+  vertical = "B2B"
 }
