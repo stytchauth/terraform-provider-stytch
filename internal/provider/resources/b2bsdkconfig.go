@@ -8,8 +8,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
+	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
+	"github.com/stytchauth/stytch-management-go/pkg/models/sdk"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -100,6 +107,166 @@ type b2bSDKConfigPasswordsModel struct {
 	PKCERequiredForPasswordResets types.Bool `tfsdk:"pkce_required_for_password_resets"`
 }
 
+func (m b2bSDKConfigModel) toSDKConfig() sdk.B2BConfig {
+	c := sdk.B2BConfig{
+		Basic: &sdk.B2BBasicConfig{
+			Enabled:                 m.Config.Basic.Enabled.ValueBool(),
+			CreateNewMembers:        m.Config.Basic.CreateNewMembers.ValueBool(),
+			AllowSelfOnboarding:     m.Config.Basic.AllowSelfOnboarding.ValueBool(),
+			EnableMemberPermissions: m.Config.Basic.EnableMemberPermissions.ValueBool(),
+			Domains:                 make([]sdk.AuthorizedB2BDomain, len(m.Config.Basic.Domains)),
+			BundleIDs:               make([]string, len(m.Config.Basic.BundleIDs)),
+		},
+	}
+	for i, d := range m.Config.Basic.Domains {
+		c.Basic.Domains[i] = sdk.AuthorizedB2BDomain{
+			Domain:      d.Domain.ValueString(),
+			SlugPattern: d.SlugPattern.ValueString(),
+		}
+	}
+	for i, b := range m.Config.Basic.BundleIDs {
+		c.Basic.BundleIDs[i] = b.ValueString()
+	}
+
+	if !m.Config.Sessions.MaxSessionDurationMinutes.IsUnknown() {
+		c.Sessions = &sdk.B2BSessionsConfig{
+			MaxSessionDurationMinutes: m.Config.Sessions.MaxSessionDurationMinutes.ValueInt32(),
+		}
+	}
+
+	if !m.Config.MagicLinks.Enabled.IsUnknown() ||
+		!m.Config.MagicLinks.PKCERequired.IsUnknown() {
+		c.MagicLinks = &sdk.B2BMagicLinksConfig{
+			Enabled:      m.Config.MagicLinks.Enabled.ValueBool(),
+			PKCERequired: m.Config.MagicLinks.PKCERequired.ValueBool(),
+		}
+	}
+
+	if !m.Config.OAuth.Enabled.IsUnknown() ||
+		!m.Config.OAuth.PKCERequired.IsUnknown() {
+		c.OAuth = &sdk.B2BOAuthConfig{
+			Enabled:      m.Config.OAuth.Enabled.ValueBool(),
+			PKCERequired: m.Config.OAuth.PKCERequired.ValueBool(),
+		}
+	}
+
+	if !m.Config.TOTPs.Enabled.IsUnknown() ||
+		!m.Config.TOTPs.CreateTOTPs.IsUnknown() {
+		c.TOTPs = &sdk.B2BTOTPsConfig{
+			Enabled:     m.Config.TOTPs.Enabled.ValueBool(),
+			CreateTOTPs: m.Config.TOTPs.CreateTOTPs.ValueBool(),
+		}
+	}
+
+	if !m.Config.SSO.Enabled.IsUnknown() ||
+		!m.Config.SSO.PKCERequired.IsUnknown() {
+		c.SSO = &sdk.B2BSSOConfig{
+			Enabled:      m.Config.SSO.Enabled.ValueBool(),
+			PKCERequired: m.Config.SSO.PKCERequired.ValueBool(),
+		}
+	}
+
+	if !m.Config.OTPs.SMSEnabled.IsUnknown() ||
+		!m.Config.OTPs.EmailEnabled.IsUnknown() ||
+		len(m.Config.OTPs.SMSAutofillMetadata) > 0 {
+		c.OTPs = &sdk.B2BOTPsConfig{
+			SMSEnabled:          m.Config.OTPs.SMSEnabled.ValueBool(),
+			EmailEnabled:        m.Config.OTPs.EmailEnabled.ValueBool(),
+			SMSAutofillMetadata: make([]sdk.SMSAutofillMetadata, len(m.Config.OTPs.SMSAutofillMetadata)),
+		}
+		for i, m := range m.Config.OTPs.SMSAutofillMetadata {
+			c.OTPs.SMSAutofillMetadata[i] = sdk.SMSAutofillMetadata{
+				MetadataType:  m.MetadataType.ValueString(),
+				MetadataValue: m.MetadataValue.ValueString(),
+				BundleID:      m.BundleID.ValueString(),
+			}
+		}
+	}
+
+	if !m.Config.DFPPA.Enabled.IsUnknown() ||
+		!m.Config.DFPPA.OnChallenge.IsUnknown() ||
+		!m.Config.DFPPA.LookupTimeoutSeconds.IsUnknown() {
+		c.DFPPA = &sdk.B2BDFPPAConfig{
+			Enabled:              sdk.DFPPASetting(m.Config.DFPPA.Enabled.ValueString()),
+			OnChallenge:          sdk.DFPPAOnChallengeAction(m.Config.DFPPA.OnChallenge.ValueString()),
+			LookupTimeoutSeconds: m.Config.DFPPA.LookupTimeoutSeconds.ValueInt32(),
+		}
+	}
+
+	if !m.Config.Passwords.Enabled.IsUnknown() ||
+		!m.Config.Passwords.PKCERequiredForPasswordResets.IsUnknown() {
+		c.Passwords = &sdk.B2BPasswordsConfig{
+			Enabled:                       m.Config.Passwords.Enabled.ValueBool(),
+			PKCERequiredForPasswordResets: m.Config.Passwords.PKCERequiredForPasswordResets.ValueBool(),
+		}
+	}
+
+	return c
+}
+
+func (m *b2bSDKConfigModel) reloadFromSDKConfig(c sdk.B2BConfig) {
+	cfg := b2bSDKConfigInnerModel{
+		Basic: b2bSDKConfigBasicModel{
+			Enabled:                 types.BoolValue(c.Basic.Enabled),
+			CreateNewMembers:        types.BoolValue(c.Basic.CreateNewMembers),
+			AllowSelfOnboarding:     types.BoolValue(c.Basic.AllowSelfOnboarding),
+			EnableMemberPermissions: types.BoolValue(c.Basic.EnableMemberPermissions),
+			Domains:                 make([]b2bSDKConfigAuthorizedDomainModel, len(c.Basic.Domains)),
+			BundleIDs:               make([]types.String, len(c.Basic.BundleIDs)),
+		},
+		Sessions: b2bSDKConfigSessionsModel{
+			MaxSessionDurationMinutes: types.Int32Value(c.Sessions.MaxSessionDurationMinutes),
+		},
+		MagicLinks: b2bSDKConfigMagicLinksModel{
+			Enabled:      types.BoolValue(c.MagicLinks.Enabled),
+			PKCERequired: types.BoolValue(c.MagicLinks.PKCERequired),
+		},
+		OAuth: b2bSDKConfigOAuthModel{
+			Enabled:      types.BoolValue(c.OAuth.Enabled),
+			PKCERequired: types.BoolValue(c.OAuth.PKCERequired),
+		},
+		TOTPs: b2bSDKConfigTOTPsModel{
+			Enabled:     types.BoolValue(c.TOTPs.Enabled),
+			CreateTOTPs: types.BoolValue(c.TOTPs.CreateTOTPs),
+		},
+		SSO: b2bSDKConfigSSOModel{
+			Enabled:      types.BoolValue(c.SSO.Enabled),
+			PKCERequired: types.BoolValue(c.SSO.PKCERequired),
+		},
+		OTPs: b2bSDKConfigOTPsModel{
+			SMSEnabled:          types.BoolValue(c.OTPs.SMSEnabled),
+			EmailEnabled:        types.BoolValue(c.OTPs.EmailEnabled),
+			SMSAutofillMetadata: make([]sdkSMSAutofillMetadata, len(c.OTPs.SMSAutofillMetadata)),
+		},
+		DFPPA: b2bSDKConfigDFPPAModel{
+			Enabled:              types.StringValue(string(c.DFPPA.Enabled)),
+			OnChallenge:          types.StringValue(string(c.DFPPA.OnChallenge)),
+			LookupTimeoutSeconds: types.Int32Value(c.DFPPA.LookupTimeoutSeconds),
+		},
+		Passwords: b2bSDKConfigPasswordsModel{
+			Enabled:                       types.BoolValue(c.Passwords.Enabled),
+			PKCERequiredForPasswordResets: types.BoolValue(c.Passwords.PKCERequiredForPasswordResets),
+		},
+	}
+	for i, d := range c.Basic.Domains {
+		cfg.Basic.Domains[i] = b2bSDKConfigAuthorizedDomainModel{
+			Domain:      types.StringValue(d.Domain),
+			SlugPattern: types.StringValue(d.SlugPattern),
+		}
+	}
+	for i, b := range c.Basic.BundleIDs {
+		cfg.Basic.BundleIDs[i] = types.StringValue(b)
+	}
+	for i, d := range c.OTPs.SMSAutofillMetadata {
+		cfg.OTPs.SMSAutofillMetadata[i] = sdkSMSAutofillMetadata{
+			MetadataType:  types.StringValue(d.MetadataType),
+			MetadataValue: types.StringValue(d.MetadataValue),
+			BundleID:      types.StringValue(d.BundleID),
+		}
+	}
+	m.Config = cfg
+}
+
 func (r *b2bSDKConfigResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Add a nil check when handling ProviderData because Terraform
 	// sets that data after it calls the ConfigureProvider RPC.
@@ -155,16 +322,25 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether new members can be created with the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"allow_self_onboarding": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether self-onboarding is allowed for members in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"enable_member_permissions": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether member permissions RBAC are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"domains": schema.ListNestedAttribute{
 								Optional:    true,
@@ -176,12 +352,18 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 											Optional:    true,
 											Computed:    true,
 											Description: "The domain name. Stytch uses the same-origin policy to determine matches.",
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 										"slug_pattern": schema.StringAttribute{
 											Optional: true,
 											Computed: true,
 											Description: "SlugPattern is the slug pattern which can be used to support authentication flows specific to each organization. An example" +
 												"value here might be 'https://{{slug}}.example.com'. The value **must** include '{{slug}}' as a placeholder for the slug.",
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 									},
 								},
@@ -191,6 +373,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Computed:    true,
 								ElementType: types.StringType,
 								Description: "A list of bundle IDs authorized for use in the SDK.",
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -203,6 +388,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "The maximum session duration that can be created in minutes.",
+								PlanModifiers: []planmodifier.Int32{
+									int32planmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -215,6 +403,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether magic links endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"pkce_required": schema.BoolAttribute{
 								Optional: true,
@@ -223,6 +414,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 									"introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from " +
 									"the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating " +
 									"with the users token. PKCE is enabled by default for mobile SDKs.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -235,6 +429,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether OAuth endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"pkce_required": schema.BoolAttribute{
 								Optional: true,
@@ -243,6 +440,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 									"introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from " +
 									"the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating " +
 									"with the users token. PKCE is enabled by default for mobile SDKs.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -255,11 +455,17 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether TOTP endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"create_totps": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether TOTP creation is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -272,6 +478,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether SSO endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"pkce_required": schema.BoolAttribute{
 								Optional: true,
@@ -280,6 +489,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 									"introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from " +
 									"the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating " +
 									"with the users token. PKCE is enabled by default for mobile SDKs.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -292,6 +504,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether the SMS OTP endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"sms_autofill_metadata": schema.ListNestedAttribute{
 								Optional:    true,
@@ -303,17 +518,26 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 											Optional:    true,
 											Computed:    true,
 											Description: "The type of metadata to use for autofill. This should be either 'domain' or 'hash'.",
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 										"metadata_value": schema.StringAttribute{
 											Optional: true,
 											Computed: true,
 											Description: "MetadataValue is the value of the metadata to use for autofill. This should be the associated domain name (for metadata type 'domain') " +
 												"or application hash (for metadata type 'hash').",
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 										"bundle_id": schema.StringAttribute{
 											Optional:    true,
 											Computed:    true,
 											Description: "The ID of the bundle to use for autofill. This should be the associated bundle ID.",
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 									},
 								},
@@ -322,6 +546,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether the email OTP endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -333,16 +560,25 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether Device Fingerprinting Protected Auth is enabled in the SDK.",
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"on_challenge": schema.StringAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "The action to take when a DFPPA 'challenge' verdict is returned.",
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"lookup_timeout_seconds": schema.Int32Attribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "How long to wait for a DFPPA lookup to complete before timing out.",
+								PlanModifiers: []planmodifier.Int32{
+									int32planmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -355,6 +591,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether password endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"pkce_required_for_password_resets": schema.BoolAttribute{
 								Optional: true,
@@ -363,12 +602,36 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 									"security by introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow " +
 									"from the same application on the device. This prevents a malicious app from intercepting a redirect and " +
 									"authenticating with the users token. PKCE is enabled by default for mobile SDKs.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
 				},
 			},
 		},
+	}
+}
+
+func (r b2bSDKConfigResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data b2bSDKConfigModel
+	diags := req.Config.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	getProjectResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
+		ProjectID: data.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddWarning("Failed to get project for vertical check", err.Error())
+		return
+	}
+	if getProjectResp.Project.Vertical != projects.VerticalB2B {
+		resp.Diagnostics.AddError("Invalid project vertical", "The project must be a B2B project for this resource.")
+		return
 	}
 }
 
@@ -381,8 +644,16 @@ func (r *b2bSDKConfigResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.SDKConfig.SetB2BConfig
+	setResp, err := r.client.SDK.SetB2BConfig(ctx, sdk.SetB2BConfigRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+		Config:    plan.toSDKConfig(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to set B2B SDK config", err.Error())
+		return
+	}
 
+	plan.reloadFromSDKConfig(setResp.Config)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -402,8 +673,15 @@ func (r *b2bSDKConfigResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// TODO: Get refreshed value from the API
+	getResp, err := r.client.SDK.GetB2BConfig(ctx, sdk.GetB2BConfigRequest{
+		ProjectID: state.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get B2B SDK config", err.Error())
+		return
+	}
 
-	// Set refreshed state
+	state.reloadFromSDKConfig(getResp.Config)
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -420,8 +698,16 @@ func (r *b2bSDKConfigResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.SDK.SetB2BConfig
+	setResp, err := r.client.SDK.SetB2BConfig(ctx, sdk.SetB2BConfigRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+		Config:    plan.toSDKConfig(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to set B2B SDK config", err.Error())
+		return
+	}
 
+	plan.reloadFromSDKConfig(setResp.Config)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
