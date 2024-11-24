@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -14,6 +16,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
 	"github.com/stytchauth/stytch-management-go/pkg/models/sdk"
@@ -35,21 +39,43 @@ type b2bSDKConfigResource struct {
 }
 
 type b2bSDKConfigModel struct {
-	ProjectID   types.String           `tfsdk:"project_id"`
-	LastUpdated types.String           `tfsdk:"last_updated"`
-	Config      b2bSDKConfigInnerModel `tfsdk:"config"`
+	ProjectID   types.String `tfsdk:"project_id"`
+	LastUpdated types.String `tfsdk:"last_updated"`
+	Config      types.Object `tfsdk:"config"`
+}
+
+func (m b2bSDKConfigModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"project_id":   types.StringType,
+		"last_updated": types.StringType,
+		"config":       types.ObjectType{AttrTypes: b2bSDKConfigInnerModel{}.AttributeTypes()},
+	}
 }
 
 type b2bSDKConfigInnerModel struct {
-	Basic      b2bSDKConfigBasicModel      `tfsdk:"basic"`
-	Sessions   b2bSDKConfigSessionsModel   `tfsdk:"sessions"`
-	MagicLinks b2bSDKConfigMagicLinksModel `tfsdk:"magic_links"`
-	OAuth      b2bSDKConfigOAuthModel      `tfsdk:"oauth"`
-	TOTPs      b2bSDKConfigTOTPsModel      `tfsdk:"totps"`
-	SSO        b2bSDKConfigSSOModel        `tfsdk:"sso"`
-	OTPs       b2bSDKConfigOTPsModel       `tfsdk:"otps"`
-	DFPPA      b2bSDKConfigDFPPAModel      `tfsdk:"dfppa"`
-	Passwords  b2bSDKConfigPasswordsModel  `tfsdk:"passwords"`
+	Basic      types.Object `tfsdk:"basic"`
+	Sessions   types.Object `tfsdk:"sessions"`
+	MagicLinks types.Object `tfsdk:"magic_links"`
+	OAuth      types.Object `tfsdk:"oauth"`
+	TOTPs      types.Object `tfsdk:"totps"`
+	SSO        types.Object `tfsdk:"sso"`
+	OTPs       types.Object `tfsdk:"otps"`
+	DFPPA      types.Object `tfsdk:"dfppa"`
+	Passwords  types.Object `tfsdk:"passwords"`
+}
+
+func (m b2bSDKConfigInnerModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"basic":       types.ObjectType{AttrTypes: b2bSDKConfigBasicModel{}.AttributeTypes()},
+		"sessions":    types.ObjectType{AttrTypes: b2bSDKConfigSessionsModel{}.AttributeTypes()},
+		"magic_links": types.ObjectType{AttrTypes: b2bSDKConfigMagicLinksModel{}.AttributeTypes()},
+		"oauth":       types.ObjectType{AttrTypes: b2bSDKConfigOAuthModel{}.AttributeTypes()},
+		"totps":       types.ObjectType{AttrTypes: b2bSDKConfigTOTPsModel{}.AttributeTypes()},
+		"sso":         types.ObjectType{AttrTypes: b2bSDKConfigSSOModel{}.AttributeTypes()},
+		"otps":        types.ObjectType{AttrTypes: b2bSDKConfigOTPsModel{}.AttributeTypes()},
+		"dfppa":       types.ObjectType{AttrTypes: b2bSDKConfigDFPPAModel{}.AttributeTypes()},
+		"passwords":   types.ObjectType{AttrTypes: b2bSDKConfigPasswordsModel{}.AttributeTypes()},
+	}
 }
 
 type b2bSDKConfigBasicModel struct {
@@ -61,13 +87,37 @@ type b2bSDKConfigBasicModel struct {
 	BundleIDs               []types.String                      `tfsdk:"bundle_ids"`
 }
 
+func (m b2bSDKConfigBasicModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":                   types.BoolType,
+		"create_new_members":        types.BoolType,
+		"allow_self_onboarding":     types.BoolType,
+		"enable_member_permissions": types.BoolType,
+		"domains":                   types.ListType{ElemType: types.ObjectType{AttrTypes: b2bSDKConfigAuthorizedDomainModel{}.AttributeTypes()}},
+		"bundle_ids":                types.ListType{ElemType: types.StringType},
+	}
+}
+
 type b2bSDKConfigAuthorizedDomainModel struct {
 	Domain      types.String `tfsdk:"domain"`
 	SlugPattern types.String `tfsdk:"slug_pattern"`
 }
 
+func (m b2bSDKConfigAuthorizedDomainModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"domain":       types.StringType,
+		"slug_pattern": types.StringType,
+	}
+}
+
 type b2bSDKConfigSessionsModel struct {
 	MaxSessionDurationMinutes types.Int32 `tfsdk:"max_session_duration_minutes"`
+}
+
+func (m b2bSDKConfigSessionsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"max_session_duration_minutes": types.Int32Type,
+	}
 }
 
 type b2bSDKConfigMagicLinksModel struct {
@@ -75,9 +125,23 @@ type b2bSDKConfigMagicLinksModel struct {
 	PKCERequired types.Bool `tfsdk:"pkce_required"`
 }
 
+func (m b2bSDKConfigMagicLinksModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":       types.BoolType,
+		"pkce_required": types.BoolType,
+	}
+}
+
 type b2bSDKConfigOAuthModel struct {
 	Enabled      types.Bool `tfsdk:"enabled"`
 	PKCERequired types.Bool `tfsdk:"pkce_required"`
+}
+
+func (m b2bSDKConfigOAuthModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":       types.BoolType,
+		"pkce_required": types.BoolType,
+	}
 }
 
 type b2bSDKConfigTOTPsModel struct {
@@ -85,9 +149,23 @@ type b2bSDKConfigTOTPsModel struct {
 	CreateTOTPs types.Bool `tfsdk:"create_totps"`
 }
 
+func (m b2bSDKConfigTOTPsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":      types.BoolType,
+		"create_totps": types.BoolType,
+	}
+}
+
 type b2bSDKConfigSSOModel struct {
 	Enabled      types.Bool `tfsdk:"enabled"`
 	PKCERequired types.Bool `tfsdk:"pkce_required"`
+}
+
+func (m b2bSDKConfigSSOModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":       types.BoolType,
+		"pkce_required": types.BoolType,
+	}
 }
 
 type b2bSDKConfigOTPsModel struct {
@@ -96,10 +174,26 @@ type b2bSDKConfigOTPsModel struct {
 	EmailEnabled        types.Bool               `tfsdk:"email_enabled"`
 }
 
+func (m b2bSDKConfigOTPsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"sms_enabled":           types.BoolType,
+		"sms_autofill_metadata": types.ListType{ElemType: types.ObjectType{AttrTypes: sdkSMSAutofillMetadata{}.AttributeTypes()}},
+		"email_enabled":         types.BoolType,
+	}
+}
+
 type b2bSDKConfigDFPPAModel struct {
 	Enabled              types.String `tfsdk:"enabled"`
 	OnChallenge          types.String `tfsdk:"on_challenge"`
 	LookupTimeoutSeconds types.Int32  `tfsdk:"lookup_timeout_seconds"`
+}
+
+func (m b2bSDKConfigDFPPAModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":                types.StringType,
+		"on_challenge":           types.StringType,
+		"lookup_timeout_seconds": types.Int32Type,
+	}
 }
 
 type b2bSDKConfigPasswordsModel struct {
@@ -107,164 +201,17 @@ type b2bSDKConfigPasswordsModel struct {
 	PKCERequiredForPasswordResets types.Bool `tfsdk:"pkce_required_for_password_resets"`
 }
 
-func (m b2bSDKConfigModel) toSDKConfig() sdk.B2BConfig {
-	c := sdk.B2BConfig{
-		Basic: &sdk.B2BBasicConfig{
-			Enabled:                 m.Config.Basic.Enabled.ValueBool(),
-			CreateNewMembers:        m.Config.Basic.CreateNewMembers.ValueBool(),
-			AllowSelfOnboarding:     m.Config.Basic.AllowSelfOnboarding.ValueBool(),
-			EnableMemberPermissions: m.Config.Basic.EnableMemberPermissions.ValueBool(),
-			Domains:                 make([]sdk.AuthorizedB2BDomain, len(m.Config.Basic.Domains)),
-			BundleIDs:               make([]string, len(m.Config.Basic.BundleIDs)),
-		},
+func (m b2bSDKConfigPasswordsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":                           types.BoolType,
+		"pkce_required_for_password_resets": types.BoolType,
 	}
-	for i, d := range m.Config.Basic.Domains {
-		c.Basic.Domains[i] = sdk.AuthorizedB2BDomain{
-			Domain:      d.Domain.ValueString(),
-			SlugPattern: d.SlugPattern.ValueString(),
-		}
-	}
-	for i, b := range m.Config.Basic.BundleIDs {
-		c.Basic.BundleIDs[i] = b.ValueString()
-	}
-
-	if !m.Config.Sessions.MaxSessionDurationMinutes.IsUnknown() {
-		c.Sessions = &sdk.B2BSessionsConfig{
-			MaxSessionDurationMinutes: m.Config.Sessions.MaxSessionDurationMinutes.ValueInt32(),
-		}
-	}
-
-	if !m.Config.MagicLinks.Enabled.IsUnknown() ||
-		!m.Config.MagicLinks.PKCERequired.IsUnknown() {
-		c.MagicLinks = &sdk.B2BMagicLinksConfig{
-			Enabled:      m.Config.MagicLinks.Enabled.ValueBool(),
-			PKCERequired: m.Config.MagicLinks.PKCERequired.ValueBool(),
-		}
-	}
-
-	if !m.Config.OAuth.Enabled.IsUnknown() ||
-		!m.Config.OAuth.PKCERequired.IsUnknown() {
-		c.OAuth = &sdk.B2BOAuthConfig{
-			Enabled:      m.Config.OAuth.Enabled.ValueBool(),
-			PKCERequired: m.Config.OAuth.PKCERequired.ValueBool(),
-		}
-	}
-
-	if !m.Config.TOTPs.Enabled.IsUnknown() ||
-		!m.Config.TOTPs.CreateTOTPs.IsUnknown() {
-		c.TOTPs = &sdk.B2BTOTPsConfig{
-			Enabled:     m.Config.TOTPs.Enabled.ValueBool(),
-			CreateTOTPs: m.Config.TOTPs.CreateTOTPs.ValueBool(),
-		}
-	}
-
-	if !m.Config.SSO.Enabled.IsUnknown() ||
-		!m.Config.SSO.PKCERequired.IsUnknown() {
-		c.SSO = &sdk.B2BSSOConfig{
-			Enabled:      m.Config.SSO.Enabled.ValueBool(),
-			PKCERequired: m.Config.SSO.PKCERequired.ValueBool(),
-		}
-	}
-
-	if !m.Config.OTPs.SMSEnabled.IsUnknown() ||
-		!m.Config.OTPs.EmailEnabled.IsUnknown() ||
-		len(m.Config.OTPs.SMSAutofillMetadata) > 0 {
-		c.OTPs = &sdk.B2BOTPsConfig{
-			SMSEnabled:          m.Config.OTPs.SMSEnabled.ValueBool(),
-			EmailEnabled:        m.Config.OTPs.EmailEnabled.ValueBool(),
-			SMSAutofillMetadata: make([]sdk.SMSAutofillMetadata, len(m.Config.OTPs.SMSAutofillMetadata)),
-		}
-		for i, m := range m.Config.OTPs.SMSAutofillMetadata {
-			c.OTPs.SMSAutofillMetadata[i] = sdk.SMSAutofillMetadata{
-				MetadataType:  m.MetadataType.ValueString(),
-				MetadataValue: m.MetadataValue.ValueString(),
-				BundleID:      m.BundleID.ValueString(),
-			}
-		}
-	}
-
-	if !m.Config.DFPPA.Enabled.IsUnknown() ||
-		!m.Config.DFPPA.OnChallenge.IsUnknown() ||
-		!m.Config.DFPPA.LookupTimeoutSeconds.IsUnknown() {
-		c.DFPPA = &sdk.B2BDFPPAConfig{
-			Enabled:              sdk.DFPPASetting(m.Config.DFPPA.Enabled.ValueString()),
-			OnChallenge:          sdk.DFPPAOnChallengeAction(m.Config.DFPPA.OnChallenge.ValueString()),
-			LookupTimeoutSeconds: m.Config.DFPPA.LookupTimeoutSeconds.ValueInt32(),
-		}
-	}
-
-	if !m.Config.Passwords.Enabled.IsUnknown() ||
-		!m.Config.Passwords.PKCERequiredForPasswordResets.IsUnknown() {
-		c.Passwords = &sdk.B2BPasswordsConfig{
-			Enabled:                       m.Config.Passwords.Enabled.ValueBool(),
-			PKCERequiredForPasswordResets: m.Config.Passwords.PKCERequiredForPasswordResets.ValueBool(),
-		}
-	}
-
-	return c
 }
 
-func (m *b2bSDKConfigModel) reloadFromSDKConfig(c sdk.B2BConfig) {
-	cfg := b2bSDKConfigInnerModel{
-		Basic: b2bSDKConfigBasicModel{
-			Enabled:                 types.BoolValue(c.Basic.Enabled),
-			CreateNewMembers:        types.BoolValue(c.Basic.CreateNewMembers),
-			AllowSelfOnboarding:     types.BoolValue(c.Basic.AllowSelfOnboarding),
-			EnableMemberPermissions: types.BoolValue(c.Basic.EnableMemberPermissions),
-			Domains:                 make([]b2bSDKConfigAuthorizedDomainModel, len(c.Basic.Domains)),
-			BundleIDs:               make([]types.String, len(c.Basic.BundleIDs)),
-		},
-		Sessions: b2bSDKConfigSessionsModel{
-			MaxSessionDurationMinutes: types.Int32Value(c.Sessions.MaxSessionDurationMinutes),
-		},
-		MagicLinks: b2bSDKConfigMagicLinksModel{
-			Enabled:      types.BoolValue(c.MagicLinks.Enabled),
-			PKCERequired: types.BoolValue(c.MagicLinks.PKCERequired),
-		},
-		OAuth: b2bSDKConfigOAuthModel{
-			Enabled:      types.BoolValue(c.OAuth.Enabled),
-			PKCERequired: types.BoolValue(c.OAuth.PKCERequired),
-		},
-		TOTPs: b2bSDKConfigTOTPsModel{
-			Enabled:     types.BoolValue(c.TOTPs.Enabled),
-			CreateTOTPs: types.BoolValue(c.TOTPs.CreateTOTPs),
-		},
-		SSO: b2bSDKConfigSSOModel{
-			Enabled:      types.BoolValue(c.SSO.Enabled),
-			PKCERequired: types.BoolValue(c.SSO.PKCERequired),
-		},
-		OTPs: b2bSDKConfigOTPsModel{
-			SMSEnabled:          types.BoolValue(c.OTPs.SMSEnabled),
-			EmailEnabled:        types.BoolValue(c.OTPs.EmailEnabled),
-			SMSAutofillMetadata: make([]sdkSMSAutofillMetadata, len(c.OTPs.SMSAutofillMetadata)),
-		},
-		DFPPA: b2bSDKConfigDFPPAModel{
-			Enabled:              types.StringValue(string(c.DFPPA.Enabled)),
-			OnChallenge:          types.StringValue(string(c.DFPPA.OnChallenge)),
-			LookupTimeoutSeconds: types.Int32Value(c.DFPPA.LookupTimeoutSeconds),
-		},
-		Passwords: b2bSDKConfigPasswordsModel{
-			Enabled:                       types.BoolValue(c.Passwords.Enabled),
-			PKCERequiredForPasswordResets: types.BoolValue(c.Passwords.PKCERequiredForPasswordResets),
-		},
-	}
-	for i, d := range c.Basic.Domains {
-		cfg.Basic.Domains[i] = b2bSDKConfigAuthorizedDomainModel{
-			Domain:      types.StringValue(d.Domain),
-			SlugPattern: types.StringValue(d.SlugPattern),
-		}
-	}
-	for i, b := range c.Basic.BundleIDs {
-		cfg.Basic.BundleIDs[i] = types.StringValue(b)
-	}
-	for i, d := range c.OTPs.SMSAutofillMetadata {
-		cfg.OTPs.SMSAutofillMetadata[i] = sdkSMSAutofillMetadata{
-			MetadataType:  types.StringValue(d.MetadataType),
-			MetadataValue: types.StringValue(d.MetadataValue),
-			BundleID:      types.StringValue(d.BundleID),
-		}
-	}
+func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BConfig) diag.Diagnostics {
+	cfg, diag := types.ObjectValueFrom(ctx, b2bSDKConfigInnerModel{}.AttributeTypes(), &m.Config)
 	m.Config = cfg
+	return diag
 }
 
 func (r *b2bSDKConfigResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -622,6 +569,13 @@ func (r b2bSDKConfigResource) ValidateConfig(ctx context.Context, req resource.V
 		return
 	}
 
+	// If the projectID isn't yet known, skip validation for now.
+	// The plugin framework will call ValidateConfig again when all required values are known.
+	if data.ProjectID.IsUnknown() {
+		return
+	}
+
+	tflog.Info(ctx, fmt.Sprintf("Validating B2B SDK config for %+v", data))
 	getProjectResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
 		ProjectID: data.ProjectID.ValueString(),
 	})
@@ -644,16 +598,27 @@ func (r *b2bSDKConfigResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	var cfg sdk.B2BConfig
+	diags = plan.Config.As(ctx, &cfg, basetypes.ObjectAsOptions{
+		UnhandledNullAsEmpty:    true,
+		UnhandledUnknownAsEmpty: true,
+	})
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	setResp, err := r.client.SDK.SetB2BConfig(ctx, sdk.SetB2BConfigRequest{
 		ProjectID: plan.ProjectID.ValueString(),
-		Config:    plan.toSDKConfig(),
+		Config:    cfg,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to set B2B SDK config", err.Error())
 		return
 	}
 
-	plan.reloadFromSDKConfig(setResp.Config)
+	diags = plan.reloadFromSDKConfig(ctx, setResp.Config)
+	resp.Diagnostics.Append(diags...)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -681,7 +646,8 @@ func (r *b2bSDKConfigResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	state.reloadFromSDKConfig(getResp.Config)
+	diags = state.reloadFromSDKConfig(ctx, getResp.Config)
+	resp.Diagnostics.Append(diags...)
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -698,16 +664,27 @@ func (r *b2bSDKConfigResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	var cfg sdk.B2BConfig
+	diags = plan.Config.As(ctx, &cfg, basetypes.ObjectAsOptions{
+		UnhandledNullAsEmpty:    true,
+		UnhandledUnknownAsEmpty: true,
+	})
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	setResp, err := r.client.SDK.SetB2BConfig(ctx, sdk.SetB2BConfigRequest{
 		ProjectID: plan.ProjectID.ValueString(),
-		Config:    plan.toSDKConfig(),
+		Config:    cfg,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to set B2B SDK config", err.Error())
 		return
 	}
 
-	plan.reloadFromSDKConfig(setResp.Config)
+	diags = plan.reloadFromSDKConfig(ctx, setResp.Config)
+	resp.Diagnostics.Append(diags...)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
