@@ -82,7 +82,7 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
       bundle_ids                = ["com.stytch.app", "com.stytch.app2"]
     }
     sessions = {
-      max_session_duration_minutes = 15
+      max_session_duration_minutes = 60
     }
     totps = {
       enabled      = true
