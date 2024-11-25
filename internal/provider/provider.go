@@ -154,9 +154,13 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 
 func (p *StytchProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		resources.NewB2BSDKConfigResource,
+		resources.NewConsumerSDKConfigResource,
 		resources.NewPasswordConfigResource,
 		resources.NewProjectResource,
+		resources.NewPublicTokenResource,
 		resources.NewRedirectURLResource,
+		resources.NewSecretResource,
 	}
 }
 
