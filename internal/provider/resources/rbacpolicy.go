@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
+	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
+	"github.com/stytchauth/stytch-management-go/pkg/models/rbacpolicy"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -28,13 +33,123 @@ type rbacPolicyResource struct {
 }
 
 type rbacPolicyModel struct {
-	ProjectID       types.String              `tfsdk:"project_id"`
-	LastUpdated     types.String              `tfsdk:"last_updated"`
-	StytchMember    rbacPolicyRoleModel       `tfsdk:"stytch_member"`
-	StytchAdmin     rbacPolicyRoleModel       `tfsdk:"stytch_admin"`
-	StytchResources []rbacPolicyResourceModel `tfsdk:"stytch_resources"`
-	CustomRoles     []rbacPolicyRoleModel     `tfsdk:"custom_roles"`
-	CustomResources []rbacPolicyResourceModel `tfsdk:"custom_resources"`
+	ProjectID       types.String `tfsdk:"project_id"`
+	LastUpdated     types.String `tfsdk:"last_updated"`
+	StytchMember    types.Object `tfsdk:"stytch_member"`
+	StytchAdmin     types.Object `tfsdk:"stytch_admin"`
+	StytchResources types.Set    `tfsdk:"stytch_resources"`
+	CustomRoles     types.Set    `tfsdk:"custom_roles"`
+	CustomResources types.Set    `tfsdk:"custom_resources"`
+}
+
+func (m rbacPolicyModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"project_id":    types.StringType,
+		"last_updated":  types.StringType,
+		"stytch_member": types.ObjectType{AttrTypes: rbacPolicyRoleModel{}.AttributeTypes()},
+		"stytch_admin":  types.ObjectType{AttrTypes: rbacPolicyRoleModel{}.AttributeTypes()},
+		"stytch_resources": types.SetType{
+			ElemType: types.ObjectType{
+				AttrTypes: rbacPolicyResourceModel{}.AttributeTypes(),
+			},
+		},
+		"custom_roles": types.SetType{
+			ElemType: types.ObjectType{
+				AttrTypes: rbacPolicyRoleModel{}.AttributeTypes(),
+			},
+		},
+		"custom_resources": types.SetType{
+			ElemType: types.ObjectType{
+				AttrTypes: rbacPolicyResourceModel{}.AttributeTypes(),
+			},
+		},
+	}
+}
+
+func (m rbacPolicyModel) toPolicy(ctx context.Context) (rbacpolicy.Policy, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var policy rbacpolicy.Policy
+
+	if !m.StytchMember.IsUnknown() {
+		var stytchMember rbacPolicyRoleModel
+		diags.Append(m.StytchMember.As(ctx, &stytchMember, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
+		policy.StytchMember = stytchMember.toRole()
+	}
+
+	if !m.StytchAdmin.IsUnknown() {
+		var stytchAdmin rbacPolicyRoleModel
+		diags.Append(m.StytchAdmin.As(ctx, &stytchAdmin, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
+		policy.StytchAdmin = stytchAdmin.toRole()
+	}
+
+	// StytchResources can't be set by the provisioner, so we ignore it here.
+
+	if !m.CustomRoles.IsUnknown() {
+		var customRoles []rbacPolicyRoleModel
+		diags.Append(m.CustomRoles.ElementsAs(ctx, &customRoles, true)...)
+
+		policy.CustomRoles = make([]rbacpolicy.Role, len(customRoles))
+		for i, roleModel := range customRoles {
+			policy.CustomRoles[i] = roleModel.toRole()
+		}
+	}
+
+	if !m.CustomResources.IsUnknown() {
+		var customResources []rbacPolicyResourceModel
+		diags.Append(m.CustomResources.ElementsAs(ctx, &customResources, true)...)
+
+		policy.CustomResources = make([]rbacpolicy.Resource, len(customResources))
+		for i, resourceModel := range customResources {
+			policy.CustomResources[i] = resourceModel.toResource()
+		}
+	}
+
+	return policy, diags
+}
+
+func (m *rbacPolicyModel) reloadFromPolicy(ctx context.Context, p rbacpolicy.Policy) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(p.StytchMember))
+	diags = append(diags, diag...)
+
+	stytchAdmin, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(p.StytchAdmin))
+	diags = append(diags, diag...)
+
+	stytchResources := make([]rbacPolicyResourceModel, len(p.StytchResources))
+	for i, r := range p.StytchResources {
+		stytchResources[i] = rbacPolicyResourceModelFrom(r)
+	}
+	stytchResourceSet, diag := types.SetValueFrom(ctx, types.ObjectType{AttrTypes: rbacPolicyResourceModel{}.AttributeTypes()}, stytchResources)
+	diags = append(diags, diag...)
+
+	customRoles := make([]rbacPolicyRoleModel, len(p.CustomRoles))
+	for i, r := range p.CustomRoles {
+		customRoles[i] = rbacPolicyRoleModelFrom(r)
+	}
+	customRoleSet, diag := types.SetValueFrom(ctx, types.ObjectType{AttrTypes: rbacPolicyRoleModel{}.AttributeTypes()}, customRoles)
+	diags = append(diags, diag...)
+
+	customResources := make([]rbacPolicyResourceModel, len(p.CustomResources))
+	for i, r := range p.CustomResources {
+		customResources[i] = rbacPolicyResourceModelFrom(r)
+	}
+	customResourceSet, diag := types.SetValueFrom(ctx, types.ObjectType{AttrTypes: rbacPolicyResourceModel{}.AttributeTypes()}, customResources)
+	diags = append(diags, diag...)
+
+	m.StytchMember = stytchMember
+	m.StytchAdmin = stytchAdmin
+	m.StytchResources = stytchResourceSet
+	m.CustomRoles = customRoleSet
+	m.CustomResources = customResourceSet
+
+	return diags
 }
 
 type rbacPolicyRoleModel struct {
@@ -43,15 +158,103 @@ type rbacPolicyRoleModel struct {
 	Permissions []rbacPolicyPermissionModel `tfsdk:"permissions"`
 }
 
+func (m rbacPolicyRoleModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"role_id":     types.StringType,
+		"description": types.StringType,
+		"permissions": types.SetType{ElemType: types.ObjectType{AttrTypes: rbacPolicyPermissionModel{}.AttributeTypes()}},
+	}
+}
+
+func (m rbacPolicyRoleModel) toRole() rbacpolicy.Role {
+	role := rbacpolicy.Role{
+		RoleID:      m.RoleID.ValueString(),
+		Description: m.Description.ValueString(),
+		Permissions: make([]rbacpolicy.Permission, len(m.Permissions)),
+	}
+	for i, p := range m.Permissions {
+		role.Permissions[i] = rbacpolicy.Permission{
+			ResourceID: p.ResourceID.ValueString(),
+			Actions:    make([]string, len(p.Actions)),
+		}
+		for j, a := range p.Actions {
+			role.Permissions[i].Actions[j] = a.ValueString()
+		}
+	}
+	return role
+}
+
+func rbacPolicyRoleModelFrom(r rbacpolicy.Role) rbacPolicyRoleModel {
+	perms := make([]rbacPolicyPermissionModel, len(r.Permissions))
+	for i, p := range r.Permissions {
+		perms[i] = rbacPolicyPermissionModelFrom(p)
+	}
+	return rbacPolicyRoleModel{
+		RoleID:      types.StringValue(r.RoleID),
+		Description: types.StringValue(r.Description),
+		Permissions: perms,
+	}
+}
+
 type rbacPolicyResourceModel struct {
 	ResourceID       types.String   `tfsdk:"resource_id"`
 	Description      types.String   `tfsdk:"description"`
 	AvailableActions []types.String `tfsdk:"available_actions"`
 }
 
+func (m rbacPolicyResourceModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"resource_id":       types.StringType,
+		"description":       types.StringType,
+		"available_actions": types.SetType{ElemType: types.StringType},
+	}
+}
+
+func (m rbacPolicyResourceModel) toResource() rbacpolicy.Resource {
+	resource := rbacpolicy.Resource{
+		ResourceID:       m.ResourceID.ValueString(),
+		Description:      m.Description.ValueString(),
+		AvailableActions: make([]string, len(m.AvailableActions)),
+	}
+	for i, a := range m.AvailableActions {
+		resource.AvailableActions[i] = a.ValueString()
+	}
+	return resource
+}
+
+func rbacPolicyResourceModelFrom(r rbacpolicy.Resource) rbacPolicyResourceModel {
+	actions := make([]types.String, len(r.AvailableActions))
+	for i, a := range r.AvailableActions {
+		actions[i] = types.StringValue(a)
+	}
+	return rbacPolicyResourceModel{
+		ResourceID:       types.StringValue(r.ResourceID),
+		Description:      types.StringValue(r.Description),
+		AvailableActions: actions,
+	}
+}
+
 type rbacPolicyPermissionModel struct {
 	ResourceID types.String   `tfsdk:"resource_id"`
 	Actions    []types.String `tfsdk:"actions"`
+}
+
+func (m rbacPolicyPermissionModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"resource_id": types.StringType,
+		"actions":     types.SetType{ElemType: types.StringType},
+	}
+}
+
+func rbacPolicyPermissionModelFrom(p rbacpolicy.Permission) rbacPolicyPermissionModel {
+	actions := make([]types.String, len(p.Actions))
+	for i, a := range p.Actions {
+		actions[i] = types.StringValue(a)
+	}
+	return rbacPolicyPermissionModel{
+		ResourceID: types.StringValue(p.ResourceID),
+		Actions:    actions,
+	}
 }
 
 func (r *rbacPolicyResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -91,7 +294,7 @@ var roleAttributes = map[string]schema.Attribute{
 		Computed:    true,
 		Description: "A description of the role",
 	},
-	"permissions": schema.ListNestedAttribute{
+	"permissions": schema.SetNestedAttribute{
 		Optional: true,
 		Computed: true,
 		NestedObject: schema.NestedAttributeObject{
@@ -101,7 +304,7 @@ var roleAttributes = map[string]schema.Attribute{
 					Computed:    true,
 					Description: "The ID of the resource that the role can perform actions on.",
 				},
-				"actions": schema.ListAttribute{
+				"actions": schema.SetAttribute{
 					Optional:    true,
 					Computed:    true,
 					ElementType: types.StringType,
@@ -123,7 +326,7 @@ var resourceAttributes = map[string]schema.Attribute{
 		Computed:    true,
 		Description: "A description of the resource",
 	},
-	"available_actions": schema.ListAttribute{
+	"available_actions": schema.SetAttribute{
 		Optional:    true,
 		Computed:    true,
 		ElementType: types.StringType,
@@ -154,7 +357,7 @@ func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Description: "The role assigned to admins within an organization",
 				Attributes:  roleAttributes,
 			},
-			"stytch_resources": schema.ListNestedAttribute{
+			"stytch_resources": schema.SetNestedAttribute{
 				Computed: true,
 				Description: "StytchResources consists of resources created by Stytch that always exist. " +
 					"This field will be returned in relevant Policy objects but can never be overridden or deleted.",
@@ -162,7 +365,7 @@ func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					Attributes: resourceAttributes,
 				},
 			},
-			"custom_roles": schema.ListNestedAttribute{
+			"custom_roles": schema.SetNestedAttribute{
 				Optional:    true,
 				Computed:    true,
 				Description: "Additional roles that exist within the project beyond the stytch_member or stytch_admin roles",
@@ -170,7 +373,7 @@ func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					Attributes: roleAttributes,
 				},
 			},
-			"custom_resources": schema.ListNestedAttribute{
+			"custom_resources": schema.SetNestedAttribute{
 				Optional:    true,
 				Computed:    true,
 				Description: "Resources that exist within the project beyond those defined within the stytch_resources",
@@ -179,6 +382,33 @@ func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				},
 			},
 		},
+	}
+}
+
+func (r rbacPolicyResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data rbacPolicyModel
+	diags := req.Config.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// If the projectID isn't yet known, skip validation for now.
+	// The plugin framework will call ValidateConfig again when all required values are known.
+	if data.ProjectID.IsUnknown() {
+		return
+	}
+
+	getProjectResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
+		ProjectID: data.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddWarning("Failed to get project for vertical check", err.Error())
+		return
+	}
+	if getProjectResp.Project.Vertical != projects.VerticalB2B {
+		resp.Diagnostics.AddError("Invalid project vertical", "The project must be a B2B project for this resource.")
+		return
 	}
 }
 
@@ -191,8 +421,43 @@ func (r *rbacPolicyResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.RBAC.SetPolicy
+	// Since we're not allowed to edit certain attributes of the default stytch member
+	// and the RBAC API requires setting *all* fields, we now *retrieve* the current value.
+	if plan.StytchMember.IsUnknown() || plan.StytchAdmin.IsUnknown() {
+		getResp, err := r.client.RBACPolicy.Get(ctx, rbacpolicy.GetRequest{
+			ProjectID: plan.ProjectID.ValueString(),
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to fetch default Stytch role", "Failed to fetch default Stytch member or admin role for RBAC policy")
+			return
+		}
 
+		stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchMember))
+		resp.Diagnostics.Append(diag...)
+		stytchAdmin, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchAdmin))
+		resp.Diagnostics.Append(diag...)
+
+		plan.StytchMember = stytchMember
+		plan.StytchAdmin = stytchAdmin
+	}
+
+	policy, diags := plan.toPolicy(ctx)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	setResp, err := r.client.RBACPolicy.Set(ctx, rbacpolicy.SetRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+		Policy:    policy,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to set RBAC policy", err.Error())
+		return
+	}
+
+	diags = plan.reloadFromPolicy(ctx, setResp.Policy)
+	resp.Diagnostics.Append(diags...)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -211,9 +476,16 @@ func (r *rbacPolicyResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	// TODO: Get refreshed value from the API
+	getResp, err := r.client.RBACPolicy.Get(ctx, rbacpolicy.GetRequest{
+		ProjectID: state.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get RBAC policy", err.Error())
+		return
+	}
 
-	// Set refreshed state
+	diags = state.reloadFromPolicy(ctx, getResp.Policy)
+	resp.Diagnostics.Append(diags...)
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -230,8 +502,43 @@ func (r *rbacPolicyResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.RBAC.SetPolicy
+	// Since we're not allowed to edit certain attributes of the default stytch member
+	// and the RBAC API requires setting *all* fields, we now *retrieve* the current value.
+	if plan.StytchMember.IsUnknown() || plan.StytchAdmin.IsUnknown() {
+		getResp, err := r.client.RBACPolicy.Get(ctx, rbacpolicy.GetRequest{
+			ProjectID: plan.ProjectID.ValueString(),
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to fetch default Stytch role", "Failed to fetch default Stytch member or admin role for RBAC policy")
+			return
+		}
 
+		stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchMember))
+		resp.Diagnostics.Append(diag...)
+		stytchAdmin, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchAdmin))
+		resp.Diagnostics.Append(diag...)
+
+		plan.StytchMember = stytchMember
+		plan.StytchAdmin = stytchAdmin
+	}
+
+	policy, diags := plan.toPolicy(ctx)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	setResp, err := r.client.RBACPolicy.Set(ctx, rbacpolicy.SetRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+		Policy:    policy,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to set RBAC policy", err.Error())
+		return
+	}
+
+	diags = plan.reloadFromPolicy(ctx, setResp.Policy)
+	resp.Diagnostics.Append(diags...)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -249,7 +556,7 @@ func (r *rbacPolicyResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
-	// In this case, deleting a password config just means no longer tracaking its state in terraform.
+	// In this case, deleting an RBAC policy just means no longer tracaking its state in terraform.
 	// We don't have to actually make a delete call within the API.
 	// Would it make sense to set some sort of policy "defaults" again?
 }
