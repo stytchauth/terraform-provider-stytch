@@ -511,10 +511,14 @@ func (r *emailTemplateResource) Delete(ctx context.Context, req resource.DeleteR
 		return
 	}
 
-	r.client.EmailTemplates.Delete(ctx, emailtemplates.DeleteRequest{
+	_, err := r.client.EmailTemplates.Delete(ctx, emailtemplates.DeleteRequest{
 		ProjectID:  state.LiveProjectID.ValueString(),
 		TemplateID: state.TemplateID.ValueString(),
 	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to delete email template", err.Error())
+		return
+	}
 }
 
 func (r *emailTemplateResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

@@ -1092,8 +1092,25 @@ func (r *consumerSDKConfigResource) Delete(ctx context.Context, req resource.Del
 		return
 	}
 
-	// In this case, deleting an SDK config just means no longer tracking its state in terraform.
-	// TODO: We *should* however make a call to the API to disable the SDK config.
+	// To delete the SDK config, we set the basic config to disabled. Other fields are left as-is. Although this isn't
+	// *perfect*, it's the best we can do since we don't want to define various "defaults" in different repos since they
+	// would likely drift apart over time.
+	// NOTE: This does cause a bit of weirdness if someone previously set some field like Sessions.MaxSessionDurationMinutes,
+	// then deleted the entire config, then *recreated* it and wanted to rely on the "default" session duration value. Since
+	// this value isn't "officially" endorsed anywhere, we assume that the provisioner not specifying it means they're fine
+	// with any acceptable value.
+	_, err := r.client.SDK.SetConsumerConfig(ctx, sdk.SetConsumerConfigRequest{
+		ProjectID: state.ProjectID.ValueString(),
+		Config: sdk.ConsumerConfig{
+			Basic: &sdk.ConsumerBasicConfig{
+				Enabled: false,
+			},
+		},
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to reset Consumer SDK config", err.Error())
+		return
+	}
 }
 
 func (r *consumerSDKConfigResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
