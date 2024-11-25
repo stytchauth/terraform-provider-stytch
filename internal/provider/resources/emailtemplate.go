@@ -29,8 +29,8 @@ type emailTemplateResource struct {
 
 type emailTemplateModel struct {
 	LiveProjectID           types.String                              `tfsdk:"live_project_id"`
-	TemplateID              types.String                              `tfsdk:"template_id"`
 	LastUpdated             types.String                              `tfsdk:"last_updated"`
+	TemplateID              types.String                              `tfsdk:"template_id"`
 	Name                    types.String                              `tfsdk:"name"`
 	SenderInformation       emailTemplateSenderInformationModel       `tfsdk:"sender_information"`
 	PrebuiltCustomization   emailTemplatePrebuiltCustomizationModel   `tfsdk:"prebuilt_customization"`
@@ -83,7 +83,7 @@ func (r *emailTemplateResource) Configure(ctx context.Context, req resource.Conf
 
 // Metadata returns the resource type name.
 func (r *emailTemplateResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_project"
+	resp.TypeName = req.ProviderTypeName + "_email_template"
 }
 
 // Schema defines the schema for the resource.
@@ -91,13 +91,16 @@ func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaReque
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"live_project_id": schema.StringAttribute{
-				Computed:    true,
+				Required:    true,
 				Description: "The unique identifier for the live project.",
 			},
 			"template_id": schema.StringAttribute{
 				Required: true,
 				Description: "A unique identifier to use for the template – this is how you'll refer to the template when sending " +
 					"emails from your project or managing this template. It can never be changed after creation.",
+			},
+			"last_updated": schema.StringAttribute{
+				Computed: true,
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
