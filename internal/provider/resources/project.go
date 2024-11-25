@@ -209,9 +209,9 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	updateResp, err := r.client.Projects.Update(ctx, projects.UpdateRequest{
-		ProjectID:            plan.LiveProjectID.ValueString(),
-		Name:                 plan.Name.ValueString(),
-		UseCrossOrgPasswords: plan.UseCrossOrgPasswords.ValueBool(),
+		ProjectID: plan.LiveProjectID.ValueString(),
+		Name:      plan.Name.ValueString(),
+		// UseCrossOrgPasswords: plan.UseCrossOrgPasswords.ValueBool(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update project", err.Error())
