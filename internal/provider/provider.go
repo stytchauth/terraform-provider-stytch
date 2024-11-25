@@ -155,6 +155,8 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 func (p *StytchProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.NewPasswordConfigResource,
+		resources.NewProjectResource,
+		resources.NewRedirectURLResource,
 	}
 }
 
