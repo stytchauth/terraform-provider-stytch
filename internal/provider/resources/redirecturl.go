@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
+	"github.com/stytchauth/stytch-management-go/pkg/models/redirecturls"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -73,11 +74,14 @@ func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Required:    true,
 				Description: "The ID of the project to create the redirect URL for.",
 			},
+			"last_updated": schema.StringAttribute{
+				Computed: true,
+			},
 			"url": schema.StringAttribute{
 				Required:    true,
 				Description: "The URL to redirect to.",
 			},
-			"valid_types": schema.ListNestedAttribute{
+			"valid_types": schema.SetNestedAttribute{
 				Required: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -96,6 +100,27 @@ func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
+func (r redirectURLResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data redirectURLModel
+	diags := req.Config.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	m := make(map[string]bool)
+	for _, typ := range data.ValidTypes {
+		if m[typ.Type.ValueString()] {
+			resp.Diagnostics.AddError("Duplicate type", fmt.Sprintf("Duplicate type %s", typ.Type.ValueString()))
+		}
+		m[typ.Type.ValueString()] = true
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+}
+
 // Create creates the resource and sets the initial Terraform state.
 func (r *redirectURLResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan redirectURLModel
@@ -105,7 +130,25 @@ func (r *redirectURLResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.RedirectURLS.Create
+	redirectURL := redirecturls.RedirectURL{
+		URL: plan.URL.ValueString(),
+	}
+
+	for _, typ := range plan.ValidTypes {
+		redirectURL.ValidTypes = append(redirectURL.ValidTypes, redirecturls.URLRedirectType{
+			Type:      redirecturls.RedirectType(typ.Type.ValueString()),
+			IsDefault: typ.IsDefault.ValueBool(),
+		})
+	}
+
+	_, err := r.client.RedirectURLs.Create(ctx, redirecturls.CreateRequest{
+		ProjectID:   plan.ProjectID.ValueString(),
+		RedirectURL: redirectURL,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to create redirect URL", err.Error())
+		return
+	}
 
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
@@ -125,9 +168,23 @@ func (r *redirectURLResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	// TODO: Get refreshed value from the API
+	getResp, err := r.client.RedirectURLs.Get(ctx, redirecturls.GetRequest{
+		ProjectID: state.ProjectID.ValueString(),
+		URL:       state.URL.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get redirect URL", err.Error())
+		return
+	}
 
-	// Set refreshed state
+	state.ValidTypes = nil
+	for _, typ := range getResp.RedirectURL.ValidTypes {
+		state.ValidTypes = append(state.ValidTypes, redirectURLTypeModel{
+			Type:      types.StringValue(string(typ.Type)),
+			IsDefault: types.BoolValue(typ.IsDefault),
+		})
+	}
+
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -144,7 +201,25 @@ func (r *redirectURLResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.RedirectURLs.Update
+	redirectURL := redirecturls.RedirectURL{
+		URL: plan.URL.ValueString(),
+	}
+
+	for _, typ := range plan.ValidTypes {
+		redirectURL.ValidTypes = append(redirectURL.ValidTypes, redirecturls.URLRedirectType{
+			Type:      redirecturls.RedirectType(typ.Type.ValueString()),
+			IsDefault: typ.IsDefault.ValueBool(),
+		})
+	}
+
+	_, err := r.client.RedirectURLs.Update(ctx, redirecturls.UpdateRequest{
+		ProjectID:   plan.ProjectID.ValueString(),
+		RedirectURL: redirectURL,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to update redirect URL", err.Error())
+		return
+	}
 
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
@@ -163,7 +238,14 @@ func (r *redirectURLResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	// TODO: Call r.client.RedirectURLs.Delete
+	_, err := r.client.RedirectURLs.Delete(ctx, redirecturls.DeleteRequest{
+		ProjectID: state.ProjectID.ValueString(),
+		URL:       state.URL.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to delete redirect URL", err.Error())
+		return
+	}
 }
 
 func (r *redirectURLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

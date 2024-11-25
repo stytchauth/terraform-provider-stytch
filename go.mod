@@ -4,7 +4,7 @@ go 1.22.7
 
 require (
 	github.com/hashicorp/terraform-plugin-framework v1.13.0
-	github.com/stytchauth/stytch-management-go v1.0.1
+	github.com/stytchauth/stytch-management-go v0.1.0
 )
 
 require (
@@ -31,3 +31,5 @@ require (
 	google.golang.org/grpc v1.67.1 // indirect
 	google.golang.org/protobuf v1.35.1 // indirect
 )
+
+replace github.com/stytchauth/stytch-management-go => ../stytch-management-go
