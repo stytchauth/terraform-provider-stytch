@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -10,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
+	"github.com/stytchauth/stytch-management-go/pkg/models/secrets"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -66,6 +68,9 @@ func (r *secretResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"secret_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "The unique identifier for the secret.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"project_id": schema.StringAttribute{
 				Required:    true,
@@ -77,11 +82,17 @@ func (r *secretResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"created_at": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ISO-8601 timestamp when the secret was created.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"secret": schema.StringAttribute{
 				Computed:    true,
 				Sensitive:   true,
 				Description: "The secret value.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -96,8 +107,17 @@ func (r *secretResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.Secrets.Create
+	createResp, err := r.client.Secrets.Create(ctx, secrets.CreateSecretRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to create secret", err.Error())
+		return
+	}
 
+	plan.SecretID = types.StringValue(createResp.CreatedSecret.SecretID)
+	plan.CreatedAt = types.StringValue(createResp.CreatedSecret.CreatedAt.Format(time.RFC3339))
+	plan.Secret = types.StringValue(createResp.CreatedSecret.Secret)
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -115,9 +135,16 @@ func (r *secretResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	// TODO: Get refreshed value from the API
+	// We call get here just to verify the secret still exists, but there's no state to update.
+	_, err := r.client.Secrets.Get(ctx, secrets.GetSecretRequest{
+		ProjectID: state.ProjectID.ValueString(),
+		SecretID:  state.SecretID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get secret", err.Error())
+		return
+	}
 
-	// Set refreshed state
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -139,5 +166,8 @@ func (r *secretResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	// TODO: Call r.client.Secrets.Delete
+	r.client.Secrets.Delete(ctx, secrets.DeleteSecretRequest{
+		ProjectID: state.ProjectID.ValueString(),
+		SecretID:  state.SecretID.ValueString(),
+	})
 }
