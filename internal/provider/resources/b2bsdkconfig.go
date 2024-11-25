@@ -367,8 +367,6 @@ func (m b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, diag
 	return c, diags
 }
 
-var nilSDKObject = "The object returned from the API was nil. This should never happen. Please report this issue to the provider developers."
-
 func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BConfig) diag.Diagnostics {
 	var diags diag.Diagnostics
 
