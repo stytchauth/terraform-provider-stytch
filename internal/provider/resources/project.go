@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
 )
@@ -32,6 +33,7 @@ type projectResource struct {
 }
 
 type projectModel struct {
+	ID                   types.String `tfsdk:"id"`
 	LiveProjectID        types.String `tfsdk:"live_project_id"`
 	TestProjectID        types.String `tfsdk:"test_project_id"`
 	LastUpdated          types.String `tfsdk:"last_updated"`
@@ -41,6 +43,19 @@ type projectModel struct {
 	LiveOAuthCallbackID  types.String `tfsdk:"live_oauth_callback_id"`
 	TestOAuthCallbackID  types.String `tfsdk:"test_oauth_callback_id"`
 	UseCrossOrgPasswords types.Bool   `tfsdk:"use_cross_org_passwords"`
+}
+
+func (m *projectModel) refreshFromProject(p projects.Project) {
+	m.ID = types.StringValue(p.LiveProjectID)
+	m.LiveProjectID = types.StringValue(p.LiveProjectID)
+	m.TestProjectID = types.StringValue(p.TestProjectID)
+	m.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	m.CreatedAt = types.StringValue(p.CreatedAt.Format(time.RFC3339))
+	m.Name = types.StringValue(p.Name)
+	m.Vertical = types.StringValue(string(p.Vertical))
+	m.LiveOAuthCallbackID = types.StringValue(p.LiveOAuthCallbackID)
+	m.TestOAuthCallbackID = types.StringValue(p.TestOAuthCallbackID)
+	m.UseCrossOrgPasswords = types.BoolValue(p.UseCrossOrgPasswords)
 }
 
 func (r *projectResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -73,6 +88,9 @@ func (r *projectResource) Metadata(_ context.Context, req resource.MetadataReque
 func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
 			"live_project_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "The unique identifier for the live project.",
@@ -144,6 +162,10 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_name", plan.Name.ValueString())
+	ctx = tflog.SetField(ctx, "vertical", plan.Vertical.ValueString())
+	tflog.Info(ctx, "Creating project")
+
 	createResp, err := r.client.Projects.Create(ctx, projects.CreateRequest{
 		ProjectName: plan.Name.ValueString(),
 		Vertical:    projects.Vertical(plan.Vertical.ValueString()),
@@ -153,13 +175,11 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	plan.LiveProjectID = types.StringValue(createResp.Project.LiveProjectID)
-	plan.TestProjectID = types.StringValue(createResp.Project.TestProjectID)
-	plan.LiveOAuthCallbackID = types.StringValue(createResp.Project.LiveOAuthCallbackID)
-	plan.TestOAuthCallbackID = types.StringValue(createResp.Project.TestOAuthCallbackID)
-	plan.CreatedAt = types.StringValue(createResp.Project.CreatedAt.Format(time.RFC3339))
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-	plan.UseCrossOrgPasswords = types.BoolValue(createResp.Project.UseCrossOrgPasswords)
+	ctx = tflog.SetField(ctx, "live_project_id", createResp.Project.LiveProjectID)
+	ctx = tflog.SetField(ctx, "test_project_id", createResp.Project.TestProjectID)
+	tflog.Info(ctx, "Created project")
+
+	plan.refreshFromProject(createResp.Project)
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -177,6 +197,9 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "live_project_id", state.LiveProjectID.ValueString())
+	tflog.Info(ctx, "Reading project")
+
 	getResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
 		ProjectID: state.LiveProjectID.ValueString(),
 	})
@@ -184,14 +207,11 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 		resp.Diagnostics.AddError("Failed to get live project", err.Error())
 		return
 	}
-	state.LiveOAuthCallbackID = types.StringValue(getResp.Project.LiveOAuthCallbackID)
-	state.TestOAuthCallbackID = types.StringValue(getResp.Project.TestOAuthCallbackID)
-	state.CreatedAt = types.StringValue(getResp.Project.CreatedAt.Format(time.RFC3339))
-	state.Name = types.StringValue(getResp.Project.Name)
-	state.Vertical = types.StringValue(string(getResp.Project.Vertical))
-	state.UseCrossOrgPasswords = types.BoolValue(getResp.Project.UseCrossOrgPasswords)
 
-	// Set refreshed state
+	ctx = tflog.SetField(ctx, "test_project_id", getResp.Project.TestProjectID)
+	tflog.Info(ctx, "Read project")
+
+	state.refreshFromProject(getResp.Project)
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -208,6 +228,9 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_name", plan.Name.ValueString())
+	tflog.Info(ctx, "Updating project")
+
 	updateResp, err := r.client.Projects.Update(ctx, projects.UpdateRequest{
 		ProjectID: plan.LiveProjectID.ValueString(),
 		Name:      plan.Name.ValueString(),
@@ -217,8 +240,9 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddError("Failed to update project", err.Error())
 	}
 
-	plan.Name = types.StringValue(updateResp.Project.Name)
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	tflog.Info(ctx, "Updated project")
+
+	plan.refreshFromProject(updateResp.Project)
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -235,6 +259,9 @@ func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "live_project_id", state.LiveProjectID.ValueString())
+	tflog.Info(ctx, "Deleting project")
+
 	_, err := r.client.Projects.Delete(ctx, projects.DeleteRequest{
 		ProjectID: state.LiveProjectID.ValueString(),
 	})
@@ -242,8 +269,12 @@ func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest
 		resp.Diagnostics.AddError("Failed to delete project", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Deleted project")
 }
 
 func (r *projectResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx = tflog.SetField(ctx, "live_project_id", req.ID)
+	tflog.Info(ctx, "Importing project")
 	resource.ImportStatePassthroughID(ctx, path.Root("live_project_id"), req, resp)
 }
