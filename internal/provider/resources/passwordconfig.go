@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/passwordstrengthconfig"
 )
@@ -35,6 +36,7 @@ type passwordConfigResource struct {
 }
 
 type passwordConfigModel struct {
+	ID                          types.String `tfsdk:"id"`
 	ProjectID                   types.String `tfsdk:"project_id"`
 	LastUpdated                 types.String `tfsdk:"last_updated"`
 	CheckBreachOnCreation       types.Bool   `tfsdk:"check_breach_on_creation"`
@@ -43,6 +45,16 @@ type passwordConfigModel struct {
 	ValidationPolicy            types.String `tfsdk:"validation_policy"`
 	LudsMinPasswordLength       types.Int32  `tfsdk:"luds_min_password_length"`
 	LudsMinPasswordComplexity   types.Int32  `tfsdk:"luds_min_password_complexity"`
+}
+
+func (m *passwordConfigModel) refreshFromPasswordConfig(p passwordstrengthconfig.PasswordStrengthConfig) {
+	m.ID = m.ProjectID
+	m.CheckBreachOnCreation = types.BoolValue(p.CheckBreachOnCreation)
+	m.CheckBreachOnAuthentication = types.BoolValue(p.CheckBreachOnAuthentication)
+	m.ValidateOnAuthentication = types.BoolValue(p.ValidateOnAuthentication)
+	m.ValidationPolicy = types.StringValue(string(p.ValidationPolicy))
+	m.LudsMinPasswordLength = types.Int32Value(int32(p.LudsMinPasswordLength))
+	m.LudsMinPasswordComplexity = types.Int32Value(int32(p.LudsMinPasswordComplexity))
 }
 
 func (r *passwordConfigResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -75,6 +87,9 @@ func (r *passwordConfigResource) Metadata(_ context.Context, req resource.Metada
 func (r *passwordConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
 			"project_id": schema.StringAttribute{
 				Required: true,
 				Description: "The ID of the project for which to set the password config. " +
@@ -155,6 +170,10 @@ func (r *passwordConfigResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "validation_policy", plan.ValidationPolicy.ValueString())
+	tflog.Info(ctx, "Creating password strength config")
+
 	setResp, err := r.client.PasswordStrengthConfig.Set(ctx, passwordstrengthconfig.SetRequest{
 		ProjectID: plan.ProjectID.ValueString(),
 		PasswordStrengthConfig: passwordstrengthconfig.PasswordStrengthConfig{
@@ -171,12 +190,9 @@ func (r *passwordConfigResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	plan.CheckBreachOnCreation = types.BoolValue(setResp.PasswordStrengthConfig.CheckBreachOnCreation)
-	plan.CheckBreachOnAuthentication = types.BoolValue(setResp.PasswordStrengthConfig.CheckBreachOnAuthentication)
-	plan.ValidateOnAuthentication = types.BoolValue(setResp.PasswordStrengthConfig.ValidateOnAuthentication)
-	plan.ValidationPolicy = types.StringValue(string(setResp.PasswordStrengthConfig.ValidationPolicy))
-	plan.LudsMinPasswordLength = types.Int32Value(int32(setResp.PasswordStrengthConfig.LudsMinPasswordLength))
-	plan.LudsMinPasswordComplexity = types.Int32Value(int32(setResp.PasswordStrengthConfig.LudsMinPasswordComplexity))
+	tflog.Info(ctx, "Created password strength config")
+
+	plan.refreshFromPasswordConfig(setResp.PasswordStrengthConfig)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -195,6 +211,9 @@ func (r *passwordConfigResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	tflog.Info(ctx, "Reading password strength config")
+
 	getResp, err := r.client.PasswordStrengthConfig.Get(ctx, passwordstrengthconfig.GetRequest{
 		ProjectID: state.ProjectID.ValueString(),
 	})
@@ -203,13 +222,10 @@ func (r *passwordConfigResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	// Set refreshed state
-	state.CheckBreachOnCreation = types.BoolValue(getResp.PasswordStrengthConfig.CheckBreachOnCreation)
-	state.CheckBreachOnAuthentication = types.BoolValue(getResp.PasswordStrengthConfig.CheckBreachOnAuthentication)
-	state.ValidateOnAuthentication = types.BoolValue(getResp.PasswordStrengthConfig.ValidateOnAuthentication)
-	state.ValidationPolicy = types.StringValue(string(getResp.PasswordStrengthConfig.ValidationPolicy))
-	state.LudsMinPasswordLength = types.Int32Value(int32(getResp.PasswordStrengthConfig.LudsMinPasswordLength))
-	state.LudsMinPasswordComplexity = types.Int32Value(int32(getResp.PasswordStrengthConfig.LudsMinPasswordComplexity))
+	ctx = tflog.SetField(ctx, "validation_policy", getResp.PasswordStrengthConfig.ValidationPolicy)
+	tflog.Info(ctx, "Read password strength config")
+
+	state.refreshFromPasswordConfig(getResp.PasswordStrengthConfig)
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -225,6 +241,10 @@ func (r *passwordConfigResource) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "validation_policy", plan.ValidationPolicy.ValueString())
+	tflog.Info(ctx, "Updating password strength config")
 
 	setResp, err := r.client.PasswordStrengthConfig.Set(ctx, passwordstrengthconfig.SetRequest{
 		ProjectID: plan.ProjectID.ValueString(),
@@ -242,12 +262,9 @@ func (r *passwordConfigResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	plan.CheckBreachOnCreation = types.BoolValue(setResp.PasswordStrengthConfig.CheckBreachOnCreation)
-	plan.CheckBreachOnAuthentication = types.BoolValue(setResp.PasswordStrengthConfig.CheckBreachOnAuthentication)
-	plan.ValidateOnAuthentication = types.BoolValue(setResp.PasswordStrengthConfig.ValidateOnAuthentication)
-	plan.ValidationPolicy = types.StringValue(string(setResp.PasswordStrengthConfig.ValidationPolicy))
-	plan.LudsMinPasswordLength = types.Int32Value(int32(setResp.PasswordStrengthConfig.LudsMinPasswordLength))
-	plan.LudsMinPasswordComplexity = types.Int32Value(int32(setResp.PasswordStrengthConfig.LudsMinPasswordComplexity))
+	tflog.Info(ctx, "Updated password strength config")
+
+	plan.refreshFromPasswordConfig(setResp.PasswordStrengthConfig)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -265,6 +282,9 @@ func (r *passwordConfigResource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	tflog.Info(ctx, "Deleting password strength config")
+
 	// To delete this resource, we set it back to the default (the ZXCVBN policy).
 	_, err := r.client.PasswordStrengthConfig.Set(ctx, passwordstrengthconfig.SetRequest{
 		ProjectID: state.ProjectID.ValueString(),
@@ -279,8 +299,12 @@ func (r *passwordConfigResource) Delete(ctx context.Context, req resource.Delete
 		resp.Diagnostics.AddError("Failed to reset password strength config", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Deleted password strength config")
 }
 
 func (r *passwordConfigResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx = tflog.SetField(ctx, "project_id", req.ID)
+	tflog.Info(ctx, "Importing password config")
 	resource.ImportStatePassthroughID(ctx, path.Root("project_id"), req, resp)
 }
