@@ -8,8 +8,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
+	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
+	"github.com/stytchauth/stytch-management-go/pkg/models/sdk"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -110,6 +117,128 @@ type consumerSDKConfigPasswordsModel struct {
 	PKCERequiredForPasswordResets types.Bool `tfsdk:"pkce_required_for_password_resets"`
 }
 
+func (m consumerSDKConfigModel) toSDKConfig() sdk.ConsumerConfig {
+	c := sdk.ConsumerConfig{
+		Basic: &sdk.ConsumerBasicConfig{
+			Enabled:        m.Config.Basic.Enabled.ValueBool(),
+			CreateNewUsers: m.Config.Basic.CreateNewUsers.ValueBool(),
+			Domains:        make([]string, len(m.Config.Basic.Domains)),
+			BundleIDs:      make([]string, len(m.Config.Basic.BundleIDs)),
+		},
+	}
+	for i, d := range m.Config.Basic.Domains {
+		c.Basic.Domains[i] = d.ValueString()
+	}
+	for i, b := range m.Config.Basic.BundleIDs {
+		c.Basic.BundleIDs[i] = b.ValueString()
+	}
+
+	if !m.Config.Sessions.MaxSessionDurationMinutes.IsUnknown() {
+		c.Sessions = &sdk.ConsumerSessionsConfig{
+			MaxSessionDurationMinutes: m.Config.Sessions.MaxSessionDurationMinutes.ValueInt32(),
+		}
+	}
+
+	if !m.Config.MagicLinks.LoginOrCreateEnabled.IsUnknown() ||
+		!m.Config.MagicLinks.SendEnabled.IsUnknown() ||
+		!m.Config.MagicLinks.PKCERequired.IsUnknown() {
+		c.MagicLinks = &sdk.ConsumerMagicLinksConfig{
+			LoginOrCreateEnabled: m.Config.MagicLinks.LoginOrCreateEnabled.ValueBool(),
+			SendEnabled:          m.Config.MagicLinks.SendEnabled.ValueBool(),
+			PKCERequired:         m.Config.MagicLinks.PKCERequired.ValueBool(),
+		}
+	}
+
+	if !m.Config.OTPs.SMSLoginOrCreateEnabled.IsUnknown() ||
+		!m.Config.OTPs.WhatsAppLoginOrCreateEnabled.IsUnknown() ||
+		!m.Config.OTPs.EmailLoginOrCreateEnabled.IsUnknown() ||
+		!m.Config.OTPs.SMSSendEnabled.IsUnknown() ||
+		!m.Config.OTPs.WhatsAppSendEnabled.IsUnknown() ||
+		!m.Config.OTPs.EmailSendEnabled.IsUnknown() ||
+		len(m.Config.OTPs.SMSAutofillMetadata) > 0 {
+		c.OTPs = &sdk.ConsumerOTPsConfig{
+			SMSLoginOrCreateEnabled:      m.Config.OTPs.SMSLoginOrCreateEnabled.ValueBool(),
+			WhatsAppLoginOrCreateEnabled: m.Config.OTPs.WhatsAppLoginOrCreateEnabled.ValueBool(),
+			EmailLoginOrCreateEnabled:    m.Config.OTPs.EmailLoginOrCreateEnabled.ValueBool(),
+			SMSSendEnabled:               m.Config.OTPs.SMSSendEnabled.ValueBool(),
+			WhatsAppSendEnabled:          m.Config.OTPs.WhatsAppSendEnabled.ValueBool(),
+			EmailSendEnabled:             m.Config.OTPs.EmailSendEnabled.ValueBool(),
+			SMSAutofillMetadata:          make([]sdk.SMSAutofillMetadata, len(m.Config.OTPs.SMSAutofillMetadata)),
+		}
+		for i, m := range m.Config.OTPs.SMSAutofillMetadata {
+			c.OTPs.SMSAutofillMetadata[i] = sdk.SMSAutofillMetadata{
+				MetadataType:  m.MetadataType.ValueString(),
+				MetadataValue: m.MetadataValue.ValueString(),
+				BundleID:      m.BundleID.ValueString(),
+			}
+		}
+	}
+
+	if !m.Config.OAuth.Enabled.IsUnknown() ||
+		!m.Config.OAuth.PKCERequired.IsUnknown() {
+		c.OAuth = &sdk.ConsumerOAuthConfig{
+			Enabled:      m.Config.OAuth.Enabled.ValueBool(),
+			PKCERequired: m.Config.OAuth.PKCERequired.ValueBool(),
+		}
+	}
+
+	if !m.Config.TOTPs.Enabled.IsUnknown() ||
+		!m.Config.TOTPs.CreateTOTPs.IsUnknown() {
+		c.TOTPs = &sdk.ConsumerTOTPsConfig{
+			Enabled:     m.Config.TOTPs.Enabled.ValueBool(),
+			CreateTOTPs: m.Config.TOTPs.CreateTOTPs.ValueBool(),
+		}
+	}
+
+	if !m.Config.WebAuthn.Enabled.IsUnknown() ||
+		!m.Config.WebAuthn.CreateWebAuthns.IsUnknown() {
+		c.WebAuthn = &sdk.ConsumerWebAuthnConfig{
+			Enabled:         m.Config.WebAuthn.Enabled.ValueBool(),
+			CreateWebAuthns: m.Config.WebAuthn.CreateWebAuthns.ValueBool(),
+		}
+	}
+
+	if !m.Config.CryptoWallets.Enabled.IsUnknown() ||
+		!m.Config.CryptoWallets.SIWERequired.IsUnknown() {
+		c.CryptoWallets = &sdk.ConsumerCryptoWalletsConfig{
+			Enabled:      m.Config.CryptoWallets.Enabled.ValueBool(),
+			SIWERequired: m.Config.CryptoWallets.SIWERequired.ValueBool(),
+		}
+	}
+
+	if !m.Config.DFPPA.Enabled.IsUnknown() ||
+		!m.Config.DFPPA.OnChallenge.IsUnknown() ||
+		!m.Config.DFPPA.LookupTimeoutSeconds.IsUnknown() {
+		c.DFPPA = &sdk.ConsumerDFPPAConfig{
+			Enabled:              sdk.DFPPASetting(m.Config.DFPPA.Enabled.ValueString()),
+			OnChallenge:          sdk.DFPPAOnChallengeAction(m.Config.DFPPA.OnChallenge.ValueString()),
+			LookupTimeoutSeconds: m.Config.DFPPA.LookupTimeoutSeconds.ValueInt32(),
+		}
+	}
+
+	if !m.Config.Biometrics.Enabled.IsUnknown() ||
+		!m.Config.Biometrics.CreateBiometricsEnabled.IsUnknown() {
+		c.Biometrics = &sdk.ConsumerBiometricsConfig{
+			Enabled:                 m.Config.Biometrics.Enabled.ValueBool(),
+			CreateBiometricsEnabled: m.Config.Biometrics.CreateBiometricsEnabled.ValueBool(),
+		}
+	}
+
+	if !m.Config.Passwords.Enabled.IsUnknown() ||
+		!m.Config.Passwords.PKCERequiredForPasswordResets.IsUnknown() {
+		c.Passwords = &sdk.ConsumerPasswordsConfig{
+			Enabled:                       m.Config.Passwords.Enabled.ValueBool(),
+			PKCERequiredForPasswordResets: m.Config.Passwords.PKCERequiredForPasswordResets.ValueBool(),
+		}
+	}
+
+	return c
+}
+
+func (m *consumerSDKConfigModel) reloadFromSDKConfig(config sdk.ConsumerConfig) {
+	// TODO
+}
+
 func (r *consumerSDKConfigResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Add a nil check when handling ProviderData because Terraform
 	// sets that data after it calls the ConfigureProvider RPC.
@@ -165,18 +294,27 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether new users can be created with the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"domains": schema.ListAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A list of domains authorized for use in the SDK.",
 								ElementType: types.StringType,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"bundle_ids": schema.ListAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A list of bundle IDs authorized for use in the SDK.",
 								ElementType: types.StringType,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -189,6 +327,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "The maximum session duration that can be created in minutes.",
+								PlanModifiers: []planmodifier.Int32{
+									int32planmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -201,11 +342,17 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether login or create with magic links is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"send_enabled": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether the magic links send endpoint is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"pkce_required": schema.BoolAttribute{
 								Optional: true,
@@ -214,6 +361,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 									"introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from " +
 									"the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating " +
 									"with the users token. PKCE is enabled by default for mobile SDKs.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -226,31 +376,49 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether the SMS OTP login or create endpoint is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"whatsapp_login_or_create_enabled": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether the WhatsApp OTP login or create endpoint is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"email_login_or_create_enabled": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether the email OTP login or create endpoint is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"sms_send_enabled": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether the SMS OTP send endpoint is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"whatsapp_send_enabled": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether the WhatsApp OTP send endpoint is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"email_send_enabled": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether the email OTP send endpoint is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"sms_autofill_metadata": schema.ListNestedAttribute{
 								Optional:    true,
@@ -262,17 +430,26 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 											Optional:    true,
 											Computed:    true,
 											Description: "The type of metadata to use for autofill. This should be either 'domain' or 'hash'.",
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 										"metadata_value": schema.StringAttribute{
 											Optional: true,
 											Computed: true,
 											Description: "The value of the metadata to use for autofill. This should be the associated domain name (for metadata type 'domain')" +
 												"or application hash (for metadata type 'hash').",
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 										"bundle_id": schema.StringAttribute{
 											Optional:    true,
 											Computed:    true,
 											Description: "The ID of the bundle to use for autofill. This should be the associated bundle ID.",
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 									},
 								},
@@ -288,6 +465,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether OAuth endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"pkce_required": schema.BoolAttribute{
 								Optional: true,
@@ -296,6 +476,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 									"introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from " +
 									"the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating " +
 									"with the users token. PKCE is enabled by default for mobile SDKs.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -308,11 +491,17 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether TOTP endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"create_totps": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether TOTP creation is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -325,11 +514,17 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether WebAuthn endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"create_webauthns": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether WebAuthn creation is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -342,11 +537,17 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether Crypto Wallets endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"siwe_required": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether Sign In With Ethereum is required for Crypto Wallets.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -359,16 +560,25 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether Device Fingerprinting Protected Auth is enabled in the SDK.",
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"on_challenge": schema.StringAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "The action to take when a DFPPA 'challenge' verdict is returned.",
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"lookup_timeout_seconds": schema.Int32Attribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "How long to wait for a DFPPA lookup to complete before timing out.",
+								PlanModifiers: []planmodifier.Int32{
+									int32planmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -381,11 +591,17 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether biometrics endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"create_biometrics_enabled": schema.BoolAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether biometrics creation is enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -398,6 +614,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Optional:    true,
 								Computed:    true,
 								Description: "A boolean indicating whether password endpoints are enabled in the SDK.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"pkce_required_for_password_resets": schema.BoolAttribute{
 								Optional: true,
@@ -406,12 +625,36 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 									"security by introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow " +
 									"from the same application on the device. This prevents a malicious app from intercepting a redirect and " +
 									"authenticating with the users token. PKCE is enabled by default for mobile SDKs.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
 				},
 			},
 		},
+	}
+}
+
+func (r consumerSDKConfigResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data b2bSDKConfigModel
+	diags := req.Config.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	getProjectResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
+		ProjectID: data.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddWarning("Failed to get project for vertical check", err.Error())
+		return
+	}
+	if getProjectResp.Project.Vertical != projects.VerticalConsumer {
+		resp.Diagnostics.AddError("Invalid project vertical", "The project must be a Consumer project for this resource.")
+		return
 	}
 }
 
@@ -424,8 +667,16 @@ func (r *consumerSDKConfigResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.SDKConfig.SetConsumerConfig
+	setResp, err := r.client.SDK.SetConsumerConfig(ctx, sdk.SetConsumerConfigRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+		Config:    plan.toSDKConfig(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to set Consumer SDK config", err.Error())
+		return
+	}
 
+	plan.reloadFromSDKConfig(setResp.Config)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -444,9 +695,14 @@ func (r *consumerSDKConfigResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
-	// TODO: Get refreshed value from the API
+	getResp, err := r.client.SDK.GetConsumerConfig(ctx, sdk.GetConsumerConfigRequest{
+		ProjectID: state.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get Consumer SDK config", err.Error())
+	}
 
-	// Set refreshed state
+	state.reloadFromSDKConfig(getResp.Config)
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -463,8 +719,16 @@ func (r *consumerSDKConfigResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.SDK.SetConsumerConfig
+	setResp, err := r.client.SDK.SetConsumerConfig(ctx, sdk.SetConsumerConfigRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+		Config:    plan.toSDKConfig(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to set Consumer SDK config", err.Error())
+		return
+	}
 
+	plan.reloadFromSDKConfig(setResp.Config)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
