@@ -564,15 +564,16 @@ func (r *rbacPolicyResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 
 	// First find the resources that need to be removed from the default roles
-	toRemove := make(map[string]struct{})
+	resourcesToRemove := make(map[string]struct{})
 	for _, resource := range policy.CustomResources {
-		toRemove[resource.ResourceID] = struct{}{}
+		resourcesToRemove[resource.ResourceID] = struct{}{}
 	}
 
-	// then remove custom resource permissions from stytch_member
+	// then filter to only the resources that we want to keep
+	// (ie, the non-custom resources)
 	var keepPerms []rbacpolicy.Permission
 	for _, perm := range policy.StytchMember.Permissions {
-		if _, ok := toRemove[perm.ResourceID]; !ok {
+		if _, ok := resourcesToRemove[perm.ResourceID]; !ok {
 			keepPerms = append(keepPerms, perm)
 		}
 	}
@@ -581,7 +582,7 @@ func (r *rbacPolicyResource) Delete(ctx context.Context, req resource.DeleteRequ
 	// then remove custom resource permissions from stytch_admin
 	keepPerms = nil
 	for _, perm := range policy.StytchAdmin.Permissions {
-		if _, ok := toRemove[perm.ResourceID]; !ok {
+		if _, ok := resourcesToRemove[perm.ResourceID]; !ok {
 			keepPerms = append(keepPerms, perm)
 		}
 	}
