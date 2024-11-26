@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/secrets"
 )
@@ -107,6 +108,9 @@ func (r *secretResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
+	tflog.Info(ctx, "Creating secret")
+
 	createResp, err := r.client.Secrets.Create(ctx, secrets.CreateSecretRequest{
 		ProjectID: plan.ProjectID.ValueString(),
 	})
@@ -114,6 +118,11 @@ func (r *secretResource) Create(ctx context.Context, req resource.CreateRequest,
 		resp.Diagnostics.AddError("Failed to create secret", err.Error())
 		return
 	}
+
+	ctx = tflog.SetField(ctx, "secret_id", createResp.CreatedSecret.SecretID)
+	ctx = tflog.SetField(ctx, "secret", createResp.CreatedSecret.Secret)
+	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "secret")
+	tflog.Info(ctx, "Created secret")
 
 	plan.SecretID = types.StringValue(createResp.CreatedSecret.SecretID)
 	plan.CreatedAt = types.StringValue(createResp.CreatedSecret.CreatedAt.Format(time.RFC3339))
@@ -135,6 +144,9 @@ func (r *secretResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	tflog.Info(ctx, "Reading secret")
+
 	// We call get here just to verify the secret still exists, but there's no state to update.
 	_, err := r.client.Secrets.Get(ctx, secrets.GetSecretRequest{
 		ProjectID: state.ProjectID.ValueString(),
@@ -144,6 +156,9 @@ func (r *secretResource) Read(ctx context.Context, req resource.ReadRequest, res
 		resp.Diagnostics.AddError("Failed to get secret", err.Error())
 		return
 	}
+
+	ctx = tflog.SetField(ctx, "secret_id", state.SecretID.ValueString())
+	tflog.Info(ctx, "Read secret")
 
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
@@ -166,6 +181,10 @@ func (r *secretResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "secret_id", state.SecretID.ValueString())
+	tflog.Info(ctx, "Deleting secret")
+
 	_, err := r.client.Secrets.Delete(ctx, secrets.DeleteSecretRequest{
 		ProjectID: state.ProjectID.ValueString(),
 		SecretID:  state.SecretID.ValueString(),
@@ -174,4 +193,6 @@ func (r *secretResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		resp.Diagnostics.AddError("Failed to delete secret", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Deleted secret")
 }

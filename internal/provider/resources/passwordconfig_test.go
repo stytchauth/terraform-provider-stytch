@@ -8,14 +8,10 @@ import (
 )
 
 func TestAccPasswordConfigResource(t *testing.T) {
-	for _, testCase := range []struct {
-		name     string
-		pwConfig string
-		checks   []resource.TestCheckFunc
-	}{
+	for _, testCase := range []testutil.TestCase{
 		{
-			name: "luds",
-			pwConfig: testutil.ConsumerProjectConfig + `
+			Name: "luds",
+			Config: testutil.ConsumerProjectConfig + `
       resource "stytch_password_config" "test" {
         project_id = stytch_project.project.test_project_id
         validation_policy = "LUDS"
@@ -25,7 +21,7 @@ func TestAccPasswordConfigResource(t *testing.T) {
         luds_min_password_length = 8
         luds_min_password_complexity = 1
       }`,
-			checks: []resource.TestCheckFunc{
+			Checks: []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr("stytch_password_config.test", "validation_policy", "LUDS"),
 				resource.TestCheckResourceAttr("stytch_password_config.test", "check_breach_on_creation", "true"),
 				resource.TestCheckResourceAttr("stytch_password_config.test", "check_breach_on_authentication", "true"),
@@ -36,8 +32,8 @@ func TestAccPasswordConfigResource(t *testing.T) {
 			},
 		},
 		{
-			name: "zxcvbn",
-			pwConfig: testutil.ConsumerProjectConfig + `
+			Name: "zxcvbn",
+			Config: testutil.ConsumerProjectConfig + `
       resource "stytch_password_config" "test" {
         project_id = stytch_project.project.test_project_id
         check_breach_on_creation = true
@@ -45,7 +41,7 @@ func TestAccPasswordConfigResource(t *testing.T) {
         validate_on_authentication = true
         validation_policy = "ZXCVBN"
       }`,
-			checks: []resource.TestCheckFunc{
+			Checks: []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr("stytch_password_config.test", "validation_policy", "ZXCVBN"),
 				resource.TestCheckResourceAttr("stytch_password_config.test", "check_breach_on_creation", "true"),
 				resource.TestCheckResourceAttr("stytch_password_config.test", "check_breach_on_authentication", "true"),
@@ -54,14 +50,14 @@ func TestAccPasswordConfigResource(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(testCase.name, func(t *testing.T) {
+		t.Run(testCase.Name, func(t *testing.T) {
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 				Steps: []resource.TestStep{
 					{
 						// Create and Read testing
-						Config: testutil.ProviderConfig + testCase.pwConfig,
-						Check:  resource.ComposeAggregateTestCheckFunc(testCase.checks...),
+						Config: testutil.ProviderConfig + testCase.Config,
+						Check:  resource.ComposeAggregateTestCheckFunc(testCase.Checks...),
 					},
 					{
 						// Import state testing

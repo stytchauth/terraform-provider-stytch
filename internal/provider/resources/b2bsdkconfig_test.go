@@ -8,14 +8,10 @@ import (
 )
 
 func TestAccB2BSDKConfigResource(t *testing.T) {
-	for _, testCase := range []struct {
-		name      string
-		sdkConfig string
-		checks    []resource.TestCheckFunc
-	}{
+	for _, testCase := range []testutil.TestCase{
 		{
-			name: "disabled",
-			sdkConfig: testutil.B2BProjectConfig + `
+			Name: "disabled",
+			Config: testutil.B2BProjectConfig + `
       resource "stytch_b2b_sdk_config" "test" {
         project_id = stytch_project.project.test_project_id
         config = {
@@ -24,13 +20,13 @@ func TestAccB2BSDKConfigResource(t *testing.T) {
           }
         }
       }`,
-			checks: []resource.TestCheckFunc{
+			Checks: []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.enabled", "false"),
 			},
 		},
 		{
-			name: "enabled-simple",
-			sdkConfig: testutil.B2BProjectConfig + `
+			Name: "enabled-simple",
+			Config: testutil.B2BProjectConfig + `
       resource "stytch_b2b_sdk_config" "test" {
         project_id = stytch_project.project.test_project_id
         config = {
@@ -44,7 +40,7 @@ func TestAccB2BSDKConfigResource(t *testing.T) {
           }
         }
       }`,
-			checks: []resource.TestCheckFunc{
+			Checks: []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.enabled", "true"),
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.create_new_members", "false"),
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.allow_self_onboarding", "false"),
@@ -54,8 +50,8 @@ func TestAccB2BSDKConfigResource(t *testing.T) {
 			},
 		},
 		{
-			name: "enabled-complex",
-			sdkConfig: testutil.B2BProjectConfig + `
+			Name: "enabled-complex",
+			Config: testutil.B2BProjectConfig + `
       resource "stytch_b2b_sdk_config" "test" {
         project_id = stytch_project.project.test_project_id
         config = {
@@ -81,7 +77,7 @@ func TestAccB2BSDKConfigResource(t *testing.T) {
           }
         }
       }`,
-			checks: []resource.TestCheckFunc{
+			Checks: []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.enabled", "true"),
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.create_new_members", "true"),
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.allow_self_onboarding", "true"),
@@ -99,14 +95,14 @@ func TestAccB2BSDKConfigResource(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(testCase.name, func(t *testing.T) {
+		t.Run(testCase.Name, func(t *testing.T) {
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 				Steps: []resource.TestStep{
 					{
 						// Create and Read testing
-						Config: testutil.ProviderConfig + testCase.sdkConfig,
-						Check:  resource.ComposeAggregateTestCheckFunc(testCase.checks...),
+						Config: testutil.ProviderConfig + testCase.Config,
+						Check:  resource.ComposeAggregateTestCheckFunc(testCase.Checks...),
 					},
 					{
 						// Import state testing

@@ -8,14 +8,10 @@ import (
 )
 
 func TestAccConsumerSDKConfigResource(t *testing.T) {
-	for _, testCase := range []struct {
-		name      string
-		sdkConfig string
-		checks    []resource.TestCheckFunc
-	}{
+	for _, testCase := range []testutil.TestCase{
 		{
-			name: "disabled",
-			sdkConfig: testutil.ConsumerProjectConfig + `
+			Name: "disabled",
+			Config: testutil.ConsumerProjectConfig + `
       resource "stytch_consumer_sdk_config" "test" {
         project_id = stytch_project.project.test_project_id
         config = {
@@ -24,13 +20,13 @@ func TestAccConsumerSDKConfigResource(t *testing.T) {
           }
         }
       }`,
-			checks: []resource.TestCheckFunc{
+			Checks: []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.enabled", "false"),
 			},
 		},
 		{
-			name: "enabled-simple",
-			sdkConfig: testutil.ConsumerProjectConfig + `
+			Name: "enabled-simple",
+			Config: testutil.ConsumerProjectConfig + `
       resource "stytch_consumer_sdk_config" "test" {
         project_id = stytch_project.project.test_project_id
         config = {
@@ -42,7 +38,7 @@ func TestAccConsumerSDKConfigResource(t *testing.T) {
           }
         }
       }`,
-			checks: []resource.TestCheckFunc{
+			Checks: []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.enabled", "true"),
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.create_new_users", "true"),
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.domains.#", "0"),
@@ -50,8 +46,8 @@ func TestAccConsumerSDKConfigResource(t *testing.T) {
 			},
 		},
 		{
-			name: "enabled-complex",
-			sdkConfig: testutil.ConsumerProjectConfig + `
+			Name: "enabled-complex",
+			Config: testutil.ConsumerProjectConfig + `
       resource "stytch_consumer_sdk_config" "test" {
         project_id = stytch_project.project.test_project_id
         config = {
@@ -71,7 +67,7 @@ func TestAccConsumerSDKConfigResource(t *testing.T) {
           }
         }
       }`,
-			checks: []resource.TestCheckFunc{
+			Checks: []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.enabled", "true"),
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.create_new_users", "true"),
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.domains.#", "0"),
@@ -85,14 +81,14 @@ func TestAccConsumerSDKConfigResource(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(testCase.name, func(t *testing.T) {
+		t.Run(testCase.Name, func(t *testing.T) {
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 				Steps: []resource.TestStep{
 					{
 						// Create and Read testing
-						Config: testutil.ProviderConfig + testCase.sdkConfig,
-						Check:  resource.ComposeAggregateTestCheckFunc(testCase.checks...),
+						Config: testutil.ProviderConfig + testCase.Config,
+						Check:  resource.ComposeAggregateTestCheckFunc(testCase.Checks...),
 					},
 					{
 						// Import state testing

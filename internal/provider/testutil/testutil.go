@@ -3,6 +3,7 @@ package testutil
 import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider"
 )
 
@@ -32,3 +33,9 @@ resource "stytch_project" "project" {
   name     = "test-b2b"
   vertical = "B2B"
 }`
+
+type TestCase struct {
+	Name   string
+	Config string
+	Checks []resource.TestCheckFunc
+}
