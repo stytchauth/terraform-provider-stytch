@@ -556,9 +556,50 @@ func (r *rbacPolicyResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
-	// In this case, deleting an RBAC policy just means no longer tracaking its state in terraform.
-	// We don't have to actually make a delete call within the API.
-	// Would it make sense to set some sort of policy "defaults" again?
+	// To delete this resource, we remove all custom roles and resources
+	policy, diags := state.toPolicy(ctx)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// First find the resources that need to be removed from the default roles
+	resourcesToRemove := make(map[string]struct{})
+	for _, resource := range policy.CustomResources {
+		resourcesToRemove[resource.ResourceID] = struct{}{}
+	}
+
+	// then filter to only the resources that we want to keep
+	// (ie, the non-custom resources)
+	var keepPerms []rbacpolicy.Permission
+	for _, perm := range policy.StytchMember.Permissions {
+		if _, ok := resourcesToRemove[perm.ResourceID]; !ok {
+			keepPerms = append(keepPerms, perm)
+		}
+	}
+	policy.StytchMember.Permissions = keepPerms
+
+	// then remove custom resource permissions from stytch_admin
+	keepPerms = nil
+	for _, perm := range policy.StytchAdmin.Permissions {
+		if _, ok := resourcesToRemove[perm.ResourceID]; !ok {
+			keepPerms = append(keepPerms, perm)
+		}
+	}
+	policy.StytchAdmin.Permissions = keepPerms
+
+	// Lastly, set custom roles and resources to empty
+	policy.CustomRoles = []rbacpolicy.Role{}
+	policy.CustomResources = []rbacpolicy.Resource{}
+
+	_, err := r.client.RBACPolicy.Set(ctx, rbacpolicy.SetRequest{
+		ProjectID: state.ProjectID.ValueString(),
+		Policy:    policy,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to reset RBAC policy", err.Error())
+		return
+	}
 }
 
 func (r *rbacPolicyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

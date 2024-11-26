@@ -956,8 +956,25 @@ func (r *b2bSDKConfigResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
-	// In this case, deleting an SDK config just means no longer tracking its state in terraform.
-	// TODO: We *should* however make a call to the API to disable the SDK config.
+	// To delete the SDK config, we set the basic config to disabled. Other fields are left as-is. Although this isn't
+	// *perfect*, it's the best we can do since we don't want to define various "defaults" in different repos since they
+	// would likely drift apart over time.
+	// NOTE: This does cause a bit of weirdness if someone previously set some field like Sessions.MaxSessionDurationMinutes,
+	// then deleted the entire config, then *recreated* it and wanted to rely on the "default" session duration value. Since
+	// this value isn't "officially" endorsed anywhere, we assume that the provisioner not specifying it means they're fine
+	// with any acceptable value.
+	_, err := r.client.SDK.SetB2BConfig(ctx, sdk.SetB2BConfigRequest{
+		ProjectID: state.ProjectID.ValueString(),
+		Config: sdk.B2BConfig{
+			Basic: &sdk.B2BBasicConfig{
+				Enabled: false,
+			},
+		},
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to reset B2B SDK config", err.Error())
+		return
+	}
 }
 
 func (r *b2bSDKConfigResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

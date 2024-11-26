@@ -265,8 +265,20 @@ func (r *passwordConfigResource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
-	// In this case, deleting a password config just means no longer tracaking its state in terraform.
-	// We don't have to actually make a delete call within the API.
+	// To delete this resource, we set it back to the default (the ZXCVBN policy).
+	_, err := r.client.PasswordStrengthConfig.Set(ctx, passwordstrengthconfig.SetRequest{
+		ProjectID: state.ProjectID.ValueString(),
+		PasswordStrengthConfig: passwordstrengthconfig.PasswordStrengthConfig{
+			CheckBreachOnCreation:       true,
+			CheckBreachOnAuthentication: true,
+			ValidateOnAuthentication:    true,
+			ValidationPolicy:            passwordstrengthconfig.ValidationPolicyZXCVBN,
+		},
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to reset password strength config", err.Error())
+		return
+	}
 }
 
 func (r *passwordConfigResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

@@ -170,8 +170,12 @@ func (r *publicTokenResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	r.client.PublicTokens.Delete(ctx, publictokens.DeleteRequest{
+	_, err := r.client.PublicTokens.Delete(ctx, publictokens.DeleteRequest{
 		ProjectID:   state.ProjectID.ValueString(),
 		PublicToken: state.PublicToken.ValueString(),
 	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to delete public token", err.Error())
+		return
+	}
 }

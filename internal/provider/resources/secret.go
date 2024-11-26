@@ -166,8 +166,12 @@ func (r *secretResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	r.client.Secrets.Delete(ctx, secrets.DeleteSecretRequest{
+	_, err := r.client.Secrets.Delete(ctx, secrets.DeleteSecretRequest{
 		ProjectID: state.ProjectID.ValueString(),
 		SecretID:  state.SecretID.ValueString(),
 	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to delete secret", err.Error())
+		return
+	}
 }
