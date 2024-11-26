@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
 	"github.com/stytchauth/stytch-management-go/pkg/models/rbacpolicy"
@@ -33,6 +34,7 @@ type rbacPolicyResource struct {
 }
 
 type rbacPolicyModel struct {
+	ID              types.String `tfsdk:"id"`
 	ProjectID       types.String `tfsdk:"project_id"`
 	LastUpdated     types.String `tfsdk:"last_updated"`
 	StytchMember    types.Object `tfsdk:"stytch_member"`
@@ -44,6 +46,7 @@ type rbacPolicyModel struct {
 
 func (m rbacPolicyModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
+		"id":            types.StringType,
 		"project_id":    types.StringType,
 		"last_updated":  types.StringType,
 		"stytch_member": types.ObjectType{AttrTypes: rbacPolicyRoleModel{}.AttributeTypes()},
@@ -143,6 +146,7 @@ func (m *rbacPolicyModel) reloadFromPolicy(ctx context.Context, p rbacpolicy.Pol
 	customResourceSet, diag := types.SetValueFrom(ctx, types.ObjectType{AttrTypes: rbacPolicyResourceModel{}.AttributeTypes()}, customResources)
 	diags = append(diags, diag...)
 
+	m.ID = m.ProjectID
 	m.StytchMember = stytchMember
 	m.StytchAdmin = stytchAdmin
 	m.StytchResources = stytchResourceSet
@@ -338,6 +342,9 @@ var resourceAttributes = map[string]schema.Attribute{
 func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
 			"project_id": schema.StringAttribute{
 				Required:    true,
 				Description: "The unique identifier for the project.",
@@ -603,5 +610,7 @@ func (r *rbacPolicyResource) Delete(ctx context.Context, req resource.DeleteRequ
 }
 
 func (r *rbacPolicyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx = tflog.SetField(ctx, "project_id", req.ID)
+	tflog.Info(ctx, "Importing RBAC policy")
 	resource.ImportStatePassthroughID(ctx, path.Root("project_id"), req, resp)
 }
