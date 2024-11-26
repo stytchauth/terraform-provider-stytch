@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -10,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
+	"github.com/stytchauth/stytch-management-go/pkg/models/publictokens"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -65,6 +67,9 @@ func (r *publicTokenResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"public_token": schema.StringAttribute{
 				Computed:    true,
 				Description: "The public token value. This is a unique ID which is also the identifier for the token.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"project_id": schema.StringAttribute{
 				Required:    true,
@@ -76,6 +81,9 @@ func (r *publicTokenResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"created_at": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ISO-8601 timestamp when the public token was created.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -90,8 +98,16 @@ func (r *publicTokenResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	// TODO: Generate API request body from plan and call r.client.PublicTokens.Create
+	createResp, err := r.client.PublicTokens.Create(ctx, publictokens.CreateRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to create public token", err.Error())
+		return
+	}
 
+	plan.PublicToken = types.StringValue(createResp.PublicToken.PublicToken)
+	plan.CreatedAt = types.StringValue(createResp.PublicToken.CreatedAt.Format(time.RFC3339))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -109,7 +125,28 @@ func (r *publicTokenResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	// TODO: Get refreshed value from the API
+	// We call GetAll here just to verify the public token still exists, but there's no state to update.
+	// This is because public tokens kind of *are* their identifier... so if you know the identifier,
+	// you know the public token.
+	getResp, err := r.client.PublicTokens.GetAll(ctx, publictokens.GetAllRequest{
+		ProjectID: state.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get public token", err.Error())
+	}
+
+	found := false
+	for _, publicToken := range getResp.PublicTokens {
+		if publicToken.PublicToken == state.PublicToken.ValueString() {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		resp.Diagnostics.AddError("Public token not found", "The public token could not be found.")
+		return
+	}
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, state)
@@ -133,5 +170,8 @@ func (r *publicTokenResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	// TODO: Call r.client.PublicTokens.Delete
+	r.client.PublicTokens.Delete(ctx, publictokens.DeleteRequest{
+		ProjectID:   state.ProjectID.ValueString(),
+		PublicToken: state.PublicToken.ValueString(),
+	})
 }
