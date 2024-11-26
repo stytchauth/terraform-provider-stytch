@@ -123,3 +123,16 @@ resource "stytch_secret" "consumer_secret" {
 resource "stytch_public_token" "b2b_public_token" {
   project_id = stytch_project.b2b_project.live_project_id
 }
+
+resource "stytch_email_template" "consumer_prebuilt_email_template" {
+  live_project_id = stytch_project.consumer_project.live_project_id
+  template_id     = "consumer_prebuilt_tf"
+  name            = "consumer prebuilt"
+  prebuilt_customization = {
+    button_border_radius = 3
+    button_color         = "#105ee9"
+    button_text_color    = "#ffffff"
+    font_family          = "GEORGIA"
+    text_alignment       = "CENTER"
+  }
+}
