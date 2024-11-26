@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/publictokens"
 )
@@ -98,6 +99,9 @@ func (r *publicTokenResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
+	tflog.Info(ctx, "Creating public token")
+
 	createResp, err := r.client.PublicTokens.Create(ctx, publictokens.CreateRequest{
 		ProjectID: plan.ProjectID.ValueString(),
 	})
@@ -105,6 +109,9 @@ func (r *publicTokenResource) Create(ctx context.Context, req resource.CreateReq
 		resp.Diagnostics.AddError("Failed to create public token", err.Error())
 		return
 	}
+
+	ctx = tflog.SetField(ctx, "public_token", createResp.PublicToken.PublicToken)
+	tflog.Info(ctx, "Public token created")
 
 	plan.PublicToken = types.StringValue(createResp.PublicToken.PublicToken)
 	plan.CreatedAt = types.StringValue(createResp.PublicToken.CreatedAt.Format(time.RFC3339))
@@ -124,6 +131,9 @@ func (r *publicTokenResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	tflog.Info(ctx, "Reading public token")
 
 	// We call GetAll here just to verify the public token still exists, but there's no state to update.
 	// This is because public tokens kind of *are* their identifier... so if you know the identifier,
@@ -148,7 +158,9 @@ func (r *publicTokenResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	// Set refreshed state
+	ctx = tflog.SetField(ctx, "public_token", state.PublicToken.ValueString())
+	tflog.Info(ctx, "Public token found in project")
+
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -170,6 +182,9 @@ func (r *publicTokenResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	tflog.Info(ctx, "Deleting public token")
+
 	_, err := r.client.PublicTokens.Delete(ctx, publictokens.DeleteRequest{
 		ProjectID:   state.ProjectID.ValueString(),
 		PublicToken: state.PublicToken.ValueString(),
@@ -178,4 +193,6 @@ func (r *publicTokenResource) Delete(ctx context.Context, req resource.DeleteReq
 		resp.Diagnostics.AddError("Failed to delete public token", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Public token deleted")
 }
