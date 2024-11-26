@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
 	"github.com/stytchauth/stytch-management-go/pkg/models/sdk"
@@ -839,7 +838,6 @@ func (r b2bSDKConfigResource) ValidateConfig(ctx context.Context, req resource.V
 		return
 	}
 
-	tflog.Info(ctx, fmt.Sprintf("Validating B2B SDK config for %+v", data))
 	getProjectResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
 		ProjectID: data.ProjectID.ValueString(),
 	})
