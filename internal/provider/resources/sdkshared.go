@@ -5,6 +5,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+var nilSDKObject = "The object returned from the API was nil. This should never happen. Please report this issue to the provider developers."
+
 type sdkSMSAutofillMetadata struct {
 	MetadataType  types.String `tfsdk:"metadata_type"`
 	MetadataValue types.String `tfsdk:"metadata_value"`

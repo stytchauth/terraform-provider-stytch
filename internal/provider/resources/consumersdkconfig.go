@@ -5,15 +5,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
 	"github.com/stytchauth/stytch-management-go/pkg/models/sdk"
@@ -41,17 +45,17 @@ type consumerSDKConfigModel struct {
 }
 
 type consumerSDKConfigInnerModel struct {
-	Basic         consumerSDKConfigBasicModel         `tfsdk:"basic"`
-	Sessions      consumerSDKConfigSessionsModel      `tfsdk:"sessions"`
-	MagicLinks    consumerSDKConfigMagicLinksModel    `tfsdk:"magic_links"`
-	OTPs          consumerSDKConfigOTPsModel          `tfsdk:"otps"`
-	OAuth         consumerSDKConfigOAuthModel         `tfsdk:"oauth"`
-	TOTPs         consumerSDKConfigTOTPsModel         `tfsdk:"totps"`
-	WebAuthn      consumerSDKConfigWebAuthnModel      `tfsdk:"webauthn"`
-	CryptoWallets consumerSDKConfigCryptoWalletsModel `tfsdk:"crypto_wallets"`
-	DFPPA         consumerSDKConfigDFPPAModel         `tfsdk:"dfppa"`
-	Biometrics    consumerSDKConfigBiometricsModel    `tfsdk:"biometrics"`
-	Passwords     consumerSDKConfigPasswordsModel     `tfsdk:"passwords"`
+	Basic         consumerSDKConfigBasicModel `tfsdk:"basic"`
+	Sessions      types.Object                `tfsdk:"sessions"`
+	MagicLinks    types.Object                `tfsdk:"magic_links"`
+	OTPs          types.Object                `tfsdk:"otps"`
+	OAuth         types.Object                `tfsdk:"oauth"`
+	TOTPs         types.Object                `tfsdk:"totps"`
+	WebAuthn      types.Object                `tfsdk:"webauthn"`
+	CryptoWallets types.Object                `tfsdk:"crypto_wallets"`
+	DFPPA         types.Object                `tfsdk:"dfppa"`
+	Biometrics    types.Object                `tfsdk:"biometrics"`
+	Passwords     types.Object                `tfsdk:"passwords"`
 }
 
 type consumerSDKConfigBasicModel struct {
@@ -65,10 +69,38 @@ type consumerSDKConfigSessionsModel struct {
 	MaxSessionDurationMinutes types.Int32 `tfsdk:"max_session_duration_minutes"`
 }
 
+func (m consumerSDKConfigSessionsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"max_session_duration_minutes": types.Int32Type,
+	}
+}
+
+func consumerSDKConfigSessionsModelFromSDKConfig(c sdk.ConsumerSessionsConfig) consumerSDKConfigSessionsModel {
+	return consumerSDKConfigSessionsModel{
+		MaxSessionDurationMinutes: types.Int32Value(c.MaxSessionDurationMinutes),
+	}
+}
+
 type consumerSDKConfigMagicLinksModel struct {
 	LoginOrCreateEnabled types.Bool `tfsdk:"login_or_create_enabled"`
 	SendEnabled          types.Bool `tfsdk:"send_enabled"`
 	PKCERequired         types.Bool `tfsdk:"pkce_required"`
+}
+
+func (m consumerSDKConfigMagicLinksModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"login_or_create_enabled": types.BoolType,
+		"send_enabled":            types.BoolType,
+		"pkce_required":           types.BoolType,
+	}
+}
+
+func consumerSDKConfigMagicLinksModelFromSDKConfig(c sdk.ConsumerMagicLinksConfig) consumerSDKConfigMagicLinksModel {
+	return consumerSDKConfigMagicLinksModel{
+		LoginOrCreateEnabled: types.BoolValue(c.LoginOrCreateEnabled),
+		SendEnabled:          types.BoolValue(c.SendEnabled),
+		PKCERequired:         types.BoolValue(c.PKCERequired),
+	}
 }
 
 type consumerSDKConfigOTPsModel struct {
@@ -81,9 +113,59 @@ type consumerSDKConfigOTPsModel struct {
 	SMSAutofillMetadata          []sdkSMSAutofillMetadata `tfsdk:"sms_autofill_metadata"`
 }
 
+func (m consumerSDKConfigOTPsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"sms_login_or_create_enabled":      types.BoolType,
+		"whatsapp_login_or_create_enabled": types.BoolType,
+		"email_login_or_create_enabled":    types.BoolType,
+		"sms_send_enabled":                 types.BoolType,
+		"whatsapp_send_enabled":            types.BoolType,
+		"email_send_enabled":               types.BoolType,
+		"sms_autofill_metadata": types.ListType{
+			ElemType: types.ObjectType{
+				AttrTypes: sdkSMSAutofillMetadata{}.AttributeTypes(),
+			},
+		},
+	}
+}
+
+func consumerSDKConfigOTPsModelFromSDKConfig(c sdk.ConsumerOTPsConfig) consumerSDKConfigOTPsModel {
+	metadata := make([]sdkSMSAutofillMetadata, len(c.SMSAutofillMetadata))
+	for i, m := range c.SMSAutofillMetadata {
+		metadata[i] = sdkSMSAutofillMetadata{
+			MetadataType:  types.StringValue(m.MetadataType),
+			MetadataValue: types.StringValue(m.MetadataValue),
+			BundleID:      types.StringValue(m.BundleID),
+		}
+	}
+	return consumerSDKConfigOTPsModel{
+		SMSLoginOrCreateEnabled:      types.BoolValue(c.SMSLoginOrCreateEnabled),
+		WhatsAppLoginOrCreateEnabled: types.BoolValue(c.WhatsAppLoginOrCreateEnabled),
+		EmailLoginOrCreateEnabled:    types.BoolValue(c.EmailLoginOrCreateEnabled),
+		SMSSendEnabled:               types.BoolValue(c.SMSSendEnabled),
+		WhatsAppSendEnabled:          types.BoolValue(c.WhatsAppSendEnabled),
+		EmailSendEnabled:             types.BoolValue(c.EmailSendEnabled),
+		SMSAutofillMetadata:          metadata,
+	}
+}
+
 type consumerSDKConfigOAuthModel struct {
 	Enabled      types.Bool `tfsdk:"enabled"`
 	PKCERequired types.Bool `tfsdk:"pkce_required"`
+}
+
+func (m consumerSDKConfigOAuthModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":       types.BoolType,
+		"pkce_required": types.BoolType,
+	}
+}
+
+func consumerSDKConfigOAuthModelFromSDKConfig(c sdk.ConsumerOAuthConfig) consumerSDKConfigOAuthModel {
+	return consumerSDKConfigOAuthModel{
+		Enabled:      types.BoolValue(c.Enabled),
+		PKCERequired: types.BoolValue(c.PKCERequired),
+	}
 }
 
 type consumerSDKConfigTOTPsModel struct {
@@ -91,14 +173,56 @@ type consumerSDKConfigTOTPsModel struct {
 	CreateTOTPs types.Bool `tfsdk:"create_totps"`
 }
 
+func (m consumerSDKConfigTOTPsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":      types.BoolType,
+		"create_totps": types.BoolType,
+	}
+}
+
+func consumerSDKConfigTOTPsModelFromSDKConfig(c sdk.ConsumerTOTPsConfig) consumerSDKConfigTOTPsModel {
+	return consumerSDKConfigTOTPsModel{
+		Enabled:     types.BoolValue(c.Enabled),
+		CreateTOTPs: types.BoolValue(c.CreateTOTPs),
+	}
+}
+
 type consumerSDKConfigWebAuthnModel struct {
 	Enabled         types.Bool `tfsdk:"enabled"`
 	CreateWebAuthns types.Bool `tfsdk:"create_webauthns"`
 }
 
+func (m consumerSDKConfigWebAuthnModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":          types.BoolType,
+		"create_webauthns": types.BoolType,
+	}
+}
+
+func consumerSDKConfigWebAuthnModelFromSDKConfig(c sdk.ConsumerWebAuthnConfig) consumerSDKConfigWebAuthnModel {
+	return consumerSDKConfigWebAuthnModel{
+		Enabled:         types.BoolValue(c.Enabled),
+		CreateWebAuthns: types.BoolValue(c.CreateWebAuthns),
+	}
+}
+
 type consumerSDKConfigCryptoWalletsModel struct {
 	Enabled      types.Bool `tfsdk:"enabled"`
 	SIWERequired types.Bool `tfsdk:"siwe_required"`
+}
+
+func (m consumerSDKConfigCryptoWalletsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":       types.BoolType,
+		"siwe_required": types.BoolType,
+	}
+}
+
+func consumerSDKConfigCryptoWalletsModelFromSDKConfig(c sdk.ConsumerCryptoWalletsConfig) consumerSDKConfigCryptoWalletsModel {
+	return consumerSDKConfigCryptoWalletsModel{
+		Enabled:      types.BoolValue(c.Enabled),
+		SIWERequired: types.BoolValue(c.SIWERequired),
+	}
 }
 
 type consumerSDKConfigDFPPAModel struct {
@@ -107,9 +231,39 @@ type consumerSDKConfigDFPPAModel struct {
 	LookupTimeoutSeconds types.Int32  `tfsdk:"lookup_timeout_seconds"`
 }
 
+func (m consumerSDKConfigDFPPAModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":                types.StringType,
+		"on_challenge":           types.StringType,
+		"lookup_timeout_seconds": types.Int32Type,
+	}
+}
+
+func consumerSDKConfigDFPPAModelFromSDKConfig(c sdk.ConsumerDFPPAConfig) consumerSDKConfigDFPPAModel {
+	return consumerSDKConfigDFPPAModel{
+		Enabled:              types.StringValue(string(c.Enabled)),
+		OnChallenge:          types.StringValue(string(c.OnChallenge)),
+		LookupTimeoutSeconds: types.Int32Value(c.LookupTimeoutSeconds),
+	}
+}
+
 type consumerSDKConfigBiometricsModel struct {
 	Enabled                 types.Bool `tfsdk:"enabled"`
 	CreateBiometricsEnabled types.Bool `tfsdk:"create_biometrics_enabled"`
+}
+
+func (m consumerSDKConfigBiometricsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":                   types.BoolType,
+		"create_biometrics_enabled": types.BoolType,
+	}
+}
+
+func consumerSDKConfigBiometricsModelFromSDKConfig(c sdk.ConsumerBiometricsConfig) consumerSDKConfigBiometricsModel {
+	return consumerSDKConfigBiometricsModel{
+		Enabled:                 types.BoolValue(c.Enabled),
+		CreateBiometricsEnabled: types.BoolValue(c.CreateBiometricsEnabled),
+	}
 }
 
 type consumerSDKConfigPasswordsModel struct {
@@ -117,7 +271,22 @@ type consumerSDKConfigPasswordsModel struct {
 	PKCERequiredForPasswordResets types.Bool `tfsdk:"pkce_required_for_password_resets"`
 }
 
-func (m consumerSDKConfigModel) toSDKConfig() sdk.ConsumerConfig {
+func (m consumerSDKConfigPasswordsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":                           types.BoolType,
+		"pkce_required_for_password_resets": types.BoolType,
+	}
+}
+
+func consumerSDKConfigPasswordsModelFromSDKConfig(c sdk.ConsumerPasswordsConfig) consumerSDKConfigPasswordsModel {
+	return consumerSDKConfigPasswordsModel{
+		Enabled:                       types.BoolValue(c.Enabled),
+		PKCERequiredForPasswordResets: types.BoolValue(c.PKCERequiredForPasswordResets),
+	}
+}
+
+func (m consumerSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.ConsumerConfig, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	c := sdk.ConsumerConfig{
 		Basic: &sdk.ConsumerBasicConfig{
 			Enabled:        m.Config.Basic.Enabled.ValueBool(),
@@ -133,39 +302,46 @@ func (m consumerSDKConfigModel) toSDKConfig() sdk.ConsumerConfig {
 		c.Basic.BundleIDs[i] = b.ValueString()
 	}
 
-	if !m.Config.Sessions.MaxSessionDurationMinutes.IsUnknown() {
+	if !m.Config.Sessions.IsUnknown() {
+		var sessions consumerSDKConfigSessionsModel
+		diags.Append(m.Config.Sessions.As(ctx, &sessions, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.Sessions = &sdk.ConsumerSessionsConfig{
-			MaxSessionDurationMinutes: m.Config.Sessions.MaxSessionDurationMinutes.ValueInt32(),
+			MaxSessionDurationMinutes: sessions.MaxSessionDurationMinutes.ValueInt32(),
 		}
 	}
 
-	if !m.Config.MagicLinks.LoginOrCreateEnabled.IsUnknown() ||
-		!m.Config.MagicLinks.SendEnabled.IsUnknown() ||
-		!m.Config.MagicLinks.PKCERequired.IsUnknown() {
+	if !m.Config.MagicLinks.IsUnknown() {
+		var magicLinks consumerSDKConfigMagicLinksModel
+		diags.Append(m.Config.MagicLinks.As(ctx, &magicLinks, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.MagicLinks = &sdk.ConsumerMagicLinksConfig{
-			LoginOrCreateEnabled: m.Config.MagicLinks.LoginOrCreateEnabled.ValueBool(),
-			SendEnabled:          m.Config.MagicLinks.SendEnabled.ValueBool(),
-			PKCERequired:         m.Config.MagicLinks.PKCERequired.ValueBool(),
+			LoginOrCreateEnabled: magicLinks.LoginOrCreateEnabled.ValueBool(),
+			SendEnabled:          magicLinks.SendEnabled.ValueBool(),
+			PKCERequired:         magicLinks.PKCERequired.ValueBool(),
 		}
 	}
 
-	if !m.Config.OTPs.SMSLoginOrCreateEnabled.IsUnknown() ||
-		!m.Config.OTPs.WhatsAppLoginOrCreateEnabled.IsUnknown() ||
-		!m.Config.OTPs.EmailLoginOrCreateEnabled.IsUnknown() ||
-		!m.Config.OTPs.SMSSendEnabled.IsUnknown() ||
-		!m.Config.OTPs.WhatsAppSendEnabled.IsUnknown() ||
-		!m.Config.OTPs.EmailSendEnabled.IsUnknown() ||
-		len(m.Config.OTPs.SMSAutofillMetadata) > 0 {
+	if !m.Config.OTPs.IsUnknown() {
+		var otps consumerSDKConfigOTPsModel
+		diags.Append(m.Config.OTPs.As(ctx, &otps, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.OTPs = &sdk.ConsumerOTPsConfig{
-			SMSLoginOrCreateEnabled:      m.Config.OTPs.SMSLoginOrCreateEnabled.ValueBool(),
-			WhatsAppLoginOrCreateEnabled: m.Config.OTPs.WhatsAppLoginOrCreateEnabled.ValueBool(),
-			EmailLoginOrCreateEnabled:    m.Config.OTPs.EmailLoginOrCreateEnabled.ValueBool(),
-			SMSSendEnabled:               m.Config.OTPs.SMSSendEnabled.ValueBool(),
-			WhatsAppSendEnabled:          m.Config.OTPs.WhatsAppSendEnabled.ValueBool(),
-			EmailSendEnabled:             m.Config.OTPs.EmailSendEnabled.ValueBool(),
-			SMSAutofillMetadata:          make([]sdk.SMSAutofillMetadata, len(m.Config.OTPs.SMSAutofillMetadata)),
+			SMSLoginOrCreateEnabled:      otps.SMSLoginOrCreateEnabled.ValueBool(),
+			WhatsAppLoginOrCreateEnabled: otps.WhatsAppLoginOrCreateEnabled.ValueBool(),
+			EmailLoginOrCreateEnabled:    otps.EmailLoginOrCreateEnabled.ValueBool(),
+			SMSSendEnabled:               otps.SMSSendEnabled.ValueBool(),
+			WhatsAppSendEnabled:          otps.WhatsAppSendEnabled.ValueBool(),
+			EmailSendEnabled:             otps.EmailSendEnabled.ValueBool(),
+			SMSAutofillMetadata:          make([]sdk.SMSAutofillMetadata, len(otps.SMSAutofillMetadata)),
 		}
-		for i, m := range m.Config.OTPs.SMSAutofillMetadata {
+		for i, m := range otps.SMSAutofillMetadata {
 			c.OTPs.SMSAutofillMetadata[i] = sdk.SMSAutofillMetadata{
 				MetadataType:  m.MetadataType.ValueString(),
 				MetadataValue: m.MetadataValue.ValueString(),
@@ -174,69 +350,188 @@ func (m consumerSDKConfigModel) toSDKConfig() sdk.ConsumerConfig {
 		}
 	}
 
-	if !m.Config.OAuth.Enabled.IsUnknown() ||
-		!m.Config.OAuth.PKCERequired.IsUnknown() {
+	if !m.Config.OAuth.IsUnknown() {
+		var oauth consumerSDKConfigOAuthModel
+		diags.Append(m.Config.OAuth.As(ctx, &oauth, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.OAuth = &sdk.ConsumerOAuthConfig{
-			Enabled:      m.Config.OAuth.Enabled.ValueBool(),
-			PKCERequired: m.Config.OAuth.PKCERequired.ValueBool(),
+			Enabled:      oauth.Enabled.ValueBool(),
+			PKCERequired: oauth.PKCERequired.ValueBool(),
 		}
 	}
 
-	if !m.Config.TOTPs.Enabled.IsUnknown() ||
-		!m.Config.TOTPs.CreateTOTPs.IsUnknown() {
+	if !m.Config.TOTPs.IsUnknown() {
+		var totps consumerSDKConfigTOTPsModel
+		diags.Append(m.Config.TOTPs.As(ctx, &totps, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.TOTPs = &sdk.ConsumerTOTPsConfig{
-			Enabled:     m.Config.TOTPs.Enabled.ValueBool(),
-			CreateTOTPs: m.Config.TOTPs.CreateTOTPs.ValueBool(),
+			Enabled:     totps.Enabled.ValueBool(),
+			CreateTOTPs: totps.CreateTOTPs.ValueBool(),
 		}
 	}
 
-	if !m.Config.WebAuthn.Enabled.IsUnknown() ||
-		!m.Config.WebAuthn.CreateWebAuthns.IsUnknown() {
+	if !m.Config.WebAuthn.IsUnknown() {
+		var webAuthn consumerSDKConfigWebAuthnModel
+		diags.Append(m.Config.WebAuthn.As(ctx, &webAuthn, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.WebAuthn = &sdk.ConsumerWebAuthnConfig{
-			Enabled:         m.Config.WebAuthn.Enabled.ValueBool(),
-			CreateWebAuthns: m.Config.WebAuthn.CreateWebAuthns.ValueBool(),
+			Enabled:         webAuthn.Enabled.ValueBool(),
+			CreateWebAuthns: webAuthn.CreateWebAuthns.ValueBool(),
 		}
 	}
 
-	if !m.Config.CryptoWallets.Enabled.IsUnknown() ||
-		!m.Config.CryptoWallets.SIWERequired.IsUnknown() {
+	if !m.Config.CryptoWallets.IsUnknown() {
+		var cryptoWallets consumerSDKConfigCryptoWalletsModel
+		diags.Append(m.Config.CryptoWallets.As(ctx, &cryptoWallets, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.CryptoWallets = &sdk.ConsumerCryptoWalletsConfig{
-			Enabled:      m.Config.CryptoWallets.Enabled.ValueBool(),
-			SIWERequired: m.Config.CryptoWallets.SIWERequired.ValueBool(),
+			Enabled:      cryptoWallets.Enabled.ValueBool(),
+			SIWERequired: cryptoWallets.SIWERequired.ValueBool(),
 		}
 	}
 
-	if !m.Config.DFPPA.Enabled.IsUnknown() ||
-		!m.Config.DFPPA.OnChallenge.IsUnknown() ||
-		!m.Config.DFPPA.LookupTimeoutSeconds.IsUnknown() {
+	if !m.Config.DFPPA.IsUnknown() {
+		var dfppa consumerSDKConfigDFPPAModel
+		diags.Append(m.Config.DFPPA.As(ctx, &dfppa, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.DFPPA = &sdk.ConsumerDFPPAConfig{
-			Enabled:              sdk.DFPPASetting(m.Config.DFPPA.Enabled.ValueString()),
-			OnChallenge:          sdk.DFPPAOnChallengeAction(m.Config.DFPPA.OnChallenge.ValueString()),
-			LookupTimeoutSeconds: m.Config.DFPPA.LookupTimeoutSeconds.ValueInt32(),
+			Enabled:              sdk.DFPPASetting(dfppa.Enabled.ValueString()),
+			OnChallenge:          sdk.DFPPAOnChallengeAction(dfppa.OnChallenge.ValueString()),
+			LookupTimeoutSeconds: dfppa.LookupTimeoutSeconds.ValueInt32(),
 		}
 	}
 
-	if !m.Config.Biometrics.Enabled.IsUnknown() ||
-		!m.Config.Biometrics.CreateBiometricsEnabled.IsUnknown() {
+	if !m.Config.Biometrics.IsUnknown() {
+		var biometrics consumerSDKConfigBiometricsModel
+		diags.Append(m.Config.Biometrics.As(ctx, &biometrics, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.Biometrics = &sdk.ConsumerBiometricsConfig{
-			Enabled:                 m.Config.Biometrics.Enabled.ValueBool(),
-			CreateBiometricsEnabled: m.Config.Biometrics.CreateBiometricsEnabled.ValueBool(),
+			Enabled:                 biometrics.Enabled.ValueBool(),
+			CreateBiometricsEnabled: biometrics.CreateBiometricsEnabled.ValueBool(),
 		}
 	}
 
-	if !m.Config.Passwords.Enabled.IsUnknown() ||
-		!m.Config.Passwords.PKCERequiredForPasswordResets.IsUnknown() {
+	if !m.Config.Passwords.IsUnknown() {
+		var passwords consumerSDKConfigPasswordsModel
+		diags.Append(m.Config.Passwords.As(ctx, &passwords, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
 		c.Passwords = &sdk.ConsumerPasswordsConfig{
-			Enabled:                       m.Config.Passwords.Enabled.ValueBool(),
-			PKCERequiredForPasswordResets: m.Config.Passwords.PKCERequiredForPasswordResets.ValueBool(),
+			Enabled:                       passwords.Enabled.ValueBool(),
+			PKCERequiredForPasswordResets: passwords.PKCERequiredForPasswordResets.ValueBool(),
 		}
 	}
 
-	return c
+	return c, diags
 }
 
-func (m *consumerSDKConfigModel) reloadFromSDKConfig(config sdk.ConsumerConfig) {
-	// TODO
+func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.ConsumerConfig) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if c.Sessions == nil {
+		diags.AddError("sessions is nil", nilSDKObject)
+	}
+	if c.MagicLinks == nil {
+		diags.AddError("magic_links is nil", nilSDKObject)
+	}
+	if c.OTPs == nil {
+		diags.AddError("otps is nil", nilSDKObject)
+	}
+	if c.OAuth == nil {
+		diags.AddError("oauth is nil", nilSDKObject)
+	}
+	if c.TOTPs == nil {
+		diags.AddError("totps is nil", nilSDKObject)
+	}
+	if c.WebAuthn == nil {
+		diags.AddError("webauthn is nil", nilSDKObject)
+	}
+	if c.CryptoWallets == nil {
+		diags.AddError("crypto_wallets is nil", nilSDKObject)
+	}
+	if c.DFPPA == nil {
+		diags.AddError("dfppa is nil", nilSDKObject)
+	}
+	if c.Biometrics == nil {
+		diags.AddError("biometrics is nil", nilSDKObject)
+	}
+	if c.Passwords == nil {
+		diags.AddError("passwords is nil", nilSDKObject)
+	}
+
+	if diags.HasError() {
+		return diags
+	}
+
+	sessions, diag := types.ObjectValueFrom(ctx, consumerSDKConfigSessionsModel{}.AttributeTypes(), consumerSDKConfigSessionsModelFromSDKConfig(*c.Sessions))
+	diags.Append(diag...)
+
+	magicLinks, diag := types.ObjectValueFrom(ctx, consumerSDKConfigMagicLinksModel{}.AttributeTypes(), consumerSDKConfigMagicLinksModelFromSDKConfig(*c.MagicLinks))
+	diags.Append(diag...)
+
+	otps, diag := types.ObjectValueFrom(ctx, consumerSDKConfigOTPsModel{}.AttributeTypes(), consumerSDKConfigOTPsModelFromSDKConfig(*c.OTPs))
+	diags.Append(diag...)
+
+	oauth, diag := types.ObjectValueFrom(ctx, consumerSDKConfigOAuthModel{}.AttributeTypes(), consumerSDKConfigOAuthModelFromSDKConfig(*c.OAuth))
+	diags.Append(diag...)
+
+	totps, diag := types.ObjectValueFrom(ctx, consumerSDKConfigTOTPsModel{}.AttributeTypes(), consumerSDKConfigTOTPsModelFromSDKConfig(*c.TOTPs))
+	diags.Append(diag...)
+
+	webAuthn, diag := types.ObjectValueFrom(ctx, consumerSDKConfigWebAuthnModel{}.AttributeTypes(), consumerSDKConfigWebAuthnModelFromSDKConfig(*c.WebAuthn))
+	diags.Append(diag...)
+
+	cryptoWallets, diag := types.ObjectValueFrom(ctx, consumerSDKConfigCryptoWalletsModel{}.AttributeTypes(), consumerSDKConfigCryptoWalletsModelFromSDKConfig(*c.CryptoWallets))
+	diags.Append(diag...)
+
+	dfppa, diag := types.ObjectValueFrom(ctx, consumerSDKConfigDFPPAModel{}.AttributeTypes(), consumerSDKConfigDFPPAModelFromSDKConfig(*c.DFPPA))
+	diags.Append(diag...)
+
+	biometrics, diag := types.ObjectValueFrom(ctx, consumerSDKConfigBiometricsModel{}.AttributeTypes(), consumerSDKConfigBiometricsModelFromSDKConfig(*c.Biometrics))
+	diags.Append(diag...)
+
+	passwords, diag := types.ObjectValueFrom(ctx, consumerSDKConfigPasswordsModel{}.AttributeTypes(), consumerSDKConfigPasswordsModelFromSDKConfig(*c.Passwords))
+	diags.Append(diag...)
+
+	cfg := consumerSDKConfigInnerModel{
+		Basic: consumerSDKConfigBasicModel{
+			Enabled:        types.BoolValue(c.Basic.Enabled),
+			CreateNewUsers: types.BoolValue(c.Basic.CreateNewUsers),
+			Domains:        make([]types.String, len(c.Basic.Domains)),
+			BundleIDs:      make([]types.String, len(c.Basic.BundleIDs)),
+		},
+		Sessions:      sessions,
+		MagicLinks:    magicLinks,
+		OTPs:          otps,
+		OAuth:         oauth,
+		TOTPs:         totps,
+		WebAuthn:      webAuthn,
+		CryptoWallets: cryptoWallets,
+		DFPPA:         dfppa,
+		Biometrics:    biometrics,
+		Passwords:     passwords,
+	}
+	for i, d := range c.Basic.Domains {
+		cfg.Basic.Domains[i] = types.StringValue(d)
+	}
+	for i, b := range c.Basic.BundleIDs {
+		cfg.Basic.BundleIDs[i] = types.StringValue(b)
+	}
+	m.Config = cfg
+	return diags
 }
 
 func (r *consumerSDKConfigResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -332,6 +627,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								},
 							},
 						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"magic_links": schema.SingleNestedAttribute{
 						Optional:    true,
@@ -365,6 +663,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 									boolplanmodifier.UseStateForUnknown(),
 								},
 							},
+						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"otps": schema.SingleNestedAttribute{
@@ -455,6 +756,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								},
 							},
 						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"oauth": schema.SingleNestedAttribute{
 						Optional:    true,
@@ -481,6 +785,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								},
 							},
 						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"totps": schema.SingleNestedAttribute{
 						Optional:    true,
@@ -503,6 +810,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 									boolplanmodifier.UseStateForUnknown(),
 								},
 							},
+						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"webauthn": schema.SingleNestedAttribute{
@@ -527,6 +837,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								},
 							},
 						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"crypto_wallets": schema.SingleNestedAttribute{
 						Optional:    true,
@@ -549,6 +862,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 									boolplanmodifier.UseStateForUnknown(),
 								},
 							},
+						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"dfppa": schema.SingleNestedAttribute{
@@ -581,6 +897,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								},
 							},
 						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"biometrics": schema.SingleNestedAttribute{
 						Optional:    true,
@@ -603,6 +922,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 									boolplanmodifier.UseStateForUnknown(),
 								},
 							},
+						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"passwords": schema.SingleNestedAttribute{
@@ -630,6 +952,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								},
 							},
 						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -638,10 +963,16 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 }
 
 func (r consumerSDKConfigResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var data b2bSDKConfigModel
+	var data consumerSDKConfigModel
 	diags := req.Config.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// If the projectID isn't yet known, skip validation for now.
+	// The plugin framework will call ValidateConfig again when all required values are known.
+	if data.ProjectID.IsUnknown() {
 		return
 	}
 
@@ -667,16 +998,23 @@ func (r *consumerSDKConfigResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
+	cfg, diags := plan.toSDKConfig(ctx)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	setResp, err := r.client.SDK.SetConsumerConfig(ctx, sdk.SetConsumerConfigRequest{
 		ProjectID: plan.ProjectID.ValueString(),
-		Config:    plan.toSDKConfig(),
+		Config:    cfg,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to set Consumer SDK config", err.Error())
 		return
 	}
 
-	plan.reloadFromSDKConfig(setResp.Config)
+	diags = plan.reloadFromSDKConfig(ctx, setResp.Config)
+	resp.Diagnostics.Append(diags...)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -702,7 +1040,8 @@ func (r *consumerSDKConfigResource) Read(ctx context.Context, req resource.ReadR
 		resp.Diagnostics.AddError("Failed to get Consumer SDK config", err.Error())
 	}
 
-	state.reloadFromSDKConfig(getResp.Config)
+	diags = state.reloadFromSDKConfig(ctx, getResp.Config)
+	resp.Diagnostics.Append(diags...)
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -719,16 +1058,23 @@ func (r *consumerSDKConfigResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 
+	cfg, diags := plan.toSDKConfig(ctx)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	setResp, err := r.client.SDK.SetConsumerConfig(ctx, sdk.SetConsumerConfigRequest{
 		ProjectID: plan.ProjectID.ValueString(),
-		Config:    plan.toSDKConfig(),
+		Config:    cfg,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to set Consumer SDK config", err.Error())
 		return
 	}
 
-	plan.reloadFromSDKConfig(setResp.Config)
+	diags = plan.reloadFromSDKConfig(ctx, setResp.Config)
+	resp.Diagnostics.Append(diags...)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

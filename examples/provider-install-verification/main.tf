@@ -70,6 +70,26 @@ resource "stytch_password_config" "consumer_password_config" {
   luds_min_password_complexity   = 4
 }
 
+resource "stytch_consumer_sdk_config" "consumer_sdk_config" {
+  project_id = stytch_project.consumer_project.test_project_id
+  config = {
+    basic = {
+      enabled          = true
+      create_new_users = true
+      domains          = []
+      bundle_ids       = []
+    }
+    sessions = {
+      max_session_duration_minutes = 60
+    }
+    magic_links = {
+      login_or_create_enabled = true
+      send_enabled            = true
+      pkce_required           = true
+    }
+  }
+}
+
 resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
   project_id = stytch_project.b2b_project.test_project_id
   config = {
