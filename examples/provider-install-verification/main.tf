@@ -115,3 +115,7 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
     }
   }
 }
+
+resource "stytch_secret" "consumer_secret" {
+  project_id = stytch_project.consumer_project.live_project_id
+}
