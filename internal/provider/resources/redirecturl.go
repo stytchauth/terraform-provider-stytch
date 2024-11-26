@@ -5,19 +5,20 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/redirecturls"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &redirectURLResource{}
-	_ resource.ResourceWithConfigure   = &redirectURLResource{}
-	_ resource.ResourceWithImportState = &redirectURLResource{}
+	_ resource.Resource              = &redirectURLResource{}
+	_ resource.ResourceWithConfigure = &redirectURLResource{}
 )
 
 func NewRedirectURLResource() resource.Resource {
@@ -33,6 +34,17 @@ type redirectURLModel struct {
 	LastUpdated types.String           `tfsdk:"last_updated"`
 	URL         types.String           `tfsdk:"url"`
 	ValidTypes  []redirectURLTypeModel `tfsdk:"valid_types"`
+}
+
+func (m *redirectURLModel) refreshFromRedirectURL(r redirecturls.RedirectURL) {
+	m.URL = types.StringValue(r.URL)
+	m.ValidTypes = make([]redirectURLTypeModel, len(r.ValidTypes))
+	for i, vt := range r.ValidTypes {
+		m.ValidTypes[i] = redirectURLTypeModel{
+			Type:      types.StringValue(string(vt.Type)),
+			IsDefault: types.BoolValue(vt.IsDefault),
+		}
+	}
 }
 
 type redirectURLTypeModel struct {
@@ -80,6 +92,9 @@ func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"url": schema.StringAttribute{
 				Required:    true,
 				Description: "The URL to redirect to.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"valid_types": schema.SetNestedAttribute{
 				Required: true,
@@ -130,6 +145,10 @@ func (r *redirectURLResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "url", plan.URL.ValueString())
+	tflog.Info(ctx, "Creating redirect URL")
+
 	redirectURL := redirecturls.RedirectURL{
 		URL: plan.URL.ValueString(),
 	}
@@ -141,7 +160,7 @@ func (r *redirectURLResource) Create(ctx context.Context, req resource.CreateReq
 		})
 	}
 
-	_, err := r.client.RedirectURLs.Create(ctx, redirecturls.CreateRequest{
+	createResp, err := r.client.RedirectURLs.Create(ctx, redirecturls.CreateRequest{
 		ProjectID:   plan.ProjectID.ValueString(),
 		RedirectURL: redirectURL,
 	})
@@ -150,6 +169,9 @@ func (r *redirectURLResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	tflog.Info(ctx, "Created redirect URL")
+
+	plan.refreshFromRedirectURL(createResp.RedirectURL)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -168,6 +190,10 @@ func (r *redirectURLResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "url", state.URL.ValueString())
+	tflog.Info(ctx, "Reading redirect URL")
+
 	getResp, err := r.client.RedirectURLs.Get(ctx, redirecturls.GetRequest{
 		ProjectID: state.ProjectID.ValueString(),
 		URL:       state.URL.ValueString(),
@@ -177,14 +203,9 @@ func (r *redirectURLResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	state.ValidTypes = nil
-	for _, typ := range getResp.RedirectURL.ValidTypes {
-		state.ValidTypes = append(state.ValidTypes, redirectURLTypeModel{
-			Type:      types.StringValue(string(typ.Type)),
-			IsDefault: types.BoolValue(typ.IsDefault),
-		})
-	}
+	tflog.Info(ctx, "Read redirect URL")
 
+	state.refreshFromRedirectURL(getResp.RedirectURL)
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -201,6 +222,10 @@ func (r *redirectURLResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "url", plan.URL.ValueString())
+	tflog.Info(ctx, "Updating redirect URL")
+
 	redirectURL := redirecturls.RedirectURL{
 		URL: plan.URL.ValueString(),
 	}
@@ -212,7 +237,7 @@ func (r *redirectURLResource) Update(ctx context.Context, req resource.UpdateReq
 		})
 	}
 
-	_, err := r.client.RedirectURLs.Update(ctx, redirecturls.UpdateRequest{
+	updateResp, err := r.client.RedirectURLs.Update(ctx, redirecturls.UpdateRequest{
 		ProjectID:   plan.ProjectID.ValueString(),
 		RedirectURL: redirectURL,
 	})
@@ -221,6 +246,9 @@ func (r *redirectURLResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
+	tflog.Info(ctx, "Updated redirect URL")
+
+	plan.refreshFromRedirectURL(updateResp.RedirectURL)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -238,6 +266,9 @@ func (r *redirectURLResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	tflog.Info(ctx, "Deleting redirect URL")
+
 	_, err := r.client.RedirectURLs.Delete(ctx, redirecturls.DeleteRequest{
 		ProjectID: state.ProjectID.ValueString(),
 		URL:       state.URL.ValueString(),
@@ -246,8 +277,6 @@ func (r *redirectURLResource) Delete(ctx context.Context, req resource.DeleteReq
 		resp.Diagnostics.AddError("Failed to delete redirect URL", err.Error())
 		return
 	}
-}
 
-func (r *redirectURLResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("project_id"), req, resp)
+	tflog.Info(ctx, "Deleted redirect URL")
 }
