@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/resources"
 )
@@ -65,6 +66,8 @@ func (p *StytchProvider) Schema(ctx context.Context, req provider.SchemaRequest,
 }
 
 func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	tflog.Info(ctx, "Configuring the Stytch provider")
+
 	var config StytchProviderModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
@@ -140,9 +143,16 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "workspace_key_id", workspaceKeyID)
+	ctx = tflog.SetField(ctx, "workspace_key_secret", workspaceKeySecret)
+	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "workspace_key_secret")
+
+	tflog.Debug(ctx, "Creating stytch-management-go client")
+
 	// Now we're finally ready to create the stytch-management-go client.
 	var opts []api.APIOption
 	if baseURI != "" {
+		ctx = tflog.SetField(ctx, "base_uri", baseURI)
 		opts = append(opts, api.WithBaseURI(baseURI))
 	}
 	client := api.NewClient(workspaceKeyID, workspaceKeySecret, opts...)
@@ -150,6 +160,8 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	// Make the client available to the provider.
 	resp.DataSourceData = client
 	resp.ResourceData = client
+
+	tflog.Info(ctx, "Stytch provider configured", map[string]any{"success": true})
 }
 
 func (p *StytchProvider) Resources(ctx context.Context) []func() resource.Resource {
