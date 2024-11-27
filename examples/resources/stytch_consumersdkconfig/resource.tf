@@ -1,5 +1,3 @@
-# Copyright (c) HashiCorp, Inc.
-
 # Manage Consumer SDK configuration
 resource "stytch_consumer_sdk_config" "consumer_sdk_config" {
   project_id = stytch_project.consumer_project.test_project_id

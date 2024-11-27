@@ -13,8 +13,6 @@ Interact with Stytch to configure your workspace, including projects, redirect U
 ## Example Usage
 
 ```terraform
-# Copyright (c) HashiCorp, Inc.
-
 # Configuration-based authentication
 provider "stytch" {
   workspace_key_id     = "workspace-key-prod-00000000-0000-0000-0000-000000000000"

@@ -1,5 +1,3 @@
-# Copyright (c) HashiCorp, Inc.
-
 # Manage a custom RBAC policy
 resource "stytch_rbac_policy" "b2b_rbac_policy" {
   project_id = stytch_project.b2b_project.test_project_id

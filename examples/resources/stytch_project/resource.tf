@@ -1,5 +1,3 @@
-# Copyright (c) HashiCorp, Inc.
-
 # Create a consumer project
 resource "stytch_project" "consumer_project" {
   name     = "tf-consumer"
