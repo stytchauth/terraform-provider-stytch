@@ -1,5 +1,3 @@
-# Copyright (c) HashiCorp, Inc.
-
 # Manage B2B SDK configuration
 resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
   project_id = stytch_project.b2b_project.test_project_id

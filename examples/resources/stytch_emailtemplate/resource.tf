@@ -1,5 +1,3 @@
-# Copyright (c) HashiCorp, Inc.
-
 # Create a new prebuilt email template
 resource "stytch_email_template" "prebuilt_email_template" {
   live_project_id = stytch_project.consumer_project.live_project_id

@@ -1,5 +1,3 @@
-# Copyright (c) HashiCorp, Inc.
-
 # Manage Stytch Redirect URLs in a consumer project
 resource "stytch_redirect_url" "consumer_redirect_url" {
   project_id = stytch_project.consumer_project.test_project_id

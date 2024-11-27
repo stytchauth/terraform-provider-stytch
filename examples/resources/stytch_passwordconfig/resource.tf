@@ -1,5 +1,3 @@
-# Copyright (c) HashiCorp, Inc.
-
 # Create a custom password configuration policy using LUDS validation
 resource "stytch_password_config" "password_config" {
   project_id                     = stytch_project.consumer_project.test_project_id
