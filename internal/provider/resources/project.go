@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -35,16 +34,15 @@ type projectResource struct {
 }
 
 type projectModel struct {
-	ID                   types.String `tfsdk:"id"`
-	LiveProjectID        types.String `tfsdk:"live_project_id"`
-	TestProjectID        types.String `tfsdk:"test_project_id"`
-	LastUpdated          types.String `tfsdk:"last_updated"`
-	CreatedAt            types.String `tfsdk:"created_at"`
-	Name                 types.String `tfsdk:"name"`
-	Vertical             types.String `tfsdk:"vertical"`
-	LiveOAuthCallbackID  types.String `tfsdk:"live_oauth_callback_id"`
-	TestOAuthCallbackID  types.String `tfsdk:"test_oauth_callback_id"`
-	UseCrossOrgPasswords types.Bool   `tfsdk:"use_cross_org_passwords"`
+	ID                  types.String `tfsdk:"id"`
+	LiveProjectID       types.String `tfsdk:"live_project_id"`
+	TestProjectID       types.String `tfsdk:"test_project_id"`
+	LastUpdated         types.String `tfsdk:"last_updated"`
+	CreatedAt           types.String `tfsdk:"created_at"`
+	Name                types.String `tfsdk:"name"`
+	Vertical            types.String `tfsdk:"vertical"`
+	LiveOAuthCallbackID types.String `tfsdk:"live_oauth_callback_id"`
+	TestOAuthCallbackID types.String `tfsdk:"test_oauth_callback_id"`
 }
 
 func (m *projectModel) refreshFromProject(p projects.Project) {
@@ -57,7 +55,6 @@ func (m *projectModel) refreshFromProject(p projects.Project) {
 	m.Vertical = types.StringValue(string(p.Vertical))
 	m.LiveOAuthCallbackID = types.StringValue(p.LiveOAuthCallbackID)
 	m.TestOAuthCallbackID = types.StringValue(p.TestOAuthCallbackID)
-	m.UseCrossOrgPasswords = types.BoolValue(p.UseCrossOrgPasswords)
 }
 
 func (r *projectResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -149,14 +146,6 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"use_cross_org_passwords": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Whether to enable cross-org passwords in a B2B project.",
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.UseStateForUnknown(),
-				},
-			},
 		},
 	}
 }
@@ -242,7 +231,6 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	updateResp, err := r.client.Projects.Update(ctx, projects.UpdateRequest{
 		ProjectID: plan.LiveProjectID.ValueString(),
 		Name:      plan.Name.ValueString(),
-		// UseCrossOrgPasswords: plan.UseCrossOrgPasswords.ValueBool(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update project", err.Error())
