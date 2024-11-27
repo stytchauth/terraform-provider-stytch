@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
 	"github.com/stytchauth/stytch-management-go/pkg/models/sdk"
@@ -39,9 +40,12 @@ type b2bSDKConfigResource struct {
 }
 
 type b2bSDKConfigModel struct {
-	ProjectID   types.String           `tfsdk:"project_id"`
-	LastUpdated types.String           `tfsdk:"last_updated"`
-	Config      b2bSDKConfigInnerModel `tfsdk:"config"`
+	ID          types.String `tfsdk:"id"`
+	ProjectID   types.String `tfsdk:"project_id"`
+	LastUpdated types.String `tfsdk:"last_updated"`
+	// A pointer is required here for ImportState to work since the initial import
+	// will set a nil value until Read is called.
+	Config *b2bSDKConfigInnerModel `tfsdk:"config"`
 }
 
 type b2bSDKConfigInnerModel struct {
@@ -57,17 +61,35 @@ type b2bSDKConfigInnerModel struct {
 }
 
 type b2bSDKConfigBasicModel struct {
-	Enabled                 types.Bool                          `tfsdk:"enabled"`
-	CreateNewMembers        types.Bool                          `tfsdk:"create_new_members"`
-	AllowSelfOnboarding     types.Bool                          `tfsdk:"allow_self_onboarding"`
-	EnableMemberPermissions types.Bool                          `tfsdk:"enable_member_permissions"`
-	Domains                 []b2bSDKConfigAuthorizedDomainModel `tfsdk:"domains"`
-	BundleIDs               []types.String                      `tfsdk:"bundle_ids"`
+	Enabled                 types.Bool `tfsdk:"enabled"`
+	CreateNewMembers        types.Bool `tfsdk:"create_new_members"`
+	AllowSelfOnboarding     types.Bool `tfsdk:"allow_self_onboarding"`
+	EnableMemberPermissions types.Bool `tfsdk:"enable_member_permissions"`
+	Domains                 types.List `tfsdk:"domains"`
+	BundleIDs               types.List `tfsdk:"bundle_ids"`
 }
 
 type b2bSDKConfigAuthorizedDomainModel struct {
 	Domain      types.String `tfsdk:"domain"`
 	SlugPattern types.String `tfsdk:"slug_pattern"`
+}
+
+func (m b2bSDKConfigAuthorizedDomainModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"domain":       types.StringType,
+		"slug_pattern": types.StringType,
+	}
+}
+
+func b2bSDKConfigAuthorizedDomainModelFromSDKConfig(d []sdk.AuthorizedB2BDomain) []b2bSDKConfigAuthorizedDomainModel {
+	m := make([]b2bSDKConfigAuthorizedDomainModel, len(d))
+	for i, d := range d {
+		m[i] = b2bSDKConfigAuthorizedDomainModel{
+			Domain:      types.StringValue(d.Domain),
+			SlugPattern: types.StringValue(d.SlugPattern),
+		}
+	}
+	return m
 }
 
 type b2bSDKConfigSessionsModel struct {
@@ -245,18 +267,24 @@ func (m b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, diag
 			CreateNewMembers:        m.Config.Basic.CreateNewMembers.ValueBool(),
 			AllowSelfOnboarding:     m.Config.Basic.AllowSelfOnboarding.ValueBool(),
 			EnableMemberPermissions: m.Config.Basic.EnableMemberPermissions.ValueBool(),
-			Domains:                 make([]sdk.AuthorizedB2BDomain, len(m.Config.Basic.Domains)),
-			BundleIDs:               make([]string, len(m.Config.Basic.BundleIDs)),
 		},
 	}
-	for i, d := range m.Config.Basic.Domains {
-		c.Basic.Domains[i] = sdk.AuthorizedB2BDomain{
-			Domain:      d.Domain.ValueString(),
-			SlugPattern: d.SlugPattern.ValueString(),
+	if !m.Config.Basic.Domains.IsUnknown() {
+		var domains []b2bSDKConfigAuthorizedDomainModel
+		diags.Append(m.Config.Basic.Domains.ElementsAs(ctx, &domains, true)...)
+		c.Basic.Domains = make([]sdk.AuthorizedB2BDomain, len(domains))
+		for i, d := range domains {
+			c.Basic.Domains[i] = sdk.AuthorizedB2BDomain{
+				Domain:      d.Domain.ValueString(),
+				SlugPattern: d.SlugPattern.ValueString(),
+			}
 		}
 	}
-	for i, b := range m.Config.Basic.BundleIDs {
-		c.Basic.BundleIDs[i] = b.ValueString()
+
+	if !m.Config.Basic.BundleIDs.IsUnknown() {
+		var bundleIDs []string
+		diags.Append(m.Config.Basic.BundleIDs.ElementsAs(ctx, &bundleIDs, true)...)
+		c.Basic.BundleIDs = bundleIDs
 	}
 
 	if !m.Config.Sessions.IsUnknown() {
@@ -398,6 +426,12 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 		return diags
 	}
 
+	domains, diag := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: b2bSDKConfigAuthorizedDomainModel{}.AttributeTypes()}, b2bSDKConfigAuthorizedDomainModelFromSDKConfig(c.Basic.Domains))
+	diags.Append(diag...)
+
+	bundleIDs, diag := types.ListValueFrom(ctx, types.StringType, c.Basic.BundleIDs)
+	diags.Append(diag...)
+
 	sessions, diag := types.ObjectValueFrom(ctx, b2bSDKConfigSessionsModel{}.AttributeTypes(), b2bSDKConfigSessionsModelFromSDKConfig(*c.Sessions))
 	diags.Append(diag...)
 
@@ -428,8 +462,8 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 			CreateNewMembers:        types.BoolValue(c.Basic.CreateNewMembers),
 			AllowSelfOnboarding:     types.BoolValue(c.Basic.AllowSelfOnboarding),
 			EnableMemberPermissions: types.BoolValue(c.Basic.EnableMemberPermissions),
-			Domains:                 make([]b2bSDKConfigAuthorizedDomainModel, len(c.Basic.Domains)),
-			BundleIDs:               make([]types.String, len(c.Basic.BundleIDs)),
+			Domains:                 domains,
+			BundleIDs:               bundleIDs,
 		},
 		Sessions:   sessions,
 		MagicLinks: magicLinks,
@@ -440,16 +474,8 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 		DFPPA:      dfppa,
 		Passwords:  passwords,
 	}
-	for i, d := range c.Basic.Domains {
-		cfg.Basic.Domains[i] = b2bSDKConfigAuthorizedDomainModel{
-			Domain:      types.StringValue(d.Domain),
-			SlugPattern: types.StringValue(d.SlugPattern),
-		}
-	}
-	for i, b := range c.Basic.BundleIDs {
-		cfg.Basic.BundleIDs[i] = types.StringValue(b)
-	}
-	m.Config = cfg
+	m.ID = m.ProjectID
+	m.Config = &cfg
 	return diags
 }
 
@@ -483,6 +509,9 @@ func (r *b2bSDKConfigResource) Metadata(_ context.Context, req resource.Metadata
 func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
 			"project_id": schema.StringAttribute{
 				Required: true,
 				Description: "The ID of the B2B project for which to set the SDK config. " +
@@ -838,6 +867,9 @@ func (r b2bSDKConfigResource) ValidateConfig(ctx context.Context, req resource.V
 		return
 	}
 
+	ctx = context.WithValue(ctx, "project_id", data.ProjectID.ValueString())
+	tflog.Info(ctx, "Validating B2B SDK config")
+
 	getProjectResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
 		ProjectID: data.ProjectID.ValueString(),
 	})
@@ -849,6 +881,8 @@ func (r b2bSDKConfigResource) ValidateConfig(ctx context.Context, req resource.V
 		resp.Diagnostics.AddError("Invalid project vertical", "The project must be a B2B project for this resource.")
 		return
 	}
+
+	tflog.Info(ctx, "B2B SDK config validated")
 }
 
 // Create creates the resource and sets the initial Terraform state.
@@ -859,6 +893,9 @@ func (r *b2bSDKConfigResource) Create(ctx context.Context, req resource.CreateRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	ctx = context.WithValue(ctx, "project_id", plan.ProjectID.ValueString())
+	tflog.Info(ctx, "Creating B2B SDK config")
 
 	cfg, diag := plan.toSDKConfig(ctx)
 	resp.Diagnostics.Append(diag...)
@@ -874,6 +911,8 @@ func (r *b2bSDKConfigResource) Create(ctx context.Context, req resource.CreateRe
 		resp.Diagnostics.AddError("Failed to set B2B SDK config", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "B2B SDK config created")
 
 	diags = plan.reloadFromSDKConfig(ctx, setResp.Config)
 	resp.Diagnostics.Append(diags...)
@@ -895,7 +934,9 @@ func (r *b2bSDKConfigResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	// TODO: Get refreshed value from the API
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	tflog.Info(ctx, "Reading B2B SDK config")
+
 	getResp, err := r.client.SDK.GetB2BConfig(ctx, sdk.GetB2BConfigRequest{
 		ProjectID: state.ProjectID.ValueString(),
 	})
@@ -903,6 +944,8 @@ func (r *b2bSDKConfigResource) Read(ctx context.Context, req resource.ReadReques
 		resp.Diagnostics.AddError("Failed to get B2B SDK config", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "B2B SDK config read")
 
 	diags = state.reloadFromSDKConfig(ctx, getResp.Config)
 	resp.Diagnostics.Append(diags...)
@@ -922,6 +965,9 @@ func (r *b2bSDKConfigResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	ctx = context.WithValue(ctx, "project_id", plan.ProjectID.ValueString())
+	tflog.Info(ctx, "Updating B2B SDK config")
+
 	cfg, diag := plan.toSDKConfig(ctx)
 	resp.Diagnostics.Append(diag...)
 	if resp.Diagnostics.HasError() {
@@ -936,6 +982,8 @@ func (r *b2bSDKConfigResource) Update(ctx context.Context, req resource.UpdateRe
 		resp.Diagnostics.AddError("Failed to set B2B SDK config", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "B2B SDK config updated")
 
 	diags = plan.reloadFromSDKConfig(ctx, setResp.Config)
 	resp.Diagnostics.Append(diags...)
@@ -956,6 +1004,8 @@ func (r *b2bSDKConfigResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
+	tflog.Info(ctx, "Deleting B2B SDK config")
+
 	// To delete the SDK config, we set the basic config to disabled. Other fields are left as-is. Although this isn't
 	// *perfect*, it's the best we can do since we don't want to define various "defaults" in different repos since they
 	// would likely drift apart over time.
@@ -975,8 +1025,12 @@ func (r *b2bSDKConfigResource) Delete(ctx context.Context, req resource.DeleteRe
 		resp.Diagnostics.AddError("Failed to reset B2B SDK config", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "B2B SDK config deleted")
 }
 
 func (r *b2bSDKConfigResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx = tflog.SetField(ctx, "project_id", req.ID)
+	tflog.Info(ctx, "Importing B2B SDK config")
 	resource.ImportStatePassthroughID(ctx, path.Root("project_id"), req, resp)
 }

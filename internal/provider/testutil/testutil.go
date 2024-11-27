@@ -20,3 +20,15 @@ const (
 var TestAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"stytch": providerserver.NewProtocol6WithError(provider.New("test")()),
 }
+
+var ConsumerProjectConfig = `
+resource "stytch_project" "project" {
+  name     = "test"
+  vertical = "CONSUMER"
+}`
+
+var B2BProjectConfig = `
+resource "stytch_project" "project" {
+  name     = "test-b2b"
+  vertical = "B2B"
+}`

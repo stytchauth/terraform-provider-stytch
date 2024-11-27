@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
 	"github.com/stytchauth/stytch-management-go/pkg/models/sdk"
@@ -39,9 +40,12 @@ type consumerSDKConfigResource struct {
 }
 
 type consumerSDKConfigModel struct {
-	ProjectID   types.String                `tfsdk:"project_id"`
-	LastUpdated types.String                `tfsdk:"last_updated"`
-	Config      consumerSDKConfigInnerModel `tfsdk:"config"`
+	ID          types.String `tfsdk:"id"`
+	ProjectID   types.String `tfsdk:"project_id"`
+	LastUpdated types.String `tfsdk:"last_updated"`
+	// A pointer is required here for ImportState to work since the initial import
+	// will set a nil value until Read is called.
+	Config *consumerSDKConfigInnerModel `tfsdk:"config"`
 }
 
 type consumerSDKConfigInnerModel struct {
@@ -59,10 +63,10 @@ type consumerSDKConfigInnerModel struct {
 }
 
 type consumerSDKConfigBasicModel struct {
-	Enabled        types.Bool     `tfsdk:"enabled"`
-	CreateNewUsers types.Bool     `tfsdk:"create_new_users"`
-	Domains        []types.String `tfsdk:"domains"`
-	BundleIDs      []types.String `tfsdk:"bundle_ids"`
+	Enabled        types.Bool `tfsdk:"enabled"`
+	CreateNewUsers types.Bool `tfsdk:"create_new_users"`
+	Domains        types.List `tfsdk:"domains"`
+	BundleIDs      types.List `tfsdk:"bundle_ids"`
 }
 
 type consumerSDKConfigSessionsModel struct {
@@ -291,15 +295,18 @@ func (m consumerSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.ConsumerCo
 		Basic: &sdk.ConsumerBasicConfig{
 			Enabled:        m.Config.Basic.Enabled.ValueBool(),
 			CreateNewUsers: m.Config.Basic.CreateNewUsers.ValueBool(),
-			Domains:        make([]string, len(m.Config.Basic.Domains)),
-			BundleIDs:      make([]string, len(m.Config.Basic.BundleIDs)),
 		},
 	}
-	for i, d := range m.Config.Basic.Domains {
-		c.Basic.Domains[i] = d.ValueString()
+
+	if !m.Config.Basic.Domains.IsUnknown() {
+		var domains []string
+		diags.Append(m.Config.Basic.Domains.ElementsAs(ctx, &domains, true)...)
+		c.Basic.Domains = domains
 	}
-	for i, b := range m.Config.Basic.BundleIDs {
-		c.Basic.BundleIDs[i] = b.ValueString()
+	if !m.Config.Basic.BundleIDs.IsUnknown() {
+		var bundleIDs []string
+		diags.Append(m.Config.Basic.BundleIDs.ElementsAs(ctx, &bundleIDs, true)...)
+		c.Basic.BundleIDs = bundleIDs
 	}
 
 	if !m.Config.Sessions.IsUnknown() {
@@ -476,6 +483,12 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.
 		return diags
 	}
 
+	domains, diag := types.ListValueFrom(ctx, types.StringType, c.Basic.Domains)
+	diags.Append(diag...)
+
+	bundleIDs, diag := types.ListValueFrom(ctx, types.StringType, c.Basic.BundleIDs)
+	diags.Append(diag...)
+
 	sessions, diag := types.ObjectValueFrom(ctx, consumerSDKConfigSessionsModel{}.AttributeTypes(), consumerSDKConfigSessionsModelFromSDKConfig(*c.Sessions))
 	diags.Append(diag...)
 
@@ -510,8 +523,8 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.
 		Basic: consumerSDKConfigBasicModel{
 			Enabled:        types.BoolValue(c.Basic.Enabled),
 			CreateNewUsers: types.BoolValue(c.Basic.CreateNewUsers),
-			Domains:        make([]types.String, len(c.Basic.Domains)),
-			BundleIDs:      make([]types.String, len(c.Basic.BundleIDs)),
+			Domains:        domains,
+			BundleIDs:      bundleIDs,
 		},
 		Sessions:      sessions,
 		MagicLinks:    magicLinks,
@@ -524,13 +537,8 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.
 		Biometrics:    biometrics,
 		Passwords:     passwords,
 	}
-	for i, d := range c.Basic.Domains {
-		cfg.Basic.Domains[i] = types.StringValue(d)
-	}
-	for i, b := range c.Basic.BundleIDs {
-		cfg.Basic.BundleIDs[i] = types.StringValue(b)
-	}
-	m.Config = cfg
+	m.ID = m.ProjectID
+	m.Config = &cfg
 	return diags
 }
 
@@ -564,6 +572,9 @@ func (r *consumerSDKConfigResource) Metadata(_ context.Context, req resource.Met
 func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
 			"project_id": schema.StringAttribute{
 				Required: true,
 				Description: "The ID of the consumer project for which to set the SDK config. " +
@@ -976,6 +987,9 @@ func (r consumerSDKConfigResource) ValidateConfig(ctx context.Context, req resou
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", data.ProjectID.ValueString())
+	tflog.Info(ctx, "Validating Consumer SDK config")
+
 	getProjectResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
 		ProjectID: data.ProjectID.ValueString(),
 	})
@@ -987,6 +1001,8 @@ func (r consumerSDKConfigResource) ValidateConfig(ctx context.Context, req resou
 		resp.Diagnostics.AddError("Invalid project vertical", "The project must be a Consumer project for this resource.")
 		return
 	}
+
+	tflog.Info(ctx, "Validated Consumer SDK config")
 }
 
 // Create creates the resource and sets the initial Terraform state.
@@ -997,6 +1013,9 @@ func (r *consumerSDKConfigResource) Create(ctx context.Context, req resource.Cre
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
+	tflog.Info(ctx, "Creating Consumer SDK config")
 
 	cfg, diags := plan.toSDKConfig(ctx)
 	resp.Diagnostics.Append(diags...)
@@ -1012,6 +1031,8 @@ func (r *consumerSDKConfigResource) Create(ctx context.Context, req resource.Cre
 		resp.Diagnostics.AddError("Failed to set Consumer SDK config", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Created Consumer SDK config")
 
 	diags = plan.reloadFromSDKConfig(ctx, setResp.Config)
 	resp.Diagnostics.Append(diags...)
@@ -1033,12 +1054,17 @@ func (r *consumerSDKConfigResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	tflog.Info(ctx, "Reading Consumer SDK config")
+
 	getResp, err := r.client.SDK.GetConsumerConfig(ctx, sdk.GetConsumerConfigRequest{
 		ProjectID: state.ProjectID.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get Consumer SDK config", err.Error())
 	}
+
+	tflog.Info(ctx, "Read Consumer SDK config")
 
 	diags = state.reloadFromSDKConfig(ctx, getResp.Config)
 	resp.Diagnostics.Append(diags...)
@@ -1058,6 +1084,9 @@ func (r *consumerSDKConfigResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
+	tflog.Info(ctx, "Updating Consumer SDK config")
+
 	cfg, diags := plan.toSDKConfig(ctx)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -1072,6 +1101,8 @@ func (r *consumerSDKConfigResource) Update(ctx context.Context, req resource.Upd
 		resp.Diagnostics.AddError("Failed to set Consumer SDK config", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Updated Consumer SDK config")
 
 	diags = plan.reloadFromSDKConfig(ctx, setResp.Config)
 	resp.Diagnostics.Append(diags...)
@@ -1092,6 +1123,9 @@ func (r *consumerSDKConfigResource) Delete(ctx context.Context, req resource.Del
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
+	tflog.Info(ctx, "Deleting Consumer SDK config")
+
 	// To delete the SDK config, we set the basic config to disabled. Other fields are left as-is. Although this isn't
 	// *perfect*, it's the best we can do since we don't want to define various "defaults" in different repos since they
 	// would likely drift apart over time.
@@ -1111,8 +1145,12 @@ func (r *consumerSDKConfigResource) Delete(ctx context.Context, req resource.Del
 		resp.Diagnostics.AddError("Failed to reset Consumer SDK config", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Deleted Consumer SDK config")
 }
 
 func (r *consumerSDKConfigResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx = tflog.SetField(ctx, "project_id", req.ID)
+	tflog.Info(ctx, "Importing Consumer SDK config")
 	resource.ImportStatePassthroughID(ctx, path.Root("project_id"), req, resp)
 }

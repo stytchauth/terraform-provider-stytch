@@ -7,12 +7,6 @@ import (
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
 
-var projectConfig = `
-resource "stytch_project" "project" {
-  name     = "test"
-  vertical = "CONSUMER"
-}`
-
 func TestAccPasswordConfigResource(t *testing.T) {
 	for _, testCase := range []struct {
 		name     string
@@ -21,7 +15,7 @@ func TestAccPasswordConfigResource(t *testing.T) {
 	}{
 		{
 			name: "luds",
-			pwConfig: projectConfig + `
+			pwConfig: testutil.ConsumerProjectConfig + `
       resource "stytch_password_config" "test" {
         project_id = stytch_project.project.test_project_id
         validation_policy = "LUDS"
@@ -43,7 +37,7 @@ func TestAccPasswordConfigResource(t *testing.T) {
 		},
 		{
 			name: "zxcvbn",
-			pwConfig: projectConfig + `
+			pwConfig: testutil.ConsumerProjectConfig + `
       resource "stytch_password_config" "test" {
         project_id = stytch_project.project.test_project_id
         check_breach_on_creation = true
@@ -79,7 +73,7 @@ func TestAccPasswordConfigResource(t *testing.T) {
 						ImportStateVerifyIgnore: []string{"last_updated"},
 					},
 					{
-						Config: testutil.ProviderConfig + projectConfig + `
+						Config: testutil.ProviderConfig + testutil.ConsumerProjectConfig + `
               resource "stytch_password_config" "test" {
                 project_id = stytch_project.project.test_project_id
                 check_breach_on_creation = false
