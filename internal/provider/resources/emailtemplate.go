@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -15,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
 	"github.com/stytchauth/stytch-management-go/pkg/models/emailtemplates"
 )
@@ -35,6 +37,7 @@ type emailTemplateResource struct {
 }
 
 type emailTemplateModel struct {
+	ID                      types.String `tfsdk:"id"`
 	LiveProjectID           types.String `tfsdk:"live_project_id"`
 	LastUpdated             types.String `tfsdk:"last_updated"`
 	TemplateID              types.String `tfsdk:"template_id"`
@@ -165,7 +168,7 @@ func (m emailTemplateModel) toEmailTemplate(ctx context.Context) (emailtemplates
 		Name:       ptr(m.Name.ValueString()),
 	}
 
-	if !m.SenderInformation.IsUnknown() {
+	if !m.SenderInformation.IsUnknown() && !m.SenderInformation.IsNull() {
 		var senderInformation emailTemplateSenderInformationModel
 		diags.Append(m.SenderInformation.As(ctx, &senderInformation, basetypes.ObjectAsOptions{
 			UnhandledNullAsEmpty:    true,
@@ -189,7 +192,7 @@ func (m emailTemplateModel) toEmailTemplate(ctx context.Context) (emailtemplates
 		}
 	}
 
-	if !m.PrebuiltCustomization.IsUnknown() {
+	if !m.PrebuiltCustomization.IsUnknown() && !m.PrebuiltCustomization.IsNull() {
 		var prebuiltCustomization emailTemplatePrebuiltCustomizationModel
 		diags.Append(m.PrebuiltCustomization.As(ctx, &prebuiltCustomization, basetypes.ObjectAsOptions{
 			UnhandledNullAsEmpty:    true,
@@ -213,7 +216,7 @@ func (m emailTemplateModel) toEmailTemplate(ctx context.Context) (emailtemplates
 		}
 	}
 
-	if !m.CustomHTMLCustomization.IsUnknown() {
+	if !m.CustomHTMLCustomization.IsUnknown() && !m.CustomHTMLCustomization.IsNull() {
 		var customHTMLCustomization emailTemplateCustomHTMLCustomizationModel
 		diags.Append(m.CustomHTMLCustomization.As(ctx, &customHTMLCustomization, basetypes.ObjectAsOptions{
 			UnhandledNullAsEmpty:    true,
@@ -240,24 +243,37 @@ func (m emailTemplateModel) toEmailTemplate(ctx context.Context) (emailtemplates
 func (m *emailTemplateModel) reloadFromEmailTemplate(ctx context.Context, e emailtemplates.EmailTemplate) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	senderInformation, diag := types.ObjectValueFrom(ctx, emailTemplateSenderInformationModel{}.AttributeTypes(), emailTemplateSenderInformationModelFromEmailTemplate(e))
-	diags.Append(diag...)
+	if e.SenderInformation != nil {
+		senderInformation, diag := types.ObjectValueFrom(ctx, emailTemplateSenderInformationModel{}.AttributeTypes(), emailTemplateSenderInformationModelFromEmailTemplate(e))
+		diags.Append(diag...)
+		m.SenderInformation = senderInformation
+	} else {
+		m.SenderInformation = types.ObjectNull(emailTemplateSenderInformationModel{}.AttributeTypes())
+	}
 
-	prebuiltCustomization, diag := types.ObjectValueFrom(ctx, emailTemplatePrebuiltCustomizationModel{}.AttributeTypes(), emailTemplatePrebuiltCustomizationModelFromEmailTemplate(e))
-	diags.Append(diag...)
+	if e.PrebuiltCustomization != nil {
+		prebuiltCustomization, diag := types.ObjectValueFrom(ctx, emailTemplatePrebuiltCustomizationModel{}.AttributeTypes(), emailTemplatePrebuiltCustomizationModelFromEmailTemplate(e))
+		diags.Append(diag...)
+		m.PrebuiltCustomization = prebuiltCustomization
+	} else {
+		m.PrebuiltCustomization = types.ObjectNull(emailTemplatePrebuiltCustomizationModel{}.AttributeTypes())
+	}
 
-	customHTMLCustomization, diag := types.ObjectValueFrom(ctx, emailTemplateCustomHTMLCustomizationModel{}.AttributeTypes(), emailTemplateCustomHTMLCustomizationModelFromEmailTemplate(e))
-	diags.Append(diag...)
+	if e.CustomHTMLCustomization != nil {
+		customHTMLCustomization, diag := types.ObjectValueFrom(ctx, emailTemplateCustomHTMLCustomizationModel{}.AttributeTypes(), emailTemplateCustomHTMLCustomizationModelFromEmailTemplate(e))
+		diags.Append(diag...)
+		m.CustomHTMLCustomization = customHTMLCustomization
+	} else {
+		m.CustomHTMLCustomization = types.ObjectNull(emailTemplateCustomHTMLCustomizationModel{}.AttributeTypes())
+	}
 
+	m.ID = types.StringValue(m.LiveProjectID.ValueString() + "." + m.TemplateID.ValueString())
 	m.TemplateID = types.StringValue(e.TemplateID)
 	if e.Name != nil {
 		m.Name = types.StringValue(*e.Name)
 	} else {
 		m.Name = types.StringNull()
 	}
-	m.SenderInformation = senderInformation
-	m.PrebuiltCustomization = prebuiltCustomization
-	m.CustomHTMLCustomization = customHTMLCustomization
 	m.TemplateID = types.StringValue(e.TemplateID)
 
 	return diags
@@ -293,6 +309,9 @@ func (r *emailTemplateResource) Metadata(_ context.Context, req resource.Metadat
 func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
 			"live_project_id": schema.StringAttribute{
 				Required:    true,
 				Description: "The unique identifier for the live project.",
@@ -415,6 +434,10 @@ func (r *emailTemplateResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "project_id", plan.LiveProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "template_id", plan.TemplateID.ValueString())
+	tflog.Info(ctx, "Creating email template")
+
 	emailTemplate, diags := plan.toEmailTemplate(ctx)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -429,6 +452,8 @@ func (r *emailTemplateResource) Create(ctx context.Context, req resource.CreateR
 		resp.Diagnostics.AddError("Failed to create email template", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Email template created")
 
 	diags = plan.reloadFromEmailTemplate(ctx, createResp.EmailTemplate)
 	resp.Diagnostics.Append(diags...)
@@ -450,6 +475,10 @@ func (r *emailTemplateResource) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "live_project_id", state.LiveProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "template_id", state.TemplateID.ValueString())
+	tflog.Info(ctx, "Reading email template")
+
 	getResp, err := r.client.EmailTemplates.Get(ctx, emailtemplates.GetRequest{
 		ProjectID:  state.LiveProjectID.ValueString(),
 		TemplateID: state.TemplateID.ValueString(),
@@ -458,6 +487,8 @@ func (r *emailTemplateResource) Read(ctx context.Context, req resource.ReadReque
 		resp.Diagnostics.AddError("Failed to read email template", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Read email template")
 
 	diags = state.reloadFromEmailTemplate(ctx, getResp.EmailTemplate)
 	resp.Diagnostics.Append(diags...)
@@ -477,6 +508,10 @@ func (r *emailTemplateResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "live_project_id", plan.LiveProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "template_id", plan.TemplateID.ValueString())
+	tflog.Info(ctx, "Updating email template")
+
 	emailTemplate, diags := plan.toEmailTemplate(ctx)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -491,6 +526,8 @@ func (r *emailTemplateResource) Update(ctx context.Context, req resource.UpdateR
 		resp.Diagnostics.AddError("Failed to update email template", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Updated email template")
 
 	diags = plan.reloadFromEmailTemplate(ctx, updateResp.EmailTemplate)
 	resp.Diagnostics.Append(diags...)
@@ -511,6 +548,10 @@ func (r *emailTemplateResource) Delete(ctx context.Context, req resource.DeleteR
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "live_project_id", state.LiveProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "template_id", state.TemplateID.ValueString())
+	tflog.Info(ctx, "Deleting email template")
+
 	_, err := r.client.EmailTemplates.Delete(ctx, emailtemplates.DeleteRequest{
 		ProjectID:  state.LiveProjectID.ValueString(),
 		TemplateID: state.TemplateID.ValueString(),
@@ -519,8 +560,17 @@ func (r *emailTemplateResource) Delete(ctx context.Context, req resource.DeleteR
 		resp.Diagnostics.AddError("Failed to delete email template", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Deleted email template")
 }
 
 func (r *emailTemplateResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("live_project_id"), req, resp)
+	parts := strings.Split(req.ID, ".")
+	if len(parts) != 2 {
+		resp.Diagnostics.AddError("Invalid import ID", "The ID must be in the format <project_id>.<template_id>")
+		return
+	}
+
+	resp.State.SetAttribute(ctx, path.Root("live_project_id"), parts[0])
+	resp.State.SetAttribute(ctx, path.Root("template_id"), parts[1])
 }
