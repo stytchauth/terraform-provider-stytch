@@ -71,6 +71,7 @@ func TestAccPasswordConfigResource(t *testing.T) {
 						ImportStateVerifyIgnore: []string{"last_updated"},
 					},
 					{
+						// Update and Read testing - switch to LUDS
 						Config: testutil.ProviderConfig + testutil.ConsumerProjectConfig + `
               resource "stytch_password_config" "test" {
                 project_id = stytch_project.project.test_project_id
@@ -88,6 +89,23 @@ func TestAccPasswordConfigResource(t *testing.T) {
 							resource.TestCheckResourceAttr("stytch_password_config.test", "validation_policy", "LUDS"),
 							resource.TestCheckResourceAttr("stytch_password_config.test", "luds_min_password_length", "12"),
 							resource.TestCheckResourceAttr("stytch_password_config.test", "luds_min_password_complexity", "2"),
+						),
+					},
+					{
+						// Update and Read testing - switch to ZXCVBN
+						Config: testutil.ProviderConfig + testutil.ConsumerProjectConfig + `
+              resource "stytch_password_config" "test" {
+                project_id = stytch_project.project.test_project_id
+                check_breach_on_creation = false
+                check_breach_on_authentication = false
+                validate_on_authentication = false
+                validation_policy = "ZXCVBN"
+              }`,
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr("stytch_password_config.test", "check_breach_on_creation", "false"),
+							resource.TestCheckResourceAttr("stytch_password_config.test", "check_breach_on_authentication", "false"),
+							resource.TestCheckResourceAttr("stytch_password_config.test", "validate_on_authentication", "false"),
+							resource.TestCheckResourceAttr("stytch_password_config.test", "validation_policy", "ZXCVBN"),
 						),
 					},
 					// Delete testing automatically occurs in resource.TestCase
