@@ -37,8 +37,8 @@ func TestAccProjectResource(t *testing.T) {
 							resource.TestCheckResourceAttr("stytch_project.test", "name", "test"),
 							resource.TestCheckResourceAttr("stytch_project.test", "vertical", string(vertical)),
 							// Verify values were set that should've been configured by the provider
-							resource.TestMatchResourceAttr("stytch_project.test", "live_project_id", liveProjectRegex),
 							resource.TestMatchResourceAttr("stytch_project.test", "test_project_id", testProjectRegex),
+							resource.TestMatchResourceAttr("stytch_project.test", "live_project_id", liveProjectRegex),
 						),
 					},
 					{
