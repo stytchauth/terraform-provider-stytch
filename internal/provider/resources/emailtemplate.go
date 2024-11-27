@@ -271,7 +271,6 @@ func (m *emailTemplateModel) reloadFromEmailTemplate(ctx context.Context, e emai
 	var diags diag.Diagnostics
 
 	if e.SenderInformation != nil {
-		// TODO: If a value was previously set and is now null, it meant the sender info wasn't valid and did not get set
 		newSenderInfo := emailTemplateSenderInformationModelFromEmailTemplate(e)
 		diags.Append(m.compareSenderInfo(ctx, newSenderInfo)...)
 		senderInformation, diag := types.ObjectValueFrom(ctx, emailTemplateSenderInformationModel{}.AttributeTypes(), newSenderInfo)
