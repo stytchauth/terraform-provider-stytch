@@ -1,3 +1,5 @@
+// Copyright (c) HashiCorp, Inc.
+
 package resources
 
 import (
@@ -81,13 +83,15 @@ func (r *redirectURLResource) Metadata(_ context.Context, req resource.MetadataR
 // Schema defines the schema for the resource.
 func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "A redirect URL for a project.",
 		Attributes: map[string]schema.Attribute{
 			"project_id": schema.StringAttribute{
 				Required:    true,
 				Description: "The ID of the project to create the redirect URL for.",
 			},
 			"last_updated": schema.StringAttribute{
-				Computed: true,
+				Description: "Timestamp of the last Terraform update of the order.",
+				Computed:    true,
 			},
 			"url": schema.StringAttribute{
 				Required:    true,
@@ -97,7 +101,8 @@ func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 			},
 			"valid_types": schema.SetNestedAttribute{
-				Required: true,
+				Description: "The set of valid types for the redirect URL.",
+				Required:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"type": schema.StringAttribute{

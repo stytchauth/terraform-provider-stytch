@@ -1,3 +1,5 @@
+// Copyright (c) HashiCorp, Inc.
+
 package resources
 
 import (
@@ -508,9 +510,11 @@ func (r *b2bSDKConfigResource) Metadata(_ context.Context, req resource.Metadata
 // Schema defines the schema for the resource.
 func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "Manages the configuration of your JavaScript, React Native, iOS, or Android SDKs for a B2B project",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed: true,
+				Description: "A computed ID field used for Terraform resource management.",
+				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -522,7 +526,8 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 					"You may only specify one SDK config per project.",
 			},
 			"last_updated": schema.StringAttribute{
-				Computed: true,
+				Description: "Timestamp of the last Terraform update of the order.",
+				Computed:    true,
 			},
 			"config": schema.SingleNestedAttribute{
 				Required:    true,
@@ -789,8 +794,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 						},
 					},
 					"dfppa": schema.SingleNestedAttribute{
-						Optional: true,
-						Computed: true,
+						Optional:    true,
+						Computed:    true,
+						Description: "The Device Fingerprinting Protected Auth configuration for the B2B project SDK.",
 						Attributes: map[string]schema.Attribute{
 							"enabled": schema.StringAttribute{
 								Optional:    true,

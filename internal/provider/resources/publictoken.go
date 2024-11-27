@@ -1,3 +1,5 @@
+// Copyright (c) HashiCorp, Inc.
+
 package resources
 
 import (
@@ -64,6 +66,7 @@ func (r *publicTokenResource) Metadata(_ context.Context, req resource.MetadataR
 // Schema defines the schema for the resource.
 func (r *publicTokenResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "A public token used for SDK authentication and OAuth integrations.",
 		Attributes: map[string]schema.Attribute{
 			"public_token": schema.StringAttribute{
 				Computed:    true,

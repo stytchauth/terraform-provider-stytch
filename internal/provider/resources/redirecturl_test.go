@@ -1,3 +1,5 @@
+// Copyright (c) HashiCorp, Inc.
+
 package resources_test
 
 import (
