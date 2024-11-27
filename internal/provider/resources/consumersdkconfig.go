@@ -1,3 +1,5 @@
+// Copyright (c) HashiCorp, Inc.
+
 package resources
 
 import (
@@ -571,9 +573,11 @@ func (r *consumerSDKConfigResource) Metadata(_ context.Context, req resource.Met
 // Schema defines the schema for the resource.
 func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "Manages the configuration of your JavaScript, React Native, iOS, or Android SDKs for a Consumer project",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed: true,
+				Description: "A computed ID field used for Terraform resource management.",
+				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -585,7 +589,8 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 					"You may only specify one SDK config per project.",
 			},
 			"last_updated": schema.StringAttribute{
-				Computed: true,
+				Description: "Timestamp of the last Terraform update of the order.",
+				Computed:    true,
 			},
 			"config": schema.SingleNestedAttribute{
 				Required:    true,

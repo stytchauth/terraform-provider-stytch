@@ -1,3 +1,5 @@
+// Copyright (c) HashiCorp, Inc.
+
 package resources
 
 import (
@@ -343,9 +345,11 @@ var resourceAttributes = map[string]schema.Attribute{
 // Schema defines the schema for the resource.
 func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "A role-based access control (RBAC) policy for a B2B project.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed: true,
+				Description: "A computed ID field used for Terraform resource management.",
+				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -355,7 +359,8 @@ func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Description: "The unique identifier for the project.",
 			},
 			"last_updated": schema.StringAttribute{
-				Computed: true,
+				Description: "Timestamp of the last Terraform update of the order.",
+				Computed:    true,
 			},
 			"stytch_member": schema.SingleNestedAttribute{
 				Optional:    true,

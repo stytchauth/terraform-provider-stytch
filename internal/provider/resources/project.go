@@ -1,3 +1,5 @@
+// Copyright (c) HashiCorp, Inc.
+
 package resources
 
 import (
@@ -87,9 +89,11 @@ func (r *projectResource) Metadata(_ context.Context, req resource.MetadataReque
 // Schema defines the schema for the resource.
 func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "Manages a project within your Stytch workspace.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed: true,
+				Description: "A computed ID field used for Terraform resource management.",
+				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -109,7 +113,8 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"last_updated": schema.StringAttribute{
-				Computed: true,
+				Description: "Timestamp of the last Terraform update of the order.",
+				Computed:    true,
 			},
 			"name": schema.StringAttribute{
 				Required:    true,

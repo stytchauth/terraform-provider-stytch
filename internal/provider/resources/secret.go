@@ -1,3 +1,5 @@
+// Copyright (c) HashiCorp, Inc.
+
 package resources
 
 import (
@@ -65,6 +67,7 @@ func (r *secretResource) Metadata(_ context.Context, req resource.MetadataReques
 // Schema defines the schema for the resource.
 func (r *secretResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "A secret for a project used in the Stytch API.",
 		Attributes: map[string]schema.Attribute{
 			"secret_id": schema.StringAttribute{
 				Computed:    true,

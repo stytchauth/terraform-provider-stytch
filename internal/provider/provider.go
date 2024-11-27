@@ -47,6 +47,7 @@ func (p *StytchProvider) Metadata(ctx context.Context, req provider.MetadataRequ
 
 func (p *StytchProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "Interact with Stytch to configure your workspace, including projects, redirect URLs, email templates and more.",
 		Attributes: map[string]schema.Attribute{
 			"workspace_key_id": schema.StringAttribute{
 				Description: "The key ID for a workspace management key obtained from the Stytch workspace management page",
