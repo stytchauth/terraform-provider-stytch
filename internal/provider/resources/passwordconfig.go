@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -146,9 +145,6 @@ func (r *passwordConfigResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Computed: true,
 				Description: "The minimum password length when using a LUDS validation policy. " +
 					"If present, this value must be between 8 and 32.",
-				PlanModifiers: []planmodifier.Int32{
-					int32planmodifier.UseStateForUnknown(),
-				},
 				Validators: []validator.Int32{
 					int32validator.Between(8, 32),
 				},
@@ -158,9 +154,6 @@ func (r *passwordConfigResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Computed: true,
 				Description: "The minimum number of character types (lowercase letters, uppercase letters, digits, and symbols) to require when using a LUDS validation policy. " +
 					"If present, this value must be between 1 and 4.",
-				PlanModifiers: []planmodifier.Int32{
-					int32planmodifier.UseStateForUnknown(),
-				},
 				Validators: []validator.Int32{
 					int32validator.Between(1, 4),
 				},
