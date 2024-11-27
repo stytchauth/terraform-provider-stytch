@@ -240,14 +240,48 @@ func (m emailTemplateModel) toEmailTemplate(ctx context.Context) (emailtemplates
 	return e, diags
 }
 
+func (m emailTemplateModel) compareSenderInfo(ctx context.Context, newInfo emailTemplateSenderInformationModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	var oldInfo emailTemplateSenderInformationModel
+	diags.Append(m.SenderInformation.As(ctx, &oldInfo, basetypes.ObjectAsOptions{
+		UnhandledNullAsEmpty:    true,
+		UnhandledUnknownAsEmpty: true,
+	})...)
+
+	// What we're looking for:
+	// - If the old value was *not* unknown
+	// - and the old value was *not* null
+	// - and the old value does not match the new value... that's bad.
+	if (!oldInfo.FromName.IsUnknown() && !oldInfo.FromName.IsNull() && oldInfo.FromName.ValueString() != newInfo.FromName.ValueString()) ||
+		(!oldInfo.FromLocalPart.IsUnknown() && !oldInfo.FromLocalPart.IsNull() && oldInfo.FromLocalPart.ValueString() != newInfo.FromLocalPart.ValueString()) ||
+		(!oldInfo.FromDomain.IsUnknown() && !oldInfo.FromDomain.IsNull() && oldInfo.FromDomain.ValueString() != newInfo.FromDomain.ValueString()) ||
+		(!oldInfo.ReplyToName.IsUnknown() && !oldInfo.ReplyToName.IsNull() && oldInfo.ReplyToName.ValueString() != newInfo.ReplyToName.ValueString()) ||
+		(!oldInfo.ReplyToLocalPart.IsUnknown() && !oldInfo.ReplyToLocalPart.IsNull() && oldInfo.ReplyToLocalPart.ValueString() != newInfo.ReplyToLocalPart.ValueString()) {
+		ctx = tflog.SetField(ctx, "old_sender_info", oldInfo)
+		ctx = tflog.SetField(ctx, "new_sender_info", newInfo)
+		tflog.Error(ctx, "Sender information mismatch")
+		diags.AddError("Invalid SenderInformation", "SenderInformation was not updated - is the custom domain correct?")
+	}
+
+	return diags
+}
+
 func (m *emailTemplateModel) reloadFromEmailTemplate(ctx context.Context, e emailtemplates.EmailTemplate) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	if e.SenderInformation != nil {
-		senderInformation, diag := types.ObjectValueFrom(ctx, emailTemplateSenderInformationModel{}.AttributeTypes(), emailTemplateSenderInformationModelFromEmailTemplate(e))
+		// TODO: If a value was previously set and is now null, it meant the sender info wasn't valid and did not get set
+		newSenderInfo := emailTemplateSenderInformationModelFromEmailTemplate(e)
+		diags.Append(m.compareSenderInfo(ctx, newSenderInfo)...)
+		senderInformation, diag := types.ObjectValueFrom(ctx, emailTemplateSenderInformationModel{}.AttributeTypes(), newSenderInfo)
 		diags.Append(diag...)
 		m.SenderInformation = senderInformation
 	} else {
+		// If m.SenderInformation *wasn't* null but nothing was returned, the provisioner supplied bad values.
+		if !m.SenderInformation.IsUnknown() && !m.SenderInformation.IsNull() {
+			diags.AddError("Invalid SenderInformation", "Supplied SenderInformation was invalid and could not be applied")
+		}
 		m.SenderInformation = types.ObjectNull(emailTemplateSenderInformationModel{}.AttributeTypes())
 	}
 
@@ -311,6 +345,9 @@ func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaReque
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"live_project_id": schema.StringAttribute{
 				Required:    true,
@@ -571,6 +608,9 @@ func (r *emailTemplateResource) ImportState(ctx context.Context, req resource.Im
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "live_project_id", parts[0])
+	ctx = tflog.SetField(ctx, "template_id", parts[1])
+	tflog.Info(ctx, "Importing email template")
 	resp.State.SetAttribute(ctx, path.Root("live_project_id"), parts[0])
 	resp.State.SetAttribute(ctx, path.Root("template_id"), parts[1])
 }
