@@ -6,7 +6,7 @@ This provider is currently in a _beta_ state. Please report any bugs or
 
 ## Documentation
 
-Coming soon.
+The latest documentation is available at the [Terraform registry stytch provider](https://registry.terraform.io/providers/stytchauth/stytch/latest/docs).
 
 ## Getting started
 

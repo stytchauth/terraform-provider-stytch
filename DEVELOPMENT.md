@@ -4,7 +4,24 @@ Thanks for contributing to Stytch's Terraform Provider plugin! If you run into t
 
 ## Setup
 
-Coming soon.
+### Prerequisites
+
+- [Terraform](https://www.terraform.io/)
+- A [Stytch](https://stytch.com) workspace
+- A [workspace management key + secret](https://stytch.com/dashboard/settings/management-api) for your Stytch workspace
+  - Create a new key and store the key + secret somewhere safe
+
+### Configuring your environment
+
+It is highly recommended that you put your workspace management key + secret in environment variables.
+
+```sh
+export STYTCH_WORKSPACE_KEY_ID=my_workspace_key_id_goes_here
+export STYTCH_WORKSPACE_KEY_SECRET=my_secret_goes_here
+```
+
+The `stytch` provider will attempt to read environment variables for configuring the client.
+You can also set these directly in the provider configuration, but it is not recommended.
 
 ## Issues and Pull Requests
 
