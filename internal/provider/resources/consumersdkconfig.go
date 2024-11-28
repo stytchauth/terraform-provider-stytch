@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -16,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -751,6 +753,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 											PlanModifiers: []planmodifier.String{
 												stringplanmodifier.UseStateForUnknown(),
 											},
+											Validators: []validator.String{
+												stringvalidator.OneOf("domain", "hash"),
+											},
 										},
 										"metadata_value": schema.StringAttribute{
 											Optional: true,
@@ -896,6 +901,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
 								},
+								Validators: []validator.String{
+									stringvalidator.OneOf(toStrings(sdk.DFPPASettings())...),
+								},
 							},
 							"on_challenge": schema.StringAttribute{
 								Optional:    true,
@@ -903,6 +911,9 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Description: "The action to take when a DFPPA 'challenge' verdict is returned.",
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+								},
+								Validators: []validator.String{
+									stringvalidator.OneOf(toStrings(sdk.DFPPAOnChallengeActions())...),
 								},
 							},
 							"lookup_timeout_seconds": schema.Int32Attribute{

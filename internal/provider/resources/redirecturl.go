@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/pkg/api"
@@ -106,6 +108,9 @@ func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest
 						"type": schema.StringAttribute{
 							Required:    true,
 							Description: "The type of the redirect URL.",
+							Validators: []validator.String{
+								stringvalidator.OneOf(toStrings(redirecturls.RedirectTypes())...),
+							},
 						},
 						"is_default": schema.BoolAttribute{
 							Required:    true,
