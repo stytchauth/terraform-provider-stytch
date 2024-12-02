@@ -144,3 +144,22 @@ func TestAccB2BSDKConfigResource(t *testing.T) {
 		})
 	}
 }
+
+func TestAccB2BSDKConfigResource_Invalid(t *testing.T) {
+	for _, errorCase := range []testutil.ErrorCase{
+		{
+			Name: "applied to consumer project",
+			Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_b2b_sdk_config" "test" {
+        project_id = stytch_project.project.test_project_id
+        config = {
+          basic = {
+            enabled = false
+          }
+        }
+      }`,
+		},
+	} {
+		errorCase.AssertAnyError(t)
+	}
+}

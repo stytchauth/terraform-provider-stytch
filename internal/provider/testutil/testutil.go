@@ -1,6 +1,9 @@
 package testutil
 
 import (
+	"regexp"
+	"testing"
+
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -38,4 +41,25 @@ type TestCase struct {
 	Name   string
 	Config string
 	Checks []resource.TestCheckFunc
+}
+
+type ErrorCase struct {
+	Name   string
+	Config string
+	Error  *regexp.Regexp
+}
+
+func (e *ErrorCase) AssertAnyError(t *testing.T) {
+	t.Helper()
+	t.Run(e.Name, func(t *testing.T) {
+		resource.Test(t, resource.TestCase{
+			ProtoV6ProviderFactories: TestAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config:      ProviderConfig + e.Config,
+					ExpectError: regexp.MustCompile(`.*`),
+				},
+			},
+		})
+	})
 }

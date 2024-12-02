@@ -112,3 +112,45 @@ func TestAccPasswordConfigResource(t *testing.T) {
 		})
 	}
 }
+
+func TestAccPasswordConfigResource_Invalid(t *testing.T) {
+	for _, errorCase := range []testutil.ErrorCase{
+		{
+			Name: "invalid policy",
+			Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_password_config" "test" {
+        project_id = stytch_project.project.test_project_id
+        validation_policy = "unknown"
+        check_breach_on_creation = true
+        check_breach_on_authentication = true
+        validate_on_authentication = true
+      }`,
+		},
+		{
+			Name: "missing LUDS fields in LUDS policy",
+			Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_password_config" "test" {
+        project_id = stytch_project.project.test_project_id
+        validation_policy = "LUDS"
+        check_breach_on_creation = true
+        check_breach_on_authentication = true
+        validate_on_authentication = true
+      }`,
+		},
+		{
+			Name: "present LUDS fields in ZXCVBN policy",
+			Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_password_config" "test" {
+        project_id = stytch_project.project.test_project_id
+        validation_policy = "ZXCVBN"
+        check_breach_on_creation = true
+        check_breach_on_authentication = true
+        validate_on_authentication = true
+        luds_min_password_length = 8
+        luds_min_password_complexity = 1
+      }`,
+		},
+	} {
+		errorCase.AssertAnyError(t)
+	}
+}
