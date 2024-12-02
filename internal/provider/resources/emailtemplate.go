@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -14,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -424,10 +426,16 @@ func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaReque
 					"font_family": schema.StringAttribute{
 						Optional:    true,
 						Description: "The font type to be used in the email body",
+						Validators: []validator.String{
+							stringvalidator.OneOf(toStrings(emailtemplates.FontFamilies())...),
+						},
 					},
 					"text_alignment": schema.StringAttribute{
 						Optional:    true,
 						Description: "The alignment of the text in the email body",
+						Validators: []validator.String{
+							stringvalidator.OneOf(toStrings(emailtemplates.TextAlignments())...),
+						},
 					},
 				},
 				PlanModifiers: []planmodifier.Object{
@@ -442,6 +450,9 @@ func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaReque
 					"template_type": schema.StringAttribute{
 						Optional:    true,
 						Description: "The type of email template this custom HTML customization is valid for",
+						Validators: []validator.String{
+							stringvalidator.OneOf(toStrings(emailtemplates.TemplateTypes())...),
+						},
 					},
 					"html_content": schema.StringAttribute{
 						Optional:    true,
@@ -461,6 +472,33 @@ func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaReque
 				},
 			},
 		},
+	}
+}
+
+func (r emailTemplateResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data emailTemplateModel
+	diags := req.Config.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// If the liveProjectID isn't yet known, skip validation for now.
+	// The plugin framework will call ValidateConfig again when all required values are known.
+	if data.LiveProjectID.IsUnknown() {
+		return
+	}
+
+	// If both prebuilt and custom HTML customizations are set, return an error.
+	if !data.PrebuiltCustomization.IsUnknown() && !data.PrebuiltCustomization.IsNull() &&
+		!data.CustomHTMLCustomization.IsUnknown() && !data.CustomHTMLCustomization.IsNull() {
+		resp.Diagnostics.AddError("Invalid customization", "Only one customization option can be specified, either prebuilt or custom HTML")
+	}
+
+	// If custom HTML is set, sender_information must also be set.
+	if !data.CustomHTMLCustomization.IsUnknown() && !data.CustomHTMLCustomization.IsNull() &&
+		(data.SenderInformation.IsUnknown() || data.SenderInformation.IsNull()) {
+		resp.Diagnostics.AddError("Invalid customization", "Sender information must be set for custom HTML customization")
 	}
 }
 

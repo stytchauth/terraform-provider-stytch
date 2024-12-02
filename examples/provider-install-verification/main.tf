@@ -182,3 +182,111 @@ resource "stytch_rbac_policy" "b2b_rbac_policy" {
     }
   ]
 }
+
+# Invalid resources below. Uncomment to test config validation
+
+# Fails because vertical is not valid
+# resource "stytch_project" "bad_project" {
+#   name     = "tf-consumer"
+#   vertical = "bad vertical"
+# }
+
+# Fails because chosen type is not valid
+# resource "stytch_redirect_url" "bad_redirect_url" {
+#   project_id = stytch_project.consumer_project.test_project_id
+#   url        = "http://localhost:3000/consumer"
+#   valid_types = [
+#     {
+#       type       = "bad type"
+#       is_default = true
+#     }
+#   ]
+# }
+
+# Fails because DFPPA config is invalid
+# resource "stytch_consumer_sdk_config" "bad_sdk_config" {
+#   project_id = stytch_project.consumer_project.test_project_id
+#   config = {
+#     basic = {
+#       enabled = true
+#     }
+#     dfppa = {
+#       enabled      = "sure"
+#       on_challenge = "pokemon battle"
+#     }
+#   }
+# }
+
+# Fails because DFPPA config is invalid
+# resource "stytch_b2b_sdk_config" "bad_sdk_config" {
+#   project_id = stytch_project.b2b_project.test_project_id
+#   config = {
+#     basic = {
+#       enabled = true
+#     }
+#     dfppa = {
+#       enabled      = "sure"
+#       on_challenge = "pokemon battle"
+#     }
+#   }
+# }
+
+# Fails because email template specifies both customization options
+# resource "stytch_email_template" "bad_email_template1" {
+#   live_project_id = stytch_project.consumer_project.live_project_id
+#   template_id     = "bad_template1"
+#   name            = "bad template1"
+#   sender_information = {
+#     from_local_part     = "noreply"
+#     from_domain         = "example.com"
+#     from_name           = "Stytch"
+#     reply_to_local_part = "support"
+#     reply_to_name       = "Support"
+#   }
+#   prebuilt_customization = {
+#     button_border_radius = 3
+#     button_color         = "#105ee9"
+#     button_text_color    = "#ffffff"
+#     font_family          = "GEORGIA"
+#     text_alignment       = "CENTER"
+#   }
+#   custom_html_customization = {
+#     template_type     = "LOGIN"
+#     html_content      = "<h1>Login now: {{magic_link_url}}</h1>"
+#     plaintext_content = "Login now: {{magic_link_url}}"
+#     subject           = "Login to ` + customDomain + `"
+#   }
+# }
+
+# Fails because sender information is missing for custom HTML template
+# resource "stytch_email_template" "bad_email_template2" {
+#   live_project_id = stytch_project.consumer_project.live_project_id
+#   template_id     = "bad_template2"
+#   name            = "bad template2"
+#   custom_html_customization = {
+#     template_type     = "LOGIN"
+#     html_content      = "<h1>Login now: {{magic_link_url}}</h1>"
+#     plaintext_content = "Login now: {{magic_link_url}}"
+#     subject           = "Login to ` + customDomain + `"
+#   }
+# }
+
+# Fails because LUDS policy is set, but LUDS fields are not
+# resource "stytch_password_config" "bad_luds_password_config" {
+#   project_id                     = stytch_project.consumer_project.test_project_id
+#   check_breach_on_creation       = true
+#   check_breach_on_authentication = true
+#   validate_on_authentication     = true
+#   validation_policy              = "LUDS"
+# }
+
+# Fails because ZXCVBN policy is set in conjunction with LUDS fields
+# resource "stytch_password_config" "bad_zxcvbn_password_config" {
+#   project_id                     = stytch_project.consumer_project.test_project_id
+#   check_breach_on_creation       = true
+#   check_breach_on_authentication = true
+#   validate_on_authentication     = true
+#   validation_policy              = "ZXCVBN"
+#   luds_min_password_length       = 16
+#   luds_min_password_complexity   = 4
+# }

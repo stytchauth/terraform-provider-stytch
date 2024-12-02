@@ -175,3 +175,54 @@ func TestAccEmailTemplateResource(t *testing.T) {
 		})
 	}
 }
+
+func TestAccEmailTemplateResource_Invalid(t *testing.T) {
+	for _, errorCase := range []testutil.ErrorCase{
+		{
+			Name: "both prebuilt and custom",
+			Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_email_template" "test" {
+        live_project_id = stytch_project.project.live_project_id
+        template_id = "tf-test-prebuilt"
+        name = "tf-test-prebuilt"
+        sender_information = {
+          from_local_part = "noreply"
+          from_domain = "example.com"
+          from_name = "Stytch"
+          reply_to_local_part = "support"
+          reply_to_name = "Support"
+        }
+        prebuilt_customization = {
+          button_border_radius = 3
+          button_color         = "#105ee9"
+          button_text_color    = "#ffffff"
+          font_family          = "GEORGIA"
+          text_alignment       = "CENTER"
+        }
+        custom_html_customization = {
+          template_type = "LOGIN"
+          html_content = "<h1>Login now: {{magic_link_url}}</h1>"
+          plaintext_content = "Login now: {{magic_link_url}}"
+          subject = "Login to example.com"
+        }
+      }`,
+		},
+		{
+			Name: "custom missing sender_info",
+			Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_email_template" "test" {
+        live_project_id = stytch_project.project.live_project_id
+        template_id = "tf-test-prebuilt"
+        name = "tf-test-prebuilt"
+        custom_html_customization = {
+          template_type = "LOGIN"
+          html_content = "<h1>Login now: {{magic_link_url}}</h1>"
+          plaintext_content = "Login now: {{magic_link_url}}"
+          subject = "Login to example.com"
+        }
+      }`,
+		},
+	} {
+		errorCase.AssertAnyError(t)
+	}
+}

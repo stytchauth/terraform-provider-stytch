@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -16,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -757,6 +759,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 											PlanModifiers: []planmodifier.String{
 												stringplanmodifier.UseStateForUnknown(),
 											},
+											Validators: []validator.String{
+												stringvalidator.OneOf("domain", "hash"),
+											},
 										},
 										"metadata_value": schema.StringAttribute{
 											Optional: true,
@@ -803,6 +808,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
 								},
+								Validators: []validator.String{
+									stringvalidator.OneOf(toStrings(sdk.DFPPASettings())...),
+								},
 							},
 							"on_challenge": schema.StringAttribute{
 								Optional:    true,
@@ -810,6 +818,9 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Description: "The action to take when a DFPPA 'challenge' verdict is returned.",
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+								},
+								Validators: []validator.String{
+									stringvalidator.OneOf(toStrings(sdk.DFPPAOnChallengeActions())...),
 								},
 							},
 							"lookup_timeout_seconds": schema.Int32Attribute{
@@ -874,7 +885,7 @@ func (r b2bSDKConfigResource) ValidateConfig(ctx context.Context, req resource.V
 		return
 	}
 
-	ctx = context.WithValue(ctx, "project_id", data.ProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "project_id", data.ProjectID.ValueString())
 	tflog.Info(ctx, "Validating B2B SDK config")
 
 	getProjectResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
@@ -901,7 +912,7 @@ func (r *b2bSDKConfigResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	ctx = context.WithValue(ctx, "project_id", plan.ProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
 	tflog.Info(ctx, "Creating B2B SDK config")
 
 	cfg, diag := plan.toSDKConfig(ctx)
@@ -972,7 +983,7 @@ func (r *b2bSDKConfigResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	ctx = context.WithValue(ctx, "project_id", plan.ProjectID.ValueString())
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
 	tflog.Info(ctx, "Updating B2B SDK config")
 
 	cfg, diag := plan.toSDKConfig(ctx)

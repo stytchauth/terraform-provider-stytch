@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -128,14 +129,15 @@ func (r *passwordConfigResource) Schema(_ context.Context, _ resource.SchemaRequ
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
-			// TODO: We could also use validators.OneOf to set the valid inputs
-			// Another improvement would be making the luds fields *only* relevant if the policy is LUDS
 			"validation_policy": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
 				Description: "The policy to use for password strength validation, either ZXCVBN or LUDS",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					stringvalidator.OneOf(toStrings(passwordstrengthconfig.ValidationPolicies())...),
 				},
 			},
 			"luds_min_password_length": schema.Int32Attribute{
@@ -157,6 +159,31 @@ func (r *passwordConfigResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 		},
+	}
+}
+
+func (r passwordConfigResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data passwordConfigModel
+	diags := req.Config.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// If the policy is ZXCVBN, the LUDS fields should not be set.
+	if data.ValidationPolicy.ValueString() == string(passwordstrengthconfig.ValidationPolicyZXCVBN) {
+		if (!data.LudsMinPasswordLength.IsUnknown() && !data.LudsMinPasswordLength.IsNull()) ||
+			(!data.LudsMinPasswordComplexity.IsUnknown() && !data.LudsMinPasswordComplexity.IsNull()) {
+			resp.Diagnostics.AddError("Cannot specify LUDS fields with ZXCVBN policy", "LUDS fields should not be set when using the ZXCVBN policy")
+		}
+	}
+
+	// Conversely, if the policy is LUDS, the LUDS fields *must* be set.
+	if data.ValidationPolicy.ValueString() == string(passwordstrengthconfig.ValidationPolicyLUDS) {
+		if data.LudsMinPasswordLength.IsUnknown() || data.LudsMinPasswordLength.IsNull() ||
+			data.LudsMinPasswordComplexity.IsUnknown() || data.LudsMinPasswordComplexity.IsNull() {
+			resp.Diagnostics.AddError("Must specify LUDS fields with LUDS policy", "LUDS fields must be set when using the LUDS policy")
+		}
 	}
 }
 

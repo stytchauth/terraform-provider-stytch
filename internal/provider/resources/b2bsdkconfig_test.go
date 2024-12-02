@@ -131,16 +131,35 @@ func TestAccB2BSDKConfigResource(t *testing.T) {
                 }
               }`,
 						Check: resource.ComposeAggregateTestCheckFunc(
-							resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.enabled", "true"),
-							resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.create_new_members", "true"),
-							resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.allow_self_onboarding", "true"),
-							resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.oauth.enabled", "true"),
-							resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.oauth.pkce_required", "true"),
+							resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.enabled", "true"),
+							resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.create_new_members", "true"),
+							resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.basic.allow_self_onboarding", "true"),
+							resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.oauth.enabled", "true"),
+							resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.oauth.pkce_required", "true"),
 						),
 					},
 					// Delete testing automatically occurs in resource.TestCase
 				},
 			})
 		})
+	}
+}
+
+func TestAccB2BSDKConfigResource_Invalid(t *testing.T) {
+	for _, errorCase := range []testutil.ErrorCase{
+		{
+			Name: "applied to consumer project",
+			Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_b2b_sdk_config" "test" {
+        project_id = stytch_project.project.test_project_id
+        config = {
+          basic = {
+            enabled = false
+          }
+        }
+      }`,
+		},
+	} {
+		errorCase.AssertAnyError(t)
 	}
 }
