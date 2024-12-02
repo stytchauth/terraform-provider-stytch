@@ -170,12 +170,6 @@ func (r passwordConfigResource) ValidateConfig(ctx context.Context, req resource
 		return
 	}
 
-	// If the projectID isn't yet known, skip validation for now.
-	// The plugin framework will call ValidateConfig again when all required values are known.
-	if data.ProjectID.IsUnknown() {
-		return
-	}
-
 	// If the policy is ZXCVBN, the LUDS fields should not be set.
 	if data.ValidationPolicy.ValueString() == string(passwordstrengthconfig.ValidationPolicyZXCVBN) {
 		if (!data.LudsMinPasswordLength.IsUnknown() && !data.LudsMinPasswordLength.IsNull()) ||
