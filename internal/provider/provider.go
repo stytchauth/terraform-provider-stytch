@@ -95,7 +95,7 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 			path.Root("base_uri"),
 			"Unknown base URI",
 			"The provider cannot create the Stytch management client as there is an unknown configuration value for the Stytch Base URI. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the STYTCH_WORKSPACE_BASE_URI environment variable.",
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the STYTCH_MANAGEMENT_BASE_URI environment variable.",
 		)
 	}
 
@@ -107,7 +107,7 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 
 	workspaceKeyID := os.Getenv("STYTCH_WORKSPACE_KEY_ID")
 	workspaceKeySecret := os.Getenv("STYTCH_WORKSPACE_KEY_SECRET")
-	baseURI := os.Getenv("STYTCH_WORKSPACE_BASE_URI")
+	baseURI := os.Getenv("STYTCH_MANAGEMENT_BASE_URI")
 
 	if !config.WorkspaceKeyID.IsNull() {
 		workspaceKeyID = config.WorkspaceKeyID.ValueString()
