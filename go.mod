@@ -63,4 +63,3 @@ require (
 	google.golang.org/protobuf v1.35.1 // indirect
 )
 
-replace github.com/stytchauth/stytch-management-go => ../stytch-management-go

@@ -1,8 +1,10 @@
 default: fmt lint install generate
 
+GO_BUILD_FLAGS = -trimpath
+
 .PHONY: build
 build:
-	go build -v ./... 
+	go build $(GO_BUILD_FLAGS) -v ./... 
 
 .PHONY: install
 install: build
@@ -22,7 +24,7 @@ fmt:
 
 TEST_CMD := gotestsum 
 ifeq (, $(shell command -v gotestsum))
-	TEST_CMD := go test
+	TEST_CMD := go test $(GO_BUILD_FLAGS)
 endif
 
 .PHONY: test
@@ -32,3 +34,7 @@ test:
 .PHONY: testacc
 testacc:
 	TF_ACC=1 $(TEST_CMD) ./...
+
+.PHONY: toggle-local-management-go
+toggle-local-management-go:
+	./hack/toggle-dependency.sh stytch-management-go
