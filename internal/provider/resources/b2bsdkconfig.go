@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -67,8 +67,8 @@ type b2bSDKConfigBasicModel struct {
 	CreateNewMembers        types.Bool `tfsdk:"create_new_members"`
 	AllowSelfOnboarding     types.Bool `tfsdk:"allow_self_onboarding"`
 	EnableMemberPermissions types.Bool `tfsdk:"enable_member_permissions"`
-	Domains                 types.List `tfsdk:"domains"`
-	BundleIDs               types.List `tfsdk:"bundle_ids"`
+	Domains                 types.Set  `tfsdk:"domains"`
+	BundleIDs               types.Set  `tfsdk:"bundle_ids"`
 }
 
 type b2bSDKConfigAuthorizedDomainModel struct {
@@ -187,15 +187,15 @@ func b2bSDKConfigSSOModelFromSDKConfig(c sdk.B2BSSOConfig) b2bSDKConfigSSOModel 
 }
 
 type b2bSDKConfigOTPsModel struct {
-	SMSEnabled          types.Bool               `tfsdk:"sms_enabled"`
-	SMSAutofillMetadata []sdkSMSAutofillMetadata `tfsdk:"sms_autofill_metadata"`
-	EmailEnabled        types.Bool               `tfsdk:"email_enabled"`
+	SMSEnabled          types.Bool `tfsdk:"sms_enabled"`
+	SMSAutofillMetadata types.Set  `tfsdk:"sms_autofill_metadata"`
+	EmailEnabled        types.Bool `tfsdk:"email_enabled"`
 }
 
 func (m b2bSDKConfigOTPsModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"sms_enabled": types.BoolType,
-		"sms_autofill_metadata": types.ListType{
+		"sms_autofill_metadata": types.SetType{
 			ElemType: types.ObjectType{
 				AttrTypes: sdkSMSAutofillMetadata{}.AttributeTypes(),
 			},
@@ -204,7 +204,7 @@ func (m b2bSDKConfigOTPsModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
-func b2bSDKConfigOTPsModelFromSDKConfig(c sdk.B2BOTPsConfig) b2bSDKConfigOTPsModel {
+func b2bSDKConfigOTPsModelFromSDKConfig(ctx context.Context, c sdk.B2BOTPsConfig) (b2bSDKConfigOTPsModel, diag.Diagnostics) {
 	metadata := make([]sdkSMSAutofillMetadata, len(c.SMSAutofillMetadata))
 	for i, m := range c.SMSAutofillMetadata {
 		metadata[i] = sdkSMSAutofillMetadata{
@@ -213,11 +213,13 @@ func b2bSDKConfigOTPsModelFromSDKConfig(c sdk.B2BOTPsConfig) b2bSDKConfigOTPsMod
 			BundleID:      types.StringValue(m.BundleID),
 		}
 	}
+
+	autofillMetadata, diag := types.SetValueFrom(ctx, types.ObjectType{AttrTypes: sdkSMSAutofillMetadata{}.AttributeTypes()}, metadata)
 	return b2bSDKConfigOTPsModel{
 		SMSEnabled:          types.BoolValue(c.SMSEnabled),
-		SMSAutofillMetadata: metadata,
+		SMSAutofillMetadata: autofillMetadata,
 		EmailEnabled:        types.BoolValue(c.EmailEnabled),
-	}
+	}, diag
 }
 
 type b2bSDKConfigDFPPAModel struct {
@@ -354,12 +356,15 @@ func (m b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, diag
 			UnhandledNullAsEmpty:    true,
 			UnhandledUnknownAsEmpty: true,
 		})...)
+
+		var smsAutofillMetadata []sdkSMSAutofillMetadata
+		diags.Append(otps.SMSAutofillMetadata.ElementsAs(ctx, &smsAutofillMetadata, true)...)
 		c.OTPs = &sdk.B2BOTPsConfig{
 			SMSEnabled:          otps.SMSEnabled.ValueBool(),
 			EmailEnabled:        otps.EmailEnabled.ValueBool(),
-			SMSAutofillMetadata: make([]sdk.SMSAutofillMetadata, len(otps.SMSAutofillMetadata)),
+			SMSAutofillMetadata: make([]sdk.SMSAutofillMetadata, len(smsAutofillMetadata)),
 		}
-		for i, m := range otps.SMSAutofillMetadata {
+		for i, m := range smsAutofillMetadata {
 			c.OTPs.SMSAutofillMetadata[i] = sdk.SMSAutofillMetadata{
 				MetadataType:  m.MetadataType.ValueString(),
 				MetadataValue: m.MetadataValue.ValueString(),
@@ -428,10 +433,10 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 		return diags
 	}
 
-	domains, diag := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: b2bSDKConfigAuthorizedDomainModel{}.AttributeTypes()}, b2bSDKConfigAuthorizedDomainModelFromSDKConfig(c.Basic.Domains))
+	domains, diag := types.SetValueFrom(ctx, types.ObjectType{AttrTypes: b2bSDKConfigAuthorizedDomainModel{}.AttributeTypes()}, b2bSDKConfigAuthorizedDomainModelFromSDKConfig(c.Basic.Domains))
 	diags.Append(diag...)
 
-	bundleIDs, diag := types.ListValueFrom(ctx, types.StringType, c.Basic.BundleIDs)
+	bundleIDs, diag := types.SetValueFrom(ctx, types.StringType, c.Basic.BundleIDs)
 	diags.Append(diag...)
 
 	sessions, diag := types.ObjectValueFrom(ctx, b2bSDKConfigSessionsModel{}.AttributeTypes(), b2bSDKConfigSessionsModelFromSDKConfig(*c.Sessions))
@@ -449,7 +454,9 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 	sso, diag := types.ObjectValueFrom(ctx, b2bSDKConfigSSOModel{}.AttributeTypes(), b2bSDKConfigSSOModelFromSDKConfig(*c.SSO))
 	diags.Append(diag...)
 
-	otps, diag := types.ObjectValueFrom(ctx, b2bSDKConfigOTPsModel{}.AttributeTypes(), b2bSDKConfigOTPsModelFromSDKConfig(*c.OTPs))
+	otpModel, diag := b2bSDKConfigOTPsModelFromSDKConfig(ctx, *c.OTPs)
+	diags.Append(diag...)
+	otps, diag := types.ObjectValueFrom(ctx, b2bSDKConfigOTPsModel{}.AttributeTypes(), otpModel)
 	diags.Append(diag...)
 
 	dfppa, diag := types.ObjectValueFrom(ctx, b2bSDKConfigDFPPAModel{}.AttributeTypes(), b2bSDKConfigDFPPAModelFromSDKConfig(*c.DFPPA))
@@ -565,7 +572,7 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 									boolplanmodifier.UseStateForUnknown(),
 								},
 							},
-							"domains": schema.ListNestedAttribute{
+							"domains": schema.SetNestedAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A list of domains authorized for use in the SDK.",
@@ -591,13 +598,13 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 									},
 								},
 							},
-							"bundle_ids": schema.ListAttribute{
+							"bundle_ids": schema.SetAttribute{
 								Optional:    true,
 								Computed:    true,
 								ElementType: types.StringType,
 								Description: "A list of bundle IDs authorized for use in the SDK.",
-								PlanModifiers: []planmodifier.List{
-									listplanmodifier.UseStateForUnknown(),
+								PlanModifiers: []planmodifier.Set{
+									setplanmodifier.UseStateForUnknown(),
 								},
 							},
 						},
@@ -746,7 +753,7 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 									boolplanmodifier.UseStateForUnknown(),
 								},
 							},
-							"sms_autofill_metadata": schema.ListNestedAttribute{
+							"sms_autofill_metadata": schema.SetNestedAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A list of metadata that can be used for autofill of SMS OTPs.",
