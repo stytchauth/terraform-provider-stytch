@@ -1,4 +1,4 @@
-name: Tag GitHub release
+name: Create GitHub release
 
 on:
   push:
@@ -10,6 +10,8 @@ permissions:
 jobs:
   tag_release:
     runs-on: ubuntu-latest
+    outputs:
+      diff: ${{ steps.diff.outputs.diff }}
     steps:
       - uses: actions/checkout@v3
 
