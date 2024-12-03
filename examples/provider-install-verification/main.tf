@@ -99,7 +99,7 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
       allow_self_onboarding     = true
       enable_member_permissions = true
       domains                   = []
-      bundle_ids                = ["com.stytch.app", "com.stytch.app2"]
+      bundle_ids                = ["com.stytch.app", "com.stytch.app2", "???"]
     }
     sessions = {
       max_session_duration_minutes = 60

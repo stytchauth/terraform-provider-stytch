@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -67,8 +67,8 @@ type consumerSDKConfigInnerModel struct {
 type consumerSDKConfigBasicModel struct {
 	Enabled        types.Bool `tfsdk:"enabled"`
 	CreateNewUsers types.Bool `tfsdk:"create_new_users"`
-	Domains        types.List `tfsdk:"domains"`
-	BundleIDs      types.List `tfsdk:"bundle_ids"`
+	Domains        types.Set  `tfsdk:"domains"`
+	BundleIDs      types.Set  `tfsdk:"bundle_ids"`
 }
 
 type consumerSDKConfigSessionsModel struct {
@@ -110,13 +110,13 @@ func consumerSDKConfigMagicLinksModelFromSDKConfig(c sdk.ConsumerMagicLinksConfi
 }
 
 type consumerSDKConfigOTPsModel struct {
-	SMSLoginOrCreateEnabled      types.Bool               `tfsdk:"sms_login_or_create_enabled"`
-	WhatsAppLoginOrCreateEnabled types.Bool               `tfsdk:"whatsapp_login_or_create_enabled"`
-	EmailLoginOrCreateEnabled    types.Bool               `tfsdk:"email_login_or_create_enabled"`
-	SMSSendEnabled               types.Bool               `tfsdk:"sms_send_enabled"`
-	WhatsAppSendEnabled          types.Bool               `tfsdk:"whatsapp_send_enabled"`
-	EmailSendEnabled             types.Bool               `tfsdk:"email_send_enabled"`
-	SMSAutofillMetadata          []sdkSMSAutofillMetadata `tfsdk:"sms_autofill_metadata"`
+	SMSLoginOrCreateEnabled      types.Bool `tfsdk:"sms_login_or_create_enabled"`
+	WhatsAppLoginOrCreateEnabled types.Bool `tfsdk:"whatsapp_login_or_create_enabled"`
+	EmailLoginOrCreateEnabled    types.Bool `tfsdk:"email_login_or_create_enabled"`
+	SMSSendEnabled               types.Bool `tfsdk:"sms_send_enabled"`
+	WhatsAppSendEnabled          types.Bool `tfsdk:"whatsapp_send_enabled"`
+	EmailSendEnabled             types.Bool `tfsdk:"email_send_enabled"`
+	SMSAutofillMetadata          types.Set  `tfsdk:"sms_autofill_metadata"`
 }
 
 func (m consumerSDKConfigOTPsModel) AttributeTypes() map[string]attr.Type {
@@ -127,7 +127,7 @@ func (m consumerSDKConfigOTPsModel) AttributeTypes() map[string]attr.Type {
 		"sms_send_enabled":                 types.BoolType,
 		"whatsapp_send_enabled":            types.BoolType,
 		"email_send_enabled":               types.BoolType,
-		"sms_autofill_metadata": types.ListType{
+		"sms_autofill_metadata": types.SetType{
 			ElemType: types.ObjectType{
 				AttrTypes: sdkSMSAutofillMetadata{}.AttributeTypes(),
 			},
@@ -135,7 +135,7 @@ func (m consumerSDKConfigOTPsModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
-func consumerSDKConfigOTPsModelFromSDKConfig(c sdk.ConsumerOTPsConfig) consumerSDKConfigOTPsModel {
+func consumerSDKConfigOTPsModelFromSDKConfig(ctx context.Context, c sdk.ConsumerOTPsConfig) (consumerSDKConfigOTPsModel, diag.Diagnostics) {
 	metadata := make([]sdkSMSAutofillMetadata, len(c.SMSAutofillMetadata))
 	for i, m := range c.SMSAutofillMetadata {
 		metadata[i] = sdkSMSAutofillMetadata{
@@ -144,6 +144,8 @@ func consumerSDKConfigOTPsModelFromSDKConfig(c sdk.ConsumerOTPsConfig) consumerS
 			BundleID:      types.StringValue(m.BundleID),
 		}
 	}
+
+	autofillMetadata, diag := types.SetValueFrom(ctx, types.ObjectType{AttrTypes: sdkSMSAutofillMetadata{}.AttributeTypes()}, metadata)
 	return consumerSDKConfigOTPsModel{
 		SMSLoginOrCreateEnabled:      types.BoolValue(c.SMSLoginOrCreateEnabled),
 		WhatsAppLoginOrCreateEnabled: types.BoolValue(c.WhatsAppLoginOrCreateEnabled),
@@ -151,8 +153,8 @@ func consumerSDKConfigOTPsModelFromSDKConfig(c sdk.ConsumerOTPsConfig) consumerS
 		SMSSendEnabled:               types.BoolValue(c.SMSSendEnabled),
 		WhatsAppSendEnabled:          types.BoolValue(c.WhatsAppSendEnabled),
 		EmailSendEnabled:             types.BoolValue(c.EmailSendEnabled),
-		SMSAutofillMetadata:          metadata,
-	}
+		SMSAutofillMetadata:          autofillMetadata,
+	}, diag
 }
 
 type consumerSDKConfigOAuthModel struct {
@@ -341,6 +343,9 @@ func (m consumerSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.ConsumerCo
 			UnhandledNullAsEmpty:    true,
 			UnhandledUnknownAsEmpty: true,
 		})...)
+
+		var smsAutofillMetadata []sdkSMSAutofillMetadata
+		diags.Append(otps.SMSAutofillMetadata.ElementsAs(ctx, &smsAutofillMetadata, true)...)
 		c.OTPs = &sdk.ConsumerOTPsConfig{
 			SMSLoginOrCreateEnabled:      otps.SMSLoginOrCreateEnabled.ValueBool(),
 			WhatsAppLoginOrCreateEnabled: otps.WhatsAppLoginOrCreateEnabled.ValueBool(),
@@ -348,9 +353,9 @@ func (m consumerSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.ConsumerCo
 			SMSSendEnabled:               otps.SMSSendEnabled.ValueBool(),
 			WhatsAppSendEnabled:          otps.WhatsAppSendEnabled.ValueBool(),
 			EmailSendEnabled:             otps.EmailSendEnabled.ValueBool(),
-			SMSAutofillMetadata:          make([]sdk.SMSAutofillMetadata, len(otps.SMSAutofillMetadata)),
+			SMSAutofillMetadata:          make([]sdk.SMSAutofillMetadata, len(smsAutofillMetadata)),
 		}
-		for i, m := range otps.SMSAutofillMetadata {
+		for i, m := range smsAutofillMetadata {
 			c.OTPs.SMSAutofillMetadata[i] = sdk.SMSAutofillMetadata{
 				MetadataType:  m.MetadataType.ValueString(),
 				MetadataValue: m.MetadataValue.ValueString(),
@@ -485,10 +490,10 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.
 		return diags
 	}
 
-	domains, diag := types.ListValueFrom(ctx, types.StringType, c.Basic.Domains)
+	domains, diag := types.SetValueFrom(ctx, types.StringType, c.Basic.Domains)
 	diags.Append(diag...)
 
-	bundleIDs, diag := types.ListValueFrom(ctx, types.StringType, c.Basic.BundleIDs)
+	bundleIDs, diag := types.SetValueFrom(ctx, types.StringType, c.Basic.BundleIDs)
 	diags.Append(diag...)
 
 	sessions, diag := types.ObjectValueFrom(ctx, consumerSDKConfigSessionsModel{}.AttributeTypes(), consumerSDKConfigSessionsModelFromSDKConfig(*c.Sessions))
@@ -497,7 +502,9 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.
 	magicLinks, diag := types.ObjectValueFrom(ctx, consumerSDKConfigMagicLinksModel{}.AttributeTypes(), consumerSDKConfigMagicLinksModelFromSDKConfig(*c.MagicLinks))
 	diags.Append(diag...)
 
-	otps, diag := types.ObjectValueFrom(ctx, consumerSDKConfigOTPsModel{}.AttributeTypes(), consumerSDKConfigOTPsModelFromSDKConfig(*c.OTPs))
+	otpModel, diag := consumerSDKConfigOTPsModelFromSDKConfig(ctx, *c.OTPs)
+	diags.Append(diag...)
+	otps, diag := types.ObjectValueFrom(ctx, consumerSDKConfigOTPsModel{}.AttributeTypes(), otpModel)
 	diags.Append(diag...)
 
 	oauth, diag := types.ObjectValueFrom(ctx, consumerSDKConfigOAuthModel{}.AttributeTypes(), consumerSDKConfigOAuthModelFromSDKConfig(*c.OAuth))
@@ -612,22 +619,22 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 									boolplanmodifier.UseStateForUnknown(),
 								},
 							},
-							"domains": schema.ListAttribute{
+							"domains": schema.SetAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A list of domains authorized for use in the SDK.",
 								ElementType: types.StringType,
-								PlanModifiers: []planmodifier.List{
-									listplanmodifier.UseStateForUnknown(),
+								PlanModifiers: []planmodifier.Set{
+									setplanmodifier.UseStateForUnknown(),
 								},
 							},
-							"bundle_ids": schema.ListAttribute{
+							"bundle_ids": schema.SetAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A list of bundle IDs authorized for use in the SDK.",
 								ElementType: types.StringType,
-								PlanModifiers: []planmodifier.List{
-									listplanmodifier.UseStateForUnknown(),
+								PlanModifiers: []planmodifier.Set{
+									setplanmodifier.UseStateForUnknown(),
 								},
 							},
 						},
@@ -740,7 +747,7 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 									boolplanmodifier.UseStateForUnknown(),
 								},
 							},
-							"sms_autofill_metadata": schema.ListNestedAttribute{
+							"sms_autofill_metadata": schema.SetNestedAttribute{
 								Optional:    true,
 								Computed:    true,
 								Description: "A list of metadata that can be used for autofill of SMS OTPs.",
