@@ -77,9 +77,9 @@ Required:
 
 Optional:
 
-- `bundle_ids` (List of String) A list of bundle IDs authorized for use in the SDK.
+- `bundle_ids` (Set of String) A list of bundle IDs authorized for use in the SDK.
 - `create_new_users` (Boolean) A boolean indicating whether new users can be created with the SDK.
-- `domains` (List of String) A list of domains authorized for use in the SDK.
+- `domains` (Set of String) A list of domains authorized for use in the SDK.
 
 
 <a id="nestedatt--config--biometrics"></a>
@@ -136,7 +136,7 @@ Optional:
 
 - `email_login_or_create_enabled` (Boolean) A boolean indicating whether the email OTP login or create endpoint is enabled in the SDK.
 - `email_send_enabled` (Boolean) A boolean indicating whether the email OTP send endpoint is enabled in the SDK.
-- `sms_autofill_metadata` (Attributes List) A list of metadata that can be used for autofill of SMS OTPs. (see [below for nested schema](#nestedatt--config--otps--sms_autofill_metadata))
+- `sms_autofill_metadata` (Attributes Set) A list of metadata that can be used for autofill of SMS OTPs. (see [below for nested schema](#nestedatt--config--otps--sms_autofill_metadata))
 - `sms_login_or_create_enabled` (Boolean) A boolean indicating whether the SMS OTP login or create endpoint is enabled in the SDK.
 - `sms_send_enabled` (Boolean) A boolean indicating whether the SMS OTP send endpoint is enabled in the SDK.
 - `whatsapp_login_or_create_enabled` (Boolean) A boolean indicating whether the WhatsApp OTP login or create endpoint is enabled in the SDK.

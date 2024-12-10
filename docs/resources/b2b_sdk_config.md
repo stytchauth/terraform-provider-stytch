@@ -82,9 +82,9 @@ Required:
 Optional:
 
 - `allow_self_onboarding` (Boolean) A boolean indicating whether self-onboarding is allowed for members in the SDK.
-- `bundle_ids` (List of String) A list of bundle IDs authorized for use in the SDK.
+- `bundle_ids` (Set of String) A list of bundle IDs authorized for use in the SDK.
 - `create_new_members` (Boolean) A boolean indicating whether new members can be created with the SDK.
-- `domains` (Attributes List) A list of domains authorized for use in the SDK. (see [below for nested schema](#nestedatt--config--basic--domains))
+- `domains` (Attributes Set) A list of domains authorized for use in the SDK. (see [below for nested schema](#nestedatt--config--basic--domains))
 - `enable_member_permissions` (Boolean) A boolean indicating whether member permissions RBAC are enabled in the SDK.
 
 <a id="nestedatt--config--basic--domains"></a>
@@ -131,7 +131,7 @@ Optional:
 Optional:
 
 - `email_enabled` (Boolean) A boolean indicating whether the email OTP endpoints are enabled in the SDK.
-- `sms_autofill_metadata` (Attributes List) A list of metadata that can be used for autofill of SMS OTPs. (see [below for nested schema](#nestedatt--config--otps--sms_autofill_metadata))
+- `sms_autofill_metadata` (Attributes Set) A list of metadata that can be used for autofill of SMS OTPs. (see [below for nested schema](#nestedatt--config--otps--sms_autofill_metadata))
 - `sms_enabled` (Boolean) A boolean indicating whether the SMS OTP endpoints are enabled in the SDK.
 
 <a id="nestedatt--config--otps--sms_autofill_metadata"></a>
