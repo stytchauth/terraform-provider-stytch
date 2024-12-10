@@ -13,6 +13,15 @@ Interact with Stytch to configure your workspace, including projects, redirect U
 ## Example Usage
 
 ```terraform
+terraform {
+  required_providers {
+    stytch = {
+      source  = "registry.terraform.io/stytchauth/stytch"
+      version = "TODO" # Find the latest version at https://registry.terraform.io/providers/stytchauth/stytch/latest
+    }
+  }
+}
+
 # Configuration-based authentication
 provider "stytch" {
   workspace_key_id     = "workspace-key-prod-00000000-0000-0000-0000-000000000000"
