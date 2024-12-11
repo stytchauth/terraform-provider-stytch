@@ -171,6 +171,10 @@ func (r *redirectURLResource) Create(ctx context.Context, req resource.CreateReq
 	createResp, err := r.client.RedirectURLs.Create(ctx, redirecturls.CreateRequest{
 		ProjectID:   plan.ProjectID.ValueString(),
 		RedirectURL: redirectURL,
+		// We explicitly disable default promotion logic because if the terraform provisioner specified that a redirect URL
+		// is *not* the default for a given type, if the API tries to override it to true, it will result in a provider
+		// inconsistency error.
+		DoNotPromoteDefaults: true,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create redirect URL", err.Error())
@@ -248,6 +252,10 @@ func (r *redirectURLResource) Update(ctx context.Context, req resource.UpdateReq
 	updateResp, err := r.client.RedirectURLs.Update(ctx, redirecturls.UpdateRequest{
 		ProjectID:   plan.ProjectID.ValueString(),
 		RedirectURL: redirectURL,
+		// We explicitly disable default promotion logic because if the terraform provisioner specified that a redirect URL
+		// is *not* the default for a given type, if the API tries to override it to true, it will result in a provider
+		// inconsistency error.
+		DoNotPromoteDefaults: true,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update redirect URL", err.Error())
@@ -280,6 +288,10 @@ func (r *redirectURLResource) Delete(ctx context.Context, req resource.DeleteReq
 	_, err := r.client.RedirectURLs.Delete(ctx, redirecturls.DeleteRequest{
 		ProjectID: state.ProjectID.ValueString(),
 		URL:       state.URL.ValueString(),
+		// We explicitly disable default promotion logic because if the terraform provisioner specified that a redirect URL
+		// is *not* the default for a given type, if the API tries to override it to true, it will result in a provider
+		// inconsistency error.
+		DoNotPromoteDefaults: true,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to delete redirect URL", err.Error())

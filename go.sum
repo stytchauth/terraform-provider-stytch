@@ -140,6 +140,8 @@ github.com/stytchauth/stytch-management-go v1.0.2 h1:O9XA2uSkcoqbAlDHc+XOfkaaCkh
 github.com/stytchauth/stytch-management-go v1.0.2/go.mod h1:Y3NUMXprecfJNd61q2cDCEn9J60BHjd3DZcjoKO4OtE=
 github.com/stytchauth/stytch-management-go v1.1.0 h1:oTp3OQpB6ewzZb/LLXHHY6ctrrC5PgbHdcPqll237xA=
 github.com/stytchauth/stytch-management-go v1.1.0/go.mod h1:Y3NUMXprecfJNd61q2cDCEn9J60BHjd3DZcjoKO4OtE=
+github.com/stytchauth/stytch-management-go v1.2.0 h1:WPaYFpoxHFeUKRo5C2pjra0F60rjXMT4IztKNWWTAOs=
+github.com/stytchauth/stytch-management-go v1.2.0/go.mod h1:Y3NUMXprecfJNd61q2cDCEn9J60BHjd3DZcjoKO4OtE=
 github.com/vmihailenco/msgpack v3.3.3+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
 github.com/vmihailenco/msgpack v4.0.4+incompatible h1:dSLoQfGFAo3F6OoNhwUmLwVgaUXK79GlxNBwueZn0xI=
 github.com/vmihailenco/msgpack v4.0.4+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
