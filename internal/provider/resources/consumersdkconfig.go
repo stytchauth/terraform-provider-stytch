@@ -1032,9 +1032,11 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 						Description: "The Cookies configuration for the consumer project SDK.",
 						Attributes: map[string]schema.Attribute{
 							"http_only": schema.StringAttribute{
-								Optional:    true,
-								Computed:    true,
-								Description: "Whether cookies should be set with the HttpOnly flag.",
+								Optional: true,
+								Computed: true,
+								Description: "Whether cookies should be set with the HttpOnly flag. HttpOnly cookies can only be set when the frontend SDK is " +
+									"configured to use a custom authentication domain. Set to 'DISABLED' to disable, 'ENABLED' to enable, or " +
+									"'ENFORCED' to enable and block web requests that don't use a custom authentication domain.",
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
 								},

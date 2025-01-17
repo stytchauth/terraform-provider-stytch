@@ -100,7 +100,7 @@ Optional:
 
 Optional:
 
-- `http_only` (String) Whether cookies should be set with the HttpOnly flag.
+- `http_only` (String) Whether cookies should be set with the HttpOnly flag. HttpOnly cookies can only be set when the frontend SDK is configured to use a custom authentication domain. Set to 'DISABLED' to disable, 'ENABLED' to enable, or 'ENFORCED' to enable and block web requests that don't use a custom authentication domain.
 
 
 <a id="nestedatt--config--crypto_wallets"></a>
