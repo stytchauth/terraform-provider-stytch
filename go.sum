@@ -136,12 +136,8 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.7.2/go.mod h1:R6va5+xMeoiuVRoj+gSkQ7d3FALtqAAGI1FQKckRals=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/stytchauth/stytch-management-go v1.0.2 h1:O9XA2uSkcoqbAlDHc+XOfkaaCkhT7KL7KEZlbsspTRs=
-github.com/stytchauth/stytch-management-go v1.0.2/go.mod h1:Y3NUMXprecfJNd61q2cDCEn9J60BHjd3DZcjoKO4OtE=
-github.com/stytchauth/stytch-management-go v1.1.0 h1:oTp3OQpB6ewzZb/LLXHHY6ctrrC5PgbHdcPqll237xA=
-github.com/stytchauth/stytch-management-go v1.1.0/go.mod h1:Y3NUMXprecfJNd61q2cDCEn9J60BHjd3DZcjoKO4OtE=
-github.com/stytchauth/stytch-management-go v1.2.0 h1:WPaYFpoxHFeUKRo5C2pjra0F60rjXMT4IztKNWWTAOs=
-github.com/stytchauth/stytch-management-go v1.2.0/go.mod h1:Y3NUMXprecfJNd61q2cDCEn9J60BHjd3DZcjoKO4OtE=
+github.com/stytchauth/stytch-management-go v1.4.0 h1:3dmsb9d3njaak5TJ8u8LVwZmmFBizeCWjxQW6cKHLXQ=
+github.com/stytchauth/stytch-management-go v1.4.0/go.mod h1:Y3NUMXprecfJNd61q2cDCEn9J60BHjd3DZcjoKO4OtE=
 github.com/vmihailenco/msgpack v3.3.3+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
 github.com/vmihailenco/msgpack v4.0.4+incompatible h1:dSLoQfGFAo3F6OoNhwUmLwVgaUXK79GlxNBwueZn0xI=
 github.com/vmihailenco/msgpack v4.0.4+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
