@@ -383,22 +383,27 @@ func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaReque
 				Attributes: map[string]schema.Attribute{
 					"from_local_part": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The prefix of the sender’s email address, everything before the @ symbol (eg: first.last)",
 					},
 					"from_domain": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The postfix of the sender’s email address, everything after the @ symbol (eg: stytch.com)",
 					},
 					"from_name": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The sender of the email (eg: Login)",
 					},
 					"reply_to_local_part": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The prefix of the reply-to email address, everything before the @ symbol (eg: first.last)",
 					},
 					"reply_to_name": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The sender of the reply-to email address (eg: Support)",
 					},
 				},
@@ -413,18 +418,22 @@ func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaReque
 				Attributes: map[string]schema.Attribute{
 					"button_border_radius": schema.Float32Attribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The radius of the button border in the email body",
 					},
 					"button_color": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The color of the button in the email body",
 					},
 					"button_text_color": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The color of the text in the button in the email body",
 					},
 					"font_family": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The font type to be used in the email body",
 						Validators: []validator.String{
 							stringvalidator.OneOf(toStrings(emailtemplates.FontFamilies())...),
@@ -432,6 +441,7 @@ func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaReque
 					},
 					"text_alignment": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The alignment of the text in the email body",
 						Validators: []validator.String{
 							stringvalidator.OneOf(toStrings(emailtemplates.TextAlignments())...),
@@ -456,14 +466,17 @@ func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaReque
 					},
 					"html_content": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The HTML content of the email body",
 					},
 					"plaintext_content": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The plaintext content of the email body",
 					},
 					"subject": schema.StringAttribute{
 						Optional:    true,
+						Computed:    true,
 						Description: "The subject line in the email template",
 					},
 				},

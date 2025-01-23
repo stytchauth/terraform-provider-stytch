@@ -122,6 +122,42 @@ func TestAccEmailTemplateResource(t *testing.T) {
 			},
 			shouldSkip: customDomain == "",
 		},
+		{
+			TestCase: testutil.TestCase{
+				Name: "custom-without-plaintext",
+				Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_email_template" "test" {
+        live_project_id = stytch_project.project.live_project_id
+        template_id = "tf-test-custom-2"
+        name = "tf-test-custom-2"
+        sender_information = {
+          from_local_part = "noreply"
+          from_domain = "` + customDomain + `"
+          from_name = "Stytch"
+          reply_to_local_part = "support"
+          reply_to_name = "Support"
+        }
+        custom_html_customization = {
+          template_type = "LOGIN"
+          html_content = "<h1>Login now: {{magic_link_url}}</h1>"
+          subject = "Login to ` + customDomain + `"
+        }
+      }`,
+				Checks: []resource.TestCheckFunc{
+					resource.TestCheckResourceAttr("stytch_email_template.test", "template_id", "tf-test-custom"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "name", "tf-test-custom"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_local_part", "noreply"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_domain", customDomain),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_name", "Stytch"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.reply_to_local_part", "support"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.reply_to_name", "Support"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.template_type", "LOGIN"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.html_content", "<h1>Login now: {{magic_link_url}}</h1>"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.subject", "Login to "+customDomain),
+				},
+			},
+			shouldSkip: customDomain == "",
+		},
 	} {
 		t.Run(testCase.Name, func(t *testing.T) {
 			if testCase.shouldSkip {
