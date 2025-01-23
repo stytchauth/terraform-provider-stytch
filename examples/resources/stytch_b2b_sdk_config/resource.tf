@@ -22,5 +22,8 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
       on_challenge           = "TRIGGER_CAPTCHA"
       lookup_timeout_seconds = 3
     }
+    cookies = {
+      http_only = "DISABLED"
+    }
   }
 }

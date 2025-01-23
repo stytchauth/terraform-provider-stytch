@@ -75,6 +75,9 @@ func TestAccB2BSDKConfigResource(t *testing.T) {
             on_challenge           = "TRIGGER_CAPTCHA"
             lookup_timeout_seconds = 3
           }
+          cookies = {
+            http_only = "ENFORCED"
+          }
         }
       }`,
 			Checks: []resource.TestCheckFunc{
@@ -92,6 +95,7 @@ func TestAccB2BSDKConfigResource(t *testing.T) {
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.dfppa.enabled", "ENABLED"),
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.dfppa.on_challenge", "TRIGGER_CAPTCHA"),
 				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.dfppa.lookup_timeout_seconds", "3"),
+				resource.TestCheckResourceAttr("stytch_b2b_sdk_config.test", "config.cookies.http_only", "ENFORCED"),
 			},
 		},
 	} {

@@ -65,6 +65,9 @@ func TestAccConsumerSDKConfigResource(t *testing.T) {
             send_enabled            = true
             pkce_required           = true
           }
+          cookies = {
+            http_only = "ENFORCED"
+          }
         }
       }`,
 			Checks: []resource.TestCheckFunc{
@@ -78,6 +81,7 @@ func TestAccConsumerSDKConfigResource(t *testing.T) {
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.magic_links.login_or_create_enabled", "true"),
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.magic_links.send_enabled", "true"),
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.magic_links.pkce_required", "true"),
+				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.cookies.http_only", "ENFORCED"),
 			},
 		},
 	} {

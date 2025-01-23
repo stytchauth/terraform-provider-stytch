@@ -31,6 +31,9 @@ resource "stytch_consumer_sdk_config" "consumer_sdk_config" {
       send_enabled            = true
       pkce_required           = true
     }
+    cookies = {
+      http_only = "DISABLED"
+    }
   }
 }
 ```
@@ -58,6 +61,7 @@ Required:
 Optional:
 
 - `biometrics` (Attributes) The Biometrics configuration for the consumer project SDK. (see [below for nested schema](#nestedatt--config--biometrics))
+- `cookies` (Attributes) The Cookies configuration for the consumer project SDK. (see [below for nested schema](#nestedatt--config--cookies))
 - `crypto_wallets` (Attributes) The Crypto Wallets configuration for the consumer project SDK. (see [below for nested schema](#nestedatt--config--crypto_wallets))
 - `dfppa` (Attributes) The Device Fingerprinting Protected Auth configuration for the consumer project SDK. (see [below for nested schema](#nestedatt--config--dfppa))
 - `magic_links` (Attributes) The magic links configuration for the consumer project SDK. (see [below for nested schema](#nestedatt--config--magic_links))
@@ -89,6 +93,14 @@ Optional:
 
 - `create_biometrics_enabled` (Boolean) A boolean indicating whether biometrics creation is enabled in the SDK.
 - `enabled` (Boolean) A boolean indicating whether biometrics endpoints are enabled in the SDK.
+
+
+<a id="nestedatt--config--cookies"></a>
+### Nested Schema for `config.cookies`
+
+Optional:
+
+- `http_only` (String) Whether cookies should be set with the HttpOnly flag. HttpOnly cookies can only be set when the frontend SDK is configured to use a custom authentication domain. Set to 'DISABLED' to disable, 'ENABLED' to enable, or 'ENFORCED' to enable and block web requests that don't use a custom authentication domain.
 
 
 <a id="nestedatt--config--crypto_wallets"></a>

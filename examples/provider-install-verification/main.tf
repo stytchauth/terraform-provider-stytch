@@ -87,6 +87,9 @@ resource "stytch_consumer_sdk_config" "consumer_sdk_config" {
       send_enabled            = true
       pkce_required           = true
     }
+    cookies = {
+      http_only = "DISABLED"
+    }
   }
 }
 
@@ -112,6 +115,9 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
       enabled                = "ENABLED"
       on_challenge           = "TRIGGER_CAPTCHA"
       lookup_timeout_seconds = 3
+    }
+    cookies = {
+      http_only = "DISABLED"
     }
   }
 }

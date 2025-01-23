@@ -16,5 +16,8 @@ resource "stytch_consumer_sdk_config" "consumer_sdk_config" {
       send_enabled            = true
       pkce_required           = true
     }
+    cookies = {
+      http_only = "DISABLED"
+    }
   }
 }

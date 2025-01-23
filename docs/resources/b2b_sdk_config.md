@@ -37,6 +37,9 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
       on_challenge           = "TRIGGER_CAPTCHA"
       lookup_timeout_seconds = 3
     }
+    cookies = {
+      http_only = "DISABLED"
+    }
   }
 }
 ```
@@ -63,6 +66,7 @@ Required:
 
 Optional:
 
+- `cookies` (Attributes) The Cookies configuration for the B2B project SDK. (see [below for nested schema](#nestedatt--config--cookies))
 - `dfppa` (Attributes) The Device Fingerprinting Protected Auth configuration for the B2B project SDK. (see [below for nested schema](#nestedatt--config--dfppa))
 - `magic_links` (Attributes) The magic links configuration for the B2B project SDK. (see [below for nested schema](#nestedatt--config--magic_links))
 - `oauth` (Attributes) The OAuth configuration for the B2B project SDK. (see [below for nested schema](#nestedatt--config--oauth))
@@ -95,6 +99,14 @@ Optional:
 - `domain` (String) The domain name. Stytch uses the same-origin policy to determine matches.
 - `slug_pattern` (String) SlugPattern is the slug pattern which can be used to support authentication flows specific to each organization. An examplevalue here might be 'https://{{slug}}.example.com'. The value **must** include '{{slug}}' as a placeholder for the slug.
 
+
+
+<a id="nestedatt--config--cookies"></a>
+### Nested Schema for `config.cookies`
+
+Optional:
+
+- `http_only` (String) Whether cookies should be set with the HttpOnly flag. HttpOnly cookies can only be set when the frontend SDK is configured to use a custom authentication domain. Set to 'DISABLED' to disable, 'ENABLED' to enable, or 'ENFORCED' to enable and block web requests that don't use a custom authentication domain.
 
 
 <a id="nestedatt--config--dfppa"></a>

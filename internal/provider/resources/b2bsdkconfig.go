@@ -60,6 +60,7 @@ type b2bSDKConfigInnerModel struct {
 	OTPs       types.Object           `tfsdk:"otps"`
 	DFPPA      types.Object           `tfsdk:"dfppa"`
 	Passwords  types.Object           `tfsdk:"passwords"`
+	Cookies    types.Object           `tfsdk:"cookies"`
 }
 
 type b2bSDKConfigBasicModel struct {
@@ -263,6 +264,22 @@ func b2bSDKConfigPasswordsModelFromSDKConfig(c sdk.B2BPasswordsConfig) b2bSDKCon
 	}
 }
 
+type b2bSDKConfigCookiesModel struct {
+	HttpOnlyCookies types.String `tfsdk:"http_only"`
+}
+
+func (m b2bSDKConfigCookiesModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"http_only": types.StringType,
+	}
+}
+
+func b2bSDKConfigCookiesModelFromSDKConfig(c sdk.B2BCookiesConfig) b2bSDKConfigCookiesModel {
+	return b2bSDKConfigCookiesModel{
+		HttpOnlyCookies: types.StringValue(string(c.HttpOnlyCookies)),
+	}
+}
+
 func (m b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	c := sdk.B2BConfig{
@@ -398,6 +415,17 @@ func (m b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, diag
 		}
 	}
 
+	if !m.Config.Cookies.IsUnknown() {
+		var cookies b2bSDKConfigCookiesModel
+		diags.Append(m.Config.Cookies.As(ctx, &cookies, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
+		c.Cookies = &sdk.B2BCookiesConfig{
+			HttpOnlyCookies: sdk.HttpOnlyCookiesSetting(cookies.HttpOnlyCookies.ValueString()),
+		}
+	}
+
 	return c, diags
 }
 
@@ -427,6 +455,9 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 	}
 	if c.Passwords == nil {
 		diags.AddError("passwords is nil", nilSDKObject)
+	}
+	if c.Cookies == nil {
+		diags.AddError("cookies is nil", nilSDKObject)
 	}
 
 	if diags.HasError() {
@@ -465,6 +496,9 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 	passwords, diag := types.ObjectValueFrom(ctx, b2bSDKConfigPasswordsModel{}.AttributeTypes(), b2bSDKConfigPasswordsModelFromSDKConfig(*c.Passwords))
 	diags.Append(diag...)
 
+	cookies, diag := types.ObjectValueFrom(ctx, b2bSDKConfigCookiesModel{}.AttributeTypes(), b2bSDKConfigCookiesModelFromSDKConfig(*c.Cookies))
+	diags.Append(diag...)
+
 	cfg := b2bSDKConfigInnerModel{
 		Basic: b2bSDKConfigBasicModel{
 			Enabled:                 types.BoolValue(c.Basic.Enabled),
@@ -482,6 +516,7 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 		OTPs:       otps,
 		DFPPA:      dfppa,
 		Passwords:  passwords,
+		Cookies:    cookies,
 	}
 	m.ID = m.ProjectID
 	m.Config = &cfg
@@ -865,6 +900,29 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 									"authenticating with the users token. PKCE is enabled by default for mobile SDKs.",
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.UseStateForUnknown(),
+								},
+							},
+						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"cookies": schema.SingleNestedAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "The Cookies configuration for the B2B project SDK.",
+						Attributes: map[string]schema.Attribute{
+							"http_only": schema.StringAttribute{
+								Optional: true,
+								Computed: true,
+								Description: "Whether cookies should be set with the HttpOnly flag. HttpOnly cookies can only be set when the frontend SDK is " +
+									"configured to use a custom authentication domain. Set to 'DISABLED' to disable, 'ENABLED' to enable, or " +
+									"'ENFORCED' to enable and block web requests that don't use a custom authentication domain.",
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
+								Validators: []validator.String{
+									stringvalidator.OneOf(toStrings(sdk.HttpOnlyCookiesSettings())...),
 								},
 							},
 						},

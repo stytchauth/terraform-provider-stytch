@@ -62,6 +62,7 @@ type consumerSDKConfigInnerModel struct {
 	DFPPA         types.Object                `tfsdk:"dfppa"`
 	Biometrics    types.Object                `tfsdk:"biometrics"`
 	Passwords     types.Object                `tfsdk:"passwords"`
+	Cookies       types.Object                `tfsdk:"cookies"`
 }
 
 type consumerSDKConfigBasicModel struct {
@@ -293,6 +294,22 @@ func consumerSDKConfigPasswordsModelFromSDKConfig(c sdk.ConsumerPasswordsConfig)
 	}
 }
 
+type consumerSDKConfigCookiesModel struct {
+	HttpOnlyCookies types.String `tfsdk:"http_only"`
+}
+
+func (m consumerSDKConfigCookiesModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"http_only": types.StringType,
+	}
+}
+
+func consumerSDKConfigCookiesModelFromSDKConfig(c sdk.ConsumerCookiesConfig) consumerSDKConfigCookiesModel {
+	return consumerSDKConfigCookiesModel{
+		HttpOnlyCookies: types.StringValue(string(c.HttpOnlyCookies)),
+	}
+}
+
 func (m consumerSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.ConsumerConfig, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	c := sdk.ConsumerConfig{
@@ -449,6 +466,17 @@ func (m consumerSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.ConsumerCo
 		}
 	}
 
+	if !m.Config.Cookies.IsUnknown() {
+		var cookies consumerSDKConfigCookiesModel
+		diags.Append(m.Config.Cookies.As(ctx, &cookies, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
+		c.Cookies = &sdk.ConsumerCookiesConfig{
+			HttpOnlyCookies: sdk.HttpOnlyCookiesSetting(cookies.HttpOnlyCookies.ValueString()),
+		}
+	}
+
 	return c, diags
 }
 
@@ -484,6 +512,9 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.
 	}
 	if c.Passwords == nil {
 		diags.AddError("passwords is nil", nilSDKObject)
+	}
+	if c.Cookies == nil {
+		diags.AddError("cookies is nil", nilSDKObject)
 	}
 
 	if diags.HasError() {
@@ -528,6 +559,9 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.
 	passwords, diag := types.ObjectValueFrom(ctx, consumerSDKConfigPasswordsModel{}.AttributeTypes(), consumerSDKConfigPasswordsModelFromSDKConfig(*c.Passwords))
 	diags.Append(diag...)
 
+	cookies, diag := types.ObjectValueFrom(ctx, consumerSDKConfigCookiesModel{}.AttributeTypes(), consumerSDKConfigCookiesModelFromSDKConfig(*c.Cookies))
+	diags.Append(diag...)
+
 	cfg := consumerSDKConfigInnerModel{
 		Basic: consumerSDKConfigBasicModel{
 			Enabled:        types.BoolValue(c.Basic.Enabled),
@@ -545,6 +579,7 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.
 		DFPPA:         dfppa,
 		Biometrics:    biometrics,
 		Passwords:     passwords,
+		Cookies:       cookies,
 	}
 	m.ID = m.ProjectID
 	m.Config = &cfg
@@ -989,6 +1024,26 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 						},
 						PlanModifiers: []planmodifier.Object{
 							objectplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"cookies": schema.SingleNestedAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "The Cookies configuration for the consumer project SDK.",
+						Attributes: map[string]schema.Attribute{
+							"http_only": schema.StringAttribute{
+								Optional: true,
+								Computed: true,
+								Description: "Whether cookies should be set with the HttpOnly flag. HttpOnly cookies can only be set when the frontend SDK is " +
+									"configured to use a custom authentication domain. Set to 'DISABLED' to disable, 'ENABLED' to enable, or " +
+									"'ENFORCED' to enable and block web requests that don't use a custom authentication domain.",
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
+								Validators: []validator.String{
+									stringvalidator.OneOf(toStrings(sdk.HttpOnlyCookiesSettings())...),
+								},
+							},
 						},
 					},
 				},
