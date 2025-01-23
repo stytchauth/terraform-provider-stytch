@@ -144,8 +144,8 @@ func TestAccEmailTemplateResource(t *testing.T) {
         }
       }`,
 				Checks: []resource.TestCheckFunc{
-					resource.TestCheckResourceAttr("stytch_email_template.test", "template_id", "tf-test-custom"),
-					resource.TestCheckResourceAttr("stytch_email_template.test", "name", "tf-test-custom"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "template_id", "tf-test-custom-2"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "name", "tf-test-custom-2"),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_local_part", "noreply"),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_domain", customDomain),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_name", "Stytch"),
