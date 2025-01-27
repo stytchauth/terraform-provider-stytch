@@ -102,7 +102,7 @@ func TestAccEmailTemplateResource(t *testing.T) {
         custom_html_customization = {
           template_type = "LOGIN"
           html_content = "<h1>Login now: {{magic_link_url}}</h1>"
-          plaintext_content = "Login now: {{magic_link_url}}"
+          plaintext_content = "Plaintext login now: {{magic_link_url}}"
           subject = "Login to ` + customDomain + `"
         }
       }`,
@@ -116,7 +116,7 @@ func TestAccEmailTemplateResource(t *testing.T) {
 					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.reply_to_name", "Support"),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.template_type", "LOGIN"),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.html_content", "<h1>Login now: {{magic_link_url}}</h1>"),
-					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.plaintext_content", "Login now: {{magic_link_url}}"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.plaintext_content", "Plaintext login now: {{magic_link_url}}"),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.subject", "Login to "+customDomain),
 				},
 			},
