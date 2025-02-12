@@ -29,6 +29,10 @@ resource "stytch_redirect_url" "consumer_redirect_url" {
     {
       type       = "INVITE"
       is_default = false
+    },
+    {
+      type       = "RESET_PASSWORD"
+      is_default = false
     }
   ]
 }
@@ -53,6 +57,10 @@ resource "stytch_redirect_url" "b2b_redirect_url" {
     {
       type       = "DISCOVERY"
       is_default = true
+    },
+    {
+      type       = "RESET_PASSWORD"
+      is_default = false
     }
   ]
 }
