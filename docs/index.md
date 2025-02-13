@@ -3,12 +3,12 @@
 page_title: "stytch Provider"
 subcategory: ""
 description: |-
-  Interact with Stytch to configure your workspace, including projects, redirect URLs, email templates and more.
+  Interact with Stytch's Programmatic Workspace Actions API https://stytch.com/docs/workspace-management/pwa/overview to configure your workspace, including projects, redirect URLs, email templates and more.
 ---
 
 # stytch Provider
 
-Interact with Stytch to configure your workspace, including projects, redirect URLs, email templates and more.
+Interact with Stytch's [Programmatic Workspace Actions API](https://stytch.com/docs/workspace-management/pwa/overview) to configure your workspace, including projects, redirect URLs, email templates and more.
 
 ## Example Usage
 
