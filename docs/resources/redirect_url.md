@@ -23,6 +23,10 @@ resource "stytch_redirect_url" "consumer_redirect_url" {
       is_default = true
     },
     {
+      type       = "RESET_PASSWORD"
+      is_default = false
+    },
+    {
       type       = "SIGNUP"
       is_default = true
     },
@@ -41,6 +45,10 @@ resource "stytch_redirect_url" "b2b_redirect_url" {
     {
       type       = "LOGIN"
       is_default = true
+    },
+    {
+      type       = "RESET_PASSWORD"
+      is_default = false
     },
     {
       type       = "SIGNUP"
