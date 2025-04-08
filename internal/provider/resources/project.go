@@ -9,13 +9,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/stytchauth/stytch-management-go/pkg/api"
-	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
+	"github.com/stytchauth/stytch-management-go/v2/pkg/api"
+	"github.com/stytchauth/stytch-management-go/v2/pkg/models/projects"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -34,15 +35,19 @@ type projectResource struct {
 }
 
 type projectModel struct {
-	ID                  types.String `tfsdk:"id"`
-	LiveProjectID       types.String `tfsdk:"live_project_id"`
-	TestProjectID       types.String `tfsdk:"test_project_id"`
-	LastUpdated         types.String `tfsdk:"last_updated"`
-	CreatedAt           types.String `tfsdk:"created_at"`
-	Name                types.String `tfsdk:"name"`
-	Vertical            types.String `tfsdk:"vertical"`
-	LiveOAuthCallbackID types.String `tfsdk:"live_oauth_callback_id"`
-	TestOAuthCallbackID types.String `tfsdk:"test_oauth_callback_id"`
+	ID                           types.String `tfsdk:"id"`
+	LiveProjectID                types.String `tfsdk:"live_project_id"`
+	TestProjectID                types.String `tfsdk:"test_project_id"`
+	LastUpdated                  types.String `tfsdk:"last_updated"`
+	CreatedAt                    types.String `tfsdk:"created_at"`
+	Name                         types.String `tfsdk:"name"`
+	Vertical                     types.String `tfsdk:"vertical"`
+	LiveOAuthCallbackID          types.String `tfsdk:"live_oauth_callback_id"`
+	TestOAuthCallbackID          types.String `tfsdk:"test_oauth_callback_id"`
+	LiveUserImpersonationEnabled types.Bool   `tfsdk:"live_user_impersonation_enabled"`
+	TestUserImpersonationEnabled types.Bool   `tfsdk:"test_user_impersonation_enabled"`
+	LiveCrossOrgPasswordsEnabled types.Bool   `tfsdk:"live_cross_org_passwords_enabled"`
+	TestCrossOrgPasswordsEnabled types.Bool   `tfsdk:"test_cross_org_passwords_enabled"`
 }
 
 func (m *projectModel) refreshFromProject(p projects.Project) {
@@ -55,6 +60,10 @@ func (m *projectModel) refreshFromProject(p projects.Project) {
 	m.Vertical = types.StringValue(string(p.Vertical))
 	m.LiveOAuthCallbackID = types.StringValue(p.LiveOAuthCallbackID)
 	m.TestOAuthCallbackID = types.StringValue(p.TestOAuthCallbackID)
+	m.LiveUserImpersonationEnabled = types.BoolValue(p.LiveUserImpersonationEnabled)
+	m.TestUserImpersonationEnabled = types.BoolValue(p.TestUserImpersonationEnabled)
+	m.LiveCrossOrgPasswordsEnabled = types.BoolValue(p.LiveCrossOrgPasswordsEnabled)
+	m.TestCrossOrgPasswordsEnabled = types.BoolValue(p.TestCrossOrgPasswordsEnabled)
 }
 
 func (r *projectResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -149,7 +158,59 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"live_user_impersonation_enabled": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether user impersonation is enabled for the live project.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"test_user_impersonation_enabled": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether user impersonation is enabled for the test project.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"live_cross_org_passwords_enabled": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether cross-org passwords are enabled for the live project.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"test_cross_org_passwords_enabled": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether cross-org passwords are enabled for the test project.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
 		},
+	}
+}
+
+func (r projectResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data projectModel
+	diags := req.Config.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// If this is a B2B project, user impersonation should not be enabled
+	if data.Vertical.ValueString() == string(projects.VerticalB2B) {
+		if data.LiveUserImpersonationEnabled.ValueBool() || data.TestUserImpersonationEnabled.ValueBool() {
+			resp.Diagnostics.AddError("Invalid configuration", "User impersonation cannot be enabled for B2B projects.")
+		}
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
 	}
 }
 
@@ -167,8 +228,12 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 	tflog.Info(ctx, "Creating project")
 
 	createResp, err := r.client.Projects.Create(ctx, projects.CreateRequest{
-		ProjectName: plan.Name.ValueString(),
-		Vertical:    projects.Vertical(plan.Vertical.ValueString()),
+		ProjectName:                  plan.Name.ValueString(),
+		Vertical:                     projects.Vertical(plan.Vertical.ValueString()),
+		LiveUserImpersonationEnabled: plan.LiveUserImpersonationEnabled.ValueBool(),
+		TestUserImpersonationEnabled: plan.TestUserImpersonationEnabled.ValueBool(),
+		LiveCrossOrgPasswordsEnabled: plan.LiveCrossOrgPasswordsEnabled.ValueBool(),
+		TestCrossOrgPasswordsEnabled: plan.TestCrossOrgPasswordsEnabled.ValueBool(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create project", err.Error())
@@ -232,8 +297,12 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	tflog.Info(ctx, "Updating project")
 
 	updateResp, err := r.client.Projects.Update(ctx, projects.UpdateRequest{
-		ProjectID: plan.LiveProjectID.ValueString(),
-		Name:      plan.Name.ValueString(),
+		ProjectID:                    plan.LiveProjectID.ValueString(),
+		Name:                         plan.Name.ValueString(),
+		LiveUserImpersonationEnabled: ptr(plan.LiveUserImpersonationEnabled.ValueBool()),
+		TestUserImpersonationEnabled: ptr(plan.TestUserImpersonationEnabled.ValueBool()),
+		LiveUseCrossOrgPasswords:     ptr(plan.LiveCrossOrgPasswordsEnabled.ValueBool()),
+		TestUseCrossOrgPasswords:     ptr(plan.TestCrossOrgPasswordsEnabled.ValueBool()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update project", err.Error())
