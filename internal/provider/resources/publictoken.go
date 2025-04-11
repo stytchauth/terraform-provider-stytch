@@ -11,8 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/stytchauth/stytch-management-go/pkg/api"
-	"github.com/stytchauth/stytch-management-go/pkg/models/publictokens"
+	"github.com/stytchauth/stytch-management-go/v2/pkg/api"
+	"github.com/stytchauth/stytch-management-go/v2/pkg/models/publictokens"
 )
 
 // Ensure the implementation satisfies the expected interfaces.

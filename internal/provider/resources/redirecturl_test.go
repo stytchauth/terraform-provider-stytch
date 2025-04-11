@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/stytchauth/stytch-management-go/pkg/models/redirecturls"
+	"github.com/stytchauth/stytch-management-go/v2/pkg/models/redirecturls"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
 

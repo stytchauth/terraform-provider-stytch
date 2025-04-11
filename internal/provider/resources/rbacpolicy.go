@@ -15,9 +15,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/stytchauth/stytch-management-go/pkg/api"
-	"github.com/stytchauth/stytch-management-go/pkg/models/projects"
-	"github.com/stytchauth/stytch-management-go/pkg/models/rbacpolicy"
+	"github.com/stytchauth/stytch-management-go/v2/pkg/api"
+	"github.com/stytchauth/stytch-management-go/v2/pkg/models/projects"
+	"github.com/stytchauth/stytch-management-go/v2/pkg/models/rbacpolicy"
 )
 
 // Ensure the implementation satisfies the expected interfaces.

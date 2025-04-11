@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/stytchauth/stytch-management-go/pkg/api"
+	"github.com/stytchauth/stytch-management-go/v2/pkg/api"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/resources"
 )
 
