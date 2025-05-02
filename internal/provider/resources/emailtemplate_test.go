@@ -86,12 +86,12 @@ func TestAccEmailTemplateResource(t *testing.T) {
 		},
 		{
 			TestCase: testutil.TestCase{
-				Name: "custom",
+				Name: "custom login",
 				Config: testutil.ConsumerProjectConfig + `
       resource "stytch_email_template" "test" {
         live_project_id = stytch_project.project.live_project_id
-        template_id = "tf-test-custom"
-        name = "tf-test-custom"
+        template_id = "tf-test-custom-login"
+        name = "tf-test-custom-login"
         sender_information = {
           from_local_part = "noreply"
           from_domain = "` + customDomain + `"
@@ -107,8 +107,8 @@ func TestAccEmailTemplateResource(t *testing.T) {
         }
       }`,
 				Checks: []resource.TestCheckFunc{
-					resource.TestCheckResourceAttr("stytch_email_template.test", "template_id", "tf-test-custom"),
-					resource.TestCheckResourceAttr("stytch_email_template.test", "name", "tf-test-custom"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "template_id", "tf-test-custom-login"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "name", "tf-test-custom-login"),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_local_part", "noreply"),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_domain", customDomain),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_name", "Stytch"),
@@ -118,6 +118,82 @@ func TestAccEmailTemplateResource(t *testing.T) {
 					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.html_content", "<h1>Login now: {{magic_link_url}}</h1>"),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.plaintext_content", "Plaintext login now: {{magic_link_url}}"),
 					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.subject", "Login to "+customDomain),
+				},
+			},
+			shouldSkip: customDomain == "",
+		},
+		{
+			TestCase: testutil.TestCase{
+				Name: "custom reset password",
+				Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_email_template" "test" {
+        live_project_id = stytch_project.project.live_project_id
+        template_id = "tf-test-custom-reset-password"
+        name = "tf-test-custom-reset-password"
+        sender_information = {
+          from_local_part = "noreply"
+          from_domain = "` + customDomain + `"
+          from_name = "Stytch"
+          reply_to_local_part = "support"
+          reply_to_name = "Support"
+        }
+        custom_html_customization = {
+          template_type = "RESET_PASSWORD"
+          html_content = "<h1>Reset password now: {{reset_password_url}}</h1>"
+          plaintext_content = "Plaintext reset password now: {{reset_password_url}}"
+          subject = "Reset password for ` + customDomain + `"
+        }
+      }`,
+				Checks: []resource.TestCheckFunc{
+					resource.TestCheckResourceAttr("stytch_email_template.test", "template_id", "tf-test-custom-reset-password"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "name", "tf-test-custom-reset-password"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_local_part", "noreply"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_domain", customDomain),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_name", "Stytch"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.reply_to_local_part", "support"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.reply_to_name", "Support"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.template_type", "RESET_PASSWORD"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.html_content", "<h1>Reset password now: {{reset_password_url}}</h1>"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.plaintext_content", "Plaintext reset password now: {{reset_password_url}}"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.subject", "Reset password for "+customDomain),
+				},
+			},
+			shouldSkip: customDomain == "",
+		},
+		{
+			TestCase: testutil.TestCase{
+				Name: "custom otp",
+				Config: testutil.ConsumerProjectConfig + `
+      resource "stytch_email_template" "test" {
+        live_project_id = stytch_project.project.live_project_id
+        template_id = "tf-test-custom-otp"
+        name = "tf-test-custom-otp"
+        sender_information = {
+          from_local_part = "noreply"
+          from_domain = "` + customDomain + `"
+          from_name = "Stytch"
+          reply_to_local_part = "support"
+          reply_to_name = "Support"
+        }
+        custom_html_customization = {
+          template_type = "ONE_TIME_PASSCODE"
+          html_content = "<h1>One time passcode: {{otp_code}}</h1>"
+          plaintext_content = "Plaintext one time passcode: {{otp_code}}"
+          subject = "OTP for ` + customDomain + `"
+        }
+      }`,
+				Checks: []resource.TestCheckFunc{
+					resource.TestCheckResourceAttr("stytch_email_template.test", "template_id", "tf-test-custom-otp"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "name", "tf-test-custom-otp"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_local_part", "noreply"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_domain", customDomain),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.from_name", "Stytch"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.reply_to_local_part", "support"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "sender_information.reply_to_name", "Support"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.template_type", "ONE_TIME_PASSCODE"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.html_content", "<h1>One time passcode: {{otp_code}}</h1>"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.plaintext_content", "Plaintext one time passcode: {{otp_code}}"),
+					resource.TestCheckResourceAttr("stytch_email_template.test", "custom_html_customization.subject", "OTP for "+customDomain),
 				},
 			},
 			shouldSkip: customDomain == "",
