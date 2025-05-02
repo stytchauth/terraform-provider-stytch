@@ -33,7 +33,7 @@ test:
 
 .PHONY: testacc
 testacc:
-	TF_ACC=1 $(TEST_CMD) ./internal/provider/resources/emailtemplate_test.go # ./...
+	TF_ACC=1 $(TEST_CMD) ./...
 
 .PHONY: toggle-local-management-go
 toggle-local-management-go:
