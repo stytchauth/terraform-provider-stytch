@@ -76,7 +76,7 @@ Optional:
 - `html_content` (String) The HTML content of the email body
 - `plaintext_content` (String) The plaintext content of the email body
 - `subject` (String) The subject line in the email template
-- `template_type` (String) The type of email template this custom HTML customization is valid for
+- `template_type` (String) The type of email template this custom HTML customization is valid for. Each template type will require different parameters to be set in html_content and plaintext_content. LOGIN, SIGNUP, and INVITE require the magic_link_url parameter; ONE_TIME_PASSCODE and ONE_TIME_PASSCODE_SIGNUP require the otp_code parameter; RESET_PASSWORD and VERIFY_EMAIL_PASSWORD_RESET require the reset_password_url parameter.
 
 
 <a id="nestedatt--prebuilt_customization"></a>
