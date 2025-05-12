@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -44,24 +43,19 @@ type jwtTemplateModel struct {
 	LastUpdated     types.String `tfsdk:"last_updated"`
 }
 
-func (m jwtTemplateModel) toJWTTemplate() (jwttemplates.JWTTemplate, diag.Diagnostics) {
-	var diags diag.Diagnostics
+func (m jwtTemplateModel) toJWTTemplate() jwttemplates.JWTTemplate {
 	return jwttemplates.JWTTemplate{
 		TemplateType:    jwttemplates.TemplateType(m.TemplateType.ValueString()),
 		TemplateContent: m.TemplateContent.ValueString(),
 		CustomAudience:  m.CustomAudience.ValueString(),
-	}, diags
+	}
 }
 
-func (m *jwtTemplateModel) reloadFromJWTTemplate(jwtTemplate jwttemplates.JWTTemplate) diag.Diagnostics {
-	var diags diag.Diagnostics
-
+func (m *jwtTemplateModel) reloadFromJWTTemplate(jwtTemplate jwttemplates.JWTTemplate) {
 	m.ID = types.StringValue(m.ProjectID.ValueString() + "." + m.TemplateType.ValueString())
 	m.TemplateType = types.StringValue(string(jwtTemplate.TemplateType))
 	m.TemplateContent = types.StringValue(jwtTemplate.TemplateContent)
 	m.CustomAudience = types.StringValue(jwtTemplate.CustomAudience)
-
-	return diags
 }
 
 func (r *jwtTemplateResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -148,15 +142,9 @@ func (r *jwtTemplateResource) Create(ctx context.Context, req resource.CreateReq
 	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
 	tflog.Info(ctx, "Creating JWT template")
 
-	jwtTemplate, diags := plan.toJWTTemplate()
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	createResp, err := r.client.JWTTemplates.Set(ctx, &jwttemplates.SetRequest{
 		ProjectID:   plan.ProjectID.ValueString(),
-		JWTTemplate: jwtTemplate,
+		JWTTemplate: plan.toJWTTemplate(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create JWT template", err.Error())
@@ -165,8 +153,7 @@ func (r *jwtTemplateResource) Create(ctx context.Context, req resource.CreateReq
 
 	tflog.Info(ctx, "JWT template created")
 
-	diags = plan.reloadFromJWTTemplate(createResp.JWTTemplate)
-	resp.Diagnostics.Append(diags...)
+	plan.reloadFromJWTTemplate(createResp.JWTTemplate)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -199,8 +186,7 @@ func (r *jwtTemplateResource) Read(ctx context.Context, req resource.ReadRequest
 
 	tflog.Info(ctx, "Read JWT template")
 
-	diags = state.reloadFromJWTTemplate(getResp.JWTTemplate)
-	resp.Diagnostics.Append(diags...)
+	state.reloadFromJWTTemplate(getResp.JWTTemplate)
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -220,15 +206,9 @@ func (r *jwtTemplateResource) Update(ctx context.Context, req resource.UpdateReq
 	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
 	tflog.Info(ctx, "Updating JWT template")
 
-	jwtTemplate, diags := plan.toJWTTemplate()
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	updateResp, err := r.client.JWTTemplates.Set(ctx, &jwttemplates.SetRequest{
 		ProjectID:   plan.ProjectID.ValueString(),
-		JWTTemplate: jwtTemplate,
+		JWTTemplate: plan.toJWTTemplate(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update JWT template", err.Error())
@@ -237,8 +217,7 @@ func (r *jwtTemplateResource) Update(ctx context.Context, req resource.UpdateReq
 
 	tflog.Info(ctx, "Updated JWT template")
 
-	diags = plan.reloadFromJWTTemplate(updateResp.JWTTemplate)
-	resp.Diagnostics.Append(diags...)
+	plan.reloadFromJWTTemplate(updateResp.JWTTemplate)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
