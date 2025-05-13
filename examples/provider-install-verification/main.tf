@@ -189,6 +189,18 @@ resource "stytch_rbac_policy" "b2b_rbac_policy" {
   ]
 }
 
+resource "stytch_jwt_template" "session_template" {
+  project_id       = stytch_project.consumer_project.test_project_id
+  template_type    = "SESSION"
+  template_content = <<EOT
+  {
+    "role": {{ user.trusted_metadata.role }},
+    "scope": "openid profile email"
+  }
+  EOT
+  custom_audience  = "my-audience"
+}
+
 # Invalid resources below. Uncomment to test config validation
 
 # Fails because vertical is not valid
@@ -296,3 +308,16 @@ resource "stytch_rbac_policy" "b2b_rbac_policy" {
 #   luds_min_password_length       = 16
 #   luds_min_password_complexity   = 4
 # }
+
+# Fails because jsonencode leaves the template variable in quotes, but our JWT templating
+# expects a raw value like `"role": {{ user.trusted_metadata.role }}`
+# resource "stytch_jwt_template" "session_template" {
+#   project_id    = stytch_project.consumer_project.test_project_id
+#   template_type = "SESSION"
+#   template_content = jsonencode({
+#     role  = "{{ user.trusted_metadata.role }}"
+#     scope = "openid profile email"
+#   })
+#   custom_audience = "my-audience"
+# }
+# 
