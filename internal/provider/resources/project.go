@@ -194,26 +194,6 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	}
 }
 
-func (r projectResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var data projectModel
-	diags := req.Config.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// If this is a B2B project, user impersonation should not be enabled
-	if data.Vertical.ValueString() == string(projects.VerticalB2B) {
-		if data.LiveUserImpersonationEnabled.ValueBool() || data.TestUserImpersonationEnabled.ValueBool() {
-			resp.Diagnostics.AddError("Invalid configuration", "User impersonation cannot be enabled for B2B projects.")
-		}
-	}
-
-	if resp.Diagnostics.HasError() {
-		return
-	}
-}
-
 // Create creates the resource and sets the initial Terraform state.
 func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan projectModel
