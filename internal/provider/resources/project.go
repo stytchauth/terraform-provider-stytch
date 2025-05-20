@@ -286,6 +286,7 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update project", err.Error())
+		return
 	}
 
 	tflog.Info(ctx, "Updated project")
