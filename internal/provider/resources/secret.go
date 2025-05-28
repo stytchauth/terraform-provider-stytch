@@ -171,6 +171,7 @@ func (r *secretResource) Read(ctx context.Context, req resource.ReadRequest, res
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *secretResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Update not allowed", "Updating this resource is not supported. Please delete and recreate the resource.")
+	return //nolint:staticcheck // needed so Semgrep rule can enforce AddError followed by return
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

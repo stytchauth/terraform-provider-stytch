@@ -144,6 +144,7 @@ func (r *publicTokenResource) Read(ctx context.Context, req resource.ReadRequest
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get public token", err.Error())
+		return
 	}
 
 	found := false
@@ -172,6 +173,7 @@ func (r *publicTokenResource) Read(ctx context.Context, req resource.ReadRequest
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *publicTokenResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Update not allowed", "Updating this resource is not supported. Please delete and recreate the resource.")
+	return //nolint:staticcheck // needed so Semgrep rule can enforce AddError followed by return
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

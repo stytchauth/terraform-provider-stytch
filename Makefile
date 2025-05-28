@@ -10,6 +10,22 @@ build:
 install: build
 	go install -v ./...
 
+# Prefer local semgrep to the dockerized version. The container image is the same one used by CI.
+ifneq (,$(shell which semgrep))
+SEMGREP := semgrep
+else
+SEMGREP := docker run -v "$$(pwd)":/src --workdir /src semgrep/semgrep:1.61.1 semgrep
+endif
+
+.PHONY: semgrep
+semgrep:
+	${SEMGREP} --config semgrep-rules --metrics=off
+	$(MAKE) fmt lint
+
+.PHONY: semgrep-ci
+semgrep-ci:
+	${SEMGREP} ci --config semgrep-rules --metrics=off
+
 .PHONY: lint
 lint:
 	golangci-lint run

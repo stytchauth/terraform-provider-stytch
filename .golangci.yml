@@ -28,6 +28,7 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - semgrep-rules/*
 issues:
   max-same-issues: 0
 formatters:
@@ -39,3 +40,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      - semgrep-rules/*
