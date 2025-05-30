@@ -1141,6 +1141,7 @@ func (r *consumerSDKConfigResource) Read(ctx context.Context, req resource.ReadR
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get Consumer SDK config", err.Error())
+		return
 	}
 
 	tflog.Info(ctx, "Read Consumer SDK config")

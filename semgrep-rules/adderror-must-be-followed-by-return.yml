@@ -1,0 +1,19 @@
+rules:
+  - id: adderror-must-be-followed-by-return
+    languages: [go]
+    severity: ERROR
+    message: "`AddError` must be immediately followed by a `return` statement."
+    metadata:
+      category: correctness
+    patterns:
+      - pattern: $RESP.Diagnostics.AddError($TITLE, $MSG)
+      - pattern-not-inside: |
+          $RESP.Diagnostics.AddError($TITLE, $MSG)
+          return
+      - pattern-not-inside: |
+          func ValidateConfig(...) {
+            ...
+          }
+    fix: |
+      $RESP.Diagnostics.AddError($TITLE, $MSG)
+      return

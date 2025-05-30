@@ -1,6 +1,6 @@
 module github.com/stytchauth/terraform-provider-stytch
 
-go 1.22.7
+go 1.24.2
 
 require (
 	github.com/hashicorp/terraform-plugin-framework v1.13.0
