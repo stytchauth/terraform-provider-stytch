@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -48,6 +49,12 @@ type projectModel struct {
 	TestUserImpersonationEnabled types.Bool   `tfsdk:"test_user_impersonation_enabled"`
 	LiveCrossOrgPasswordsEnabled types.Bool   `tfsdk:"live_cross_org_passwords_enabled"`
 	TestCrossOrgPasswordsEnabled types.Bool   `tfsdk:"test_cross_org_passwords_enabled"`
+	LiveUserLockSelfServeEnabled types.Bool   `tfsdk:"live_user_lock_self_serve_enabled"`
+	TestUserLockSelfServeEnabled types.Bool   `tfsdk:"test_user_lock_self_serve_enabled"`
+	LiveUserLockThreshold        types.Int32  `tfsdk:"live_user_lock_threshold"`
+	TestUserLockThreshold        types.Int32  `tfsdk:"test_user_lock_threshold"`
+	LiveUserLockTTL              types.Int32  `tfsdk:"live_user_lock_ttl"`
+	TestUserLockTTL              types.Int32  `tfsdk:"test_user_lock_ttl"`
 }
 
 func (m *projectModel) refreshFromProject(p projects.Project) {
@@ -64,6 +71,12 @@ func (m *projectModel) refreshFromProject(p projects.Project) {
 	m.TestUserImpersonationEnabled = types.BoolValue(p.TestUserImpersonationEnabled)
 	m.LiveCrossOrgPasswordsEnabled = types.BoolValue(p.LiveCrossOrgPasswordsEnabled)
 	m.TestCrossOrgPasswordsEnabled = types.BoolValue(p.TestCrossOrgPasswordsEnabled)
+	m.LiveUserLockSelfServeEnabled = types.BoolValue(p.LiveUserLockSelfServeEnabled)
+	m.TestUserLockSelfServeEnabled = types.BoolValue(p.TestUserLockSelfServeEnabled)
+	m.LiveUserLockThreshold = types.Int32Value(p.LiveUserLockThreshold)
+	m.TestUserLockThreshold = types.Int32Value(p.TestUserLockThreshold)
+	m.LiveUserLockTTL = types.Int32Value(p.LiveUserLockTTL)
+	m.TestUserLockTTL = types.Int32Value(p.TestUserLockTTL)
 }
 
 func (r *projectResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -190,6 +203,54 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"live_user_lock_self_serve_enabled": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether users in the live project who get locked out should automatically get an unlock email magic link.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"test_user_lock_self_serve_enabled": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether users in the test project who get locked out should automatically get an unlock email magic link.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"live_user_lock_threshold": schema.Int32Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The number of failed authenticate attempts that will cause a user in the live project to be locked.",
+				PlanModifiers: []planmodifier.Int32{
+					int32planmodifier.UseStateForUnknown(),
+				},
+			},
+			"test_user_lock_threshold": schema.Int32Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The number of failed authenticate attempts that will cause a user in the test project to be locked.",
+				PlanModifiers: []planmodifier.Int32{
+					int32planmodifier.UseStateForUnknown(),
+				},
+			},
+			"live_user_lock_ttl": schema.Int32Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The time in seconds that the user in the live project remains locked once the lock is set.",
+				PlanModifiers: []planmodifier.Int32{
+					int32planmodifier.UseStateForUnknown(),
+				},
+			},
+			"test_user_lock_ttl": schema.Int32Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The time in seconds that the user in the test project remains locked once the lock is set.",
+				PlanModifiers: []planmodifier.Int32{
+					int32planmodifier.UseStateForUnknown(),
+				},
+			},
 		},
 	}
 }
@@ -214,6 +275,12 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		TestUserImpersonationEnabled: plan.TestUserImpersonationEnabled.ValueBool(),
 		LiveCrossOrgPasswordsEnabled: plan.LiveCrossOrgPasswordsEnabled.ValueBool(),
 		TestCrossOrgPasswordsEnabled: plan.TestCrossOrgPasswordsEnabled.ValueBool(),
+		LiveUserLockSelfServeEnabled: plan.LiveUserLockSelfServeEnabled.ValueBool(),
+		TestUserLockSelfServeEnabled: plan.TestUserLockSelfServeEnabled.ValueBool(),
+		LiveUserLockThreshold:        ptr(plan.LiveUserLockThreshold.ValueInt32()),
+		TestUserLockThreshold:        ptr(plan.TestUserLockThreshold.ValueInt32()),
+		LiveUserLockTTL:              ptr(plan.LiveUserLockTTL.ValueInt32()),
+		TestUserLockTTL:              ptr(plan.TestUserLockTTL.ValueInt32()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create project", err.Error())
@@ -283,6 +350,12 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 		TestUserImpersonationEnabled: ptr(plan.TestUserImpersonationEnabled.ValueBool()),
 		LiveUseCrossOrgPasswords:     ptr(plan.LiveCrossOrgPasswordsEnabled.ValueBool()),
 		TestUseCrossOrgPasswords:     ptr(plan.TestCrossOrgPasswordsEnabled.ValueBool()),
+		LiveUserLockSelfServeEnabled: ptr(plan.LiveUserLockSelfServeEnabled.ValueBool()),
+		TestUserLockSelfServeEnabled: ptr(plan.TestUserLockSelfServeEnabled.ValueBool()),
+		LiveUserLockThreshold:        ptr(plan.LiveUserLockThreshold.ValueInt32()),
+		TestUserLockThreshold:        ptr(plan.TestUserLockThreshold.ValueInt32()),
+		LiveUserLockTTL:              ptr(plan.LiveUserLockTTL.ValueInt32()),
+		TestUserLockTTL:              ptr(plan.TestUserLockTTL.ValueInt32()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update project", err.Error())
