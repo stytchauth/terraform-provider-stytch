@@ -202,9 +202,9 @@ resource "stytch_jwt_template" "session_template" {
 }
 
 resource "stytch_country_code_allowlist" "sms_country_code_allowlist" {
-  project_id       = stytch_project.consumer_project.test_project_id
-  delivery_method    = "sms"
-    country_codes = ["US", "CA"]
+  project_id      = stytch_project.consumer_project.test_project_id
+  delivery_method = "sms"
+  country_codes   = ["US", "CA"]
 }
 
 # Invalid resources below. Uncomment to test config validation
