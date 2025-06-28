@@ -235,7 +235,7 @@ func TestAccEmailTemplateResource(t *testing.T) {
 			shouldSkip: customDomain == "",
 		},
 	} {
-		t.Run(testCase.TestCase.Name, func(t *testing.T) {
+		t.Run(testCase.Name, func(t *testing.T) {
 			if testCase.shouldSkip {
 				t.Skip("Skipping test due to missing STYTCH_CUSTOM_DOMAIN environment variable")
 			}
@@ -244,8 +244,8 @@ func TestAccEmailTemplateResource(t *testing.T) {
 				Steps: []resource.TestStep{
 					{
 						// Create and Read testing
-						Config: testutil.ProviderConfig + testCase.TestCase.Config,
-						Check:  resource.ComposeAggregateTestCheckFunc(testCase.TestCase.Checks...),
+						Config: testutil.ProviderConfig + testCase.Config,
+						Check:  resource.ComposeAggregateTestCheckFunc(testCase.Checks...),
 					},
 					{
 						// Import state testing
