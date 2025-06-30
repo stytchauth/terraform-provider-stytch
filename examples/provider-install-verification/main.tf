@@ -329,7 +329,6 @@ resource "stytch_country_code_allowlist" "sms_country_code_allowlist" {
 # 
 
 # Fails because delivery method is not valid.
-# expects a raw value like `"role": {{ user.trusted_metadata.role }}`
 # resource "stytch_country_code_allowlist" "country_code_allowlist" {
 #   project_id       = stytch_project.consumer_project.test_project_id
 #   delivery_method    = "email"
