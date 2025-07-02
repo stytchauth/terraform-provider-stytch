@@ -1,12 +1,14 @@
 package testutil
 
 import (
+	"fmt"
 	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider"
 )
 
@@ -62,4 +64,23 @@ func (e *ErrorCase) AssertAnyError(t *testing.T) {
 			},
 		})
 	})
+}
+
+// TestCheckResourceDeleted checks that a resource has been deleted from the state.
+func TestCheckResourceDeleted(resourceName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		// Look up resource in state.
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			// Resource already removed from state.
+			return nil
+		}
+
+		// If the resource is still present, return an error.
+		if rs.Primary.ID != "" {
+			return fmt.Errorf("resource %s still exists with ID: %s", resourceName, rs.Primary.ID)
+		}
+
+		return nil
+	}
 }
