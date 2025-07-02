@@ -475,24 +475,31 @@ func (r *eventLogStreamingResource) Read(ctx context.Context, req resource.ReadR
 			var existingConfig eventLogStreamingDatadogConfigModel
 			if diag := state.DatadogConfig.As(ctx, &existingConfig, basetypes.ObjectAsOptions{}); !diag.HasError() {
 				// Preserve the existing API key
-				tempState.DatadogConfig, diag = types.ObjectValueFrom(ctx, eventLogStreamingDatadogConfigModel{}.AttributeTypes(), eventLogStreamingDatadogConfigModel{
-					Site:   tempState.DatadogConfig.Attributes()["site"].(types.String),
-					ApiKey: existingConfig.ApiKey, // Preserve existing sensitive value
-				})
-				resp.Diagnostics.Append(diag...)
+				var tempDatadogConfig eventLogStreamingDatadogConfigModel
+				if diag := tempState.DatadogConfig.As(ctx, &tempDatadogConfig, basetypes.ObjectAsOptions{}); !diag.HasError() {
+					tempState.DatadogConfig, diag = types.ObjectValueFrom(ctx, eventLogStreamingDatadogConfigModel{}.AttributeTypes(), eventLogStreamingDatadogConfigModel{
+						Site:   tempDatadogConfig.Site,
+						ApiKey: existingConfig.ApiKey, // Preserve existing sensitive value
+					})
+					resp.Diagnostics.Append(diag...)
+				}
 			}
 		}
 	case string(eventlogstreaming.DestinationTypeGrafanaLoki):
 		if !state.GrafanaLokiConfig.IsNull() && !state.GrafanaLokiConfig.IsUnknown() {
 			var existingConfig eventLogStreamingGrafanaLokiConfigModel
 			if diag := state.GrafanaLokiConfig.As(ctx, &existingConfig, basetypes.ObjectAsOptions{}); !diag.HasError() {
-				// Preserve the existing username and password
-				tempState.GrafanaLokiConfig, diag = types.ObjectValueFrom(ctx, eventLogStreamingGrafanaLokiConfigModel{}.AttributeTypes(), eventLogStreamingGrafanaLokiConfigModel{
-					Hostname: tempState.GrafanaLokiConfig.Attributes()["hostname"].(types.String),
-					Username: tempState.GrafanaLokiConfig.Attributes()["username"].(types.String),
-					Password: existingConfig.Password, // Preserve existing sensitive value
-				})
-				resp.Diagnostics.Append(diag...)
+				// Extract values from tempState safely
+				var tempConfig eventLogStreamingGrafanaLokiConfigModel
+				if diag := tempState.GrafanaLokiConfig.As(ctx, &tempConfig, basetypes.ObjectAsOptions{}); !diag.HasError() {
+					// Preserve the existing password
+					tempState.GrafanaLokiConfig, diag = types.ObjectValueFrom(ctx, eventLogStreamingGrafanaLokiConfigModel{}.AttributeTypes(), eventLogStreamingGrafanaLokiConfigModel{
+						Hostname: tempConfig.Hostname,
+						Username: tempConfig.Username,
+						Password: existingConfig.Password, // Preserve existing sensitive value
+					})
+					resp.Diagnostics.Append(diag...)
+				}
 			}
 		}
 	}
