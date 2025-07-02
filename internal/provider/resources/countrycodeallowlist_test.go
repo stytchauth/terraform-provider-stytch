@@ -6,30 +6,10 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stytchauth/stytch-management-go/v2/pkg/models/countrycodeallowlist"
 	"github.com/stytchauth/stytch-management-go/v2/pkg/models/projects"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
-
-// testCheckResourceDeleted checks that a resource has been deleted from the state.
-func testCheckResourceDeleted(resourceName string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		// Look up resource in state.
-		rs, ok := s.RootModule().Resources[resourceName]
-		if !ok {
-			// Resource already removed from state.
-			return nil
-		}
-
-		// If the resource is still present, return an error.
-		if rs.Primary.ID != "" {
-			return fmt.Errorf("resource %s still exists with ID: %s", resourceName, rs.Primary.ID)
-		}
-
-		return nil
-	}
-}
 
 // TestAccCountryCodeAllowlistResource performs acceptance tests for the
 // stytch_country_code_allowlist resource.
@@ -133,7 +113,7 @@ func TestAccCountryCodeAllowlistResource(t *testing.T) {
 					{
 						// Test Delete and Read.
 						Config: testutil.ProviderConfig + deleteConfig,
-						Check:  testCheckResourceDeleted(resourceName),
+						Check:  testutil.TestCheckResourceDeleted(resourceName),
 					},
 				},
 			})
