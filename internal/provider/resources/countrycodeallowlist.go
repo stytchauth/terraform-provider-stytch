@@ -43,37 +43,6 @@ type countryCodeAllowlistModel struct {
 	LastUpdated    types.String `tfsdk:"last_updated"`
 }
 
-type standardizeCountryCodesPlanModifier struct{}
-
-func (m standardizeCountryCodesPlanModifier) Description(ctx context.Context) string {
-	return "Standardizes country codes"
-}
-
-func (m standardizeCountryCodesPlanModifier) MarkdownDescription(ctx context.Context) string {
-	return "Standardizes country codes"
-}
-
-func (m standardizeCountryCodesPlanModifier) PlanModifyList(ctx context.Context, req planmodifier.ListRequest, resp *planmodifier.ListResponse) {
-	// Do nothing if the plan value is unknown or null.
-	if req.PlanValue.IsUnknown() || req.PlanValue.IsNull() {
-		return
-	}
-
-	// Load the plan's list of country codes into an array.
-	countryCodes := make([]string, 0, len(req.PlanValue.Elements()))
-	diags := req.PlanValue.ElementsAs(ctx, &countryCodes, false)
-	resp.Diagnostics.Append(diags...)
-	if diags.HasError() {
-		return
-	}
-
-	standardizedCodes := standardizedCountryCodes(countryCodes)
-
-	// Update the plan with the standardized country codes.
-	resp.PlanValue, diags = types.ListValueFrom(ctx, types.StringType, standardizedCodes)
-	resp.Diagnostics.Append(diags...)
-}
-
 func standardizedCountryCodes(countryCodes []string) []string {
 	// Standardize country codes to uppercase and remove duplicates.
 	standardizedCodesSet := map[string]bool{}
@@ -170,9 +139,6 @@ func (r *countryCodeAllowlistResource) Schema(
 				Description: "List of country codes to allow.",
 				Required:    true,
 				ElementType: types.StringType,
-				//PlanModifiers: []planmodifier.List{
-				//	standardizeCountryCodesPlanModifier{},
-				//},
 			},
 			"last_updated": schema.StringAttribute{
 				Description: "Timestamp of the last Terraform update.",
