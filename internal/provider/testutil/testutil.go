@@ -66,6 +66,21 @@ func (e *ErrorCase) AssertAnyError(t *testing.T) {
 	})
 }
 
+func (e *ErrorCase) AssertErrorWith(t *testing.T, errRegex *regexp.Regexp) {
+	t.Helper()
+	t.Run(e.Name, func(t *testing.T) {
+		resource.Test(t, resource.TestCase{
+			ProtoV6ProviderFactories: TestAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config:      ProviderConfig + e.Config,
+					ExpectError: errRegex,
+				},
+			},
+		})
+	})
+}
+
 // TestCheckResourceDeleted checks that a resource has been deleted from the state.
 func TestCheckResourceDeleted(resourceName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {

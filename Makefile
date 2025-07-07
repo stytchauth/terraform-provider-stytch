@@ -53,4 +53,4 @@ testacc:
 
 .PHONY: toggle-local-management-go
 toggle-local-management-go:
-	./hack/toggle-dependency.sh stytch-management-go
+	./hack/toggle-dependency.sh stytch-management-go/v2
