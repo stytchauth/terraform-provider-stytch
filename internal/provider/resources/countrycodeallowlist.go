@@ -59,7 +59,7 @@ func standardizedCountryCodes(countryCodes []string) []string {
 	return standardizedCodes
 }
 
-func areCountryCodesEqual(a, b []string) bool {
+func areCountryCodesEquivalent(a, b []string) bool {
 	a, b = standardizedCountryCodes(a), standardizedCountryCodes(b)
 	if len(a) != len(b) {
 		return false
@@ -159,8 +159,8 @@ func (r *countryCodeAllowlistResource) setCountryCodeAllowlist(
 			})
 		if resp != nil {
 			// This should never happen for a valid response.
-			if !areCountryCodesEqual(resp.CountryCodes, countryCodes) {
-				panic("Mismatch between input and response country codes")
+			if !areCountryCodesEquivalent(resp.CountryCodes, countryCodes) {
+				return fmt.Errorf("mismatch between input and response country codes, please report this issue to the provider developers")
 			}
 		}
 		return err
@@ -172,8 +172,8 @@ func (r *countryCodeAllowlistResource) setCountryCodeAllowlist(
 			})
 		if resp != nil {
 			// This should never happen for a valid response.
-			if !areCountryCodesEqual(resp.CountryCodes, countryCodes) {
-				panic("Mismatch between input and response country codes")
+			if !areCountryCodesEquivalent(resp.CountryCodes, countryCodes) {
+				return fmt.Errorf("mismatch between input and response country codes, please report this issue to the provider developers")
 			}
 		}
 		return err
@@ -260,7 +260,7 @@ func (r *countryCodeAllowlistResource) Read(ctx context.Context, req resource.Re
 	diags = state.CountryCodes.ElementsAs(ctx, &stateCountryCodes, false)
 	// Compare the current state with the fetched country codes. If they are the same, do not update
 	// the country codes in the state.
-	if !areCountryCodesEqual(stateCountryCodes, countryCodes) {
+	if !areCountryCodesEquivalent(stateCountryCodes, countryCodes) {
 		// Set the country codes in the state.
 		state.CountryCodes, diags = types.ListValueFrom(ctx, types.StringType, countryCodes)
 		resp.Diagnostics.Append(diags...)
