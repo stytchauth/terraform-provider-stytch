@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -40,6 +41,67 @@ type countryCodeAllowlistModel struct {
 	DeliveryMethod types.String `tfsdk:"delivery_method"`
 	CountryCodes   types.List   `tfsdk:"country_codes"`
 	LastUpdated    types.String `tfsdk:"last_updated"`
+}
+
+type standardizeCountryCodesPlanModifier struct{}
+
+func (m standardizeCountryCodesPlanModifier) Description(ctx context.Context) string {
+	return "Standardizes country codes"
+}
+
+func (m standardizeCountryCodesPlanModifier) MarkdownDescription(ctx context.Context) string {
+	return "Standardizes country codes"
+}
+
+func (m standardizeCountryCodesPlanModifier) PlanModifyList(ctx context.Context, req planmodifier.ListRequest, resp *planmodifier.ListResponse) {
+	// Do nothing if the plan value is unknown or null.
+	if req.PlanValue.IsUnknown() || req.PlanValue.IsNull() {
+		return
+	}
+
+	// Load the plan's list of country codes into an array.
+	countryCodes := make([]string, 0, len(req.PlanValue.Elements()))
+	diags := req.PlanValue.ElementsAs(ctx, &countryCodes, false)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	standardizedCodes := standardizedCountryCodes(countryCodes)
+
+	// Update the plan with the standardized country codes.
+	resp.PlanValue, diags = types.ListValueFrom(ctx, types.StringType, standardizedCodes)
+	resp.Diagnostics.Append(diags...)
+}
+
+func standardizedCountryCodes(countryCodes []string) []string {
+	// Standardize country codes to uppercase and remove duplicates.
+	standardizedCodesSet := map[string]bool{}
+	for _, countryCode := range countryCodes {
+		countryCode = strings.ToUpper(countryCode)
+		standardizedCodesSet[countryCode] = true
+	}
+	standardizedCodes := make([]string, 0, len(standardizedCodesSet))
+	for countryCode := range standardizedCodesSet {
+		standardizedCodes = append(standardizedCodes, countryCode)
+	}
+	// Sort the standardized country codes for consistency.
+	sort.Strings(standardizedCodes)
+	return standardizedCodes
+}
+
+func areCountryCodesEqual(a, b []string) bool {
+	a, b = standardizedCountryCodes(a), standardizedCountryCodes(b)
+	if len(a) != len(b) {
+		return false
+	}
+	for i, aCountryCode := range a {
+		bCountryCode := b[i]
+		if aCountryCode != bCountryCode {
+			return false
+		}
+	}
+	return true
 }
 
 // Configure sets provider-level data for the resource.
@@ -108,6 +170,9 @@ func (r *countryCodeAllowlistResource) Schema(
 				Description: "List of country codes to allow.",
 				Required:    true,
 				ElementType: types.StringType,
+				//PlanModifiers: []planmodifier.List{
+				//	standardizeCountryCodesPlanModifier{},
+				//},
 			},
 			"last_updated": schema.StringAttribute{
 				Description: "Timestamp of the last Terraform update.",
@@ -120,28 +185,40 @@ func (r *countryCodeAllowlistResource) Schema(
 func (r *countryCodeAllowlistResource) setCountryCodeAllowlist(
 	ctx context.Context, plan countryCodeAllowlistModel, countryCodes []string,
 ) error {
-	var err error
 	if plan.DeliveryMethod.ValueString() == string(countrycodeallowlist.DeliveryMethodSMS) {
-		_, err = r.client.CountryCodeAllowlist.SetAllowedSMSCountryCodes(ctx,
+		resp, err := r.client.CountryCodeAllowlist.SetAllowedSMSCountryCodes(ctx,
 			&countrycodeallowlist.SetAllowedSMSCountryCodesRequest{
 				ProjectID:    plan.ProjectID.ValueString(),
 				CountryCodes: countryCodes,
 			})
+		if resp != nil {
+			// This should never happen for a valid response.
+			if !areCountryCodesEqual(resp.CountryCodes, countryCodes) {
+				panic("Mismatch between input and response country codes")
+			}
+		}
+		return err
 	} else {
-		_, err = r.client.CountryCodeAllowlist.SetAllowedWhatsAppCountryCodes(ctx,
+		resp, err := r.client.CountryCodeAllowlist.SetAllowedWhatsAppCountryCodes(ctx,
 			&countrycodeallowlist.SetAllowedWhatsAppCountryCodesRequest{
 				ProjectID:    plan.ProjectID.ValueString(),
 				CountryCodes: countryCodes,
 			})
+		if resp != nil {
+			// This should never happen for a valid response.
+			if !areCountryCodesEqual(resp.CountryCodes, countryCodes) {
+				panic("Mismatch between input and response country codes")
+			}
+		}
+		return err
 	}
-
-	return err
 }
 
 // Create creates the resource and sets the initial Terraform state.
 func (r *countryCodeAllowlistResource) Create(
 	ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
 ) {
+	// Get the plan from the request.
 	var plan countryCodeAllowlistModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -152,6 +229,7 @@ func (r *countryCodeAllowlistResource) Create(
 	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
 	tflog.Info(ctx, "Creating country code allowlist")
 
+	// Load the plan's list of country codes into an array.
 	countryCodes := make([]string, 0, len(plan.CountryCodes.Elements()))
 	diags = plan.CountryCodes.ElementsAs(ctx, &countryCodes, false)
 	resp.Diagnostics.Append(diags...)
@@ -159,21 +237,19 @@ func (r *countryCodeAllowlistResource) Create(
 		return
 	}
 
+	// Create the country code allowlist.
 	err := r.setCountryCodeAllowlist(ctx, plan, countryCodes)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create country code allowlist", err.Error())
 		return
 	}
-
 	tflog.Info(ctx, "Country code allowlist created")
 
+	// Update the plan and set the state.
 	plan.ID = types.StringValue(plan.ProjectID.ValueString() + "." + plan.DeliveryMethod.ValueString())
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -189,6 +265,7 @@ func (r *countryCodeAllowlistResource) Read(ctx context.Context, req resource.Re
 	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
 	tflog.Info(ctx, "Reading country code allowlist")
 
+	// Get the country code allowlist based on the delivery method.
 	var countryCodes []string
 	if state.DeliveryMethod.ValueString() == string(countrycodeallowlist.DeliveryMethodSMS) {
 		getResp, err := r.client.CountryCodeAllowlist.GetAllowedSMSCountryCodes(ctx,
@@ -211,24 +288,30 @@ func (r *countryCodeAllowlistResource) Read(ctx context.Context, req resource.Re
 		}
 		countryCodes = getResp.CountryCodes
 	}
+	tflog.Info(ctx, "Read country code allowlist")
 
-	state.CountryCodes, diags = types.ListValueFrom(ctx, types.StringType, countryCodes)
-	resp.Diagnostics.Append(diags...)
+	stateCountryCodes := make([]string, 0, len(state.CountryCodes.Elements()))
+	diags = state.CountryCodes.ElementsAs(ctx, &stateCountryCodes, false)
+	// Compare the current state with the fetched country codes. If they are the same, do not update
+	// the country codes in the state.
+	if !areCountryCodesEqual(stateCountryCodes, countryCodes) {
+		// Set the country codes in the state.
+		state.CountryCodes, diags = types.ListValueFrom(ctx, types.StringType, countryCodes)
+		resp.Diagnostics.Append(diags...)
+	}
 	if diags.HasError() {
 		return
 	}
 
-	tflog.Info(ctx, "Read country code allowlist")
+	// Update the state.
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (r *countryCodeAllowlistResource) Update(
 	ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
+	// Get the plan from the request.
 	var plan countryCodeAllowlistModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -239,27 +322,27 @@ func (r *countryCodeAllowlistResource) Update(
 	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
 	tflog.Info(ctx, "Updating country code allowlist")
 
+	// Load the plan's list of country codes into an array.
 	countryCodes := make([]string, 0, len(plan.CountryCodes.Elements()))
 	diags = plan.CountryCodes.ElementsAs(ctx, &countryCodes, false)
 	resp.Diagnostics.Append(diags...)
 	if diags.HasError() {
 		return
 	}
+	countryCodes = standardizedCountryCodes(countryCodes)
 
+	// Update the country code allowlist.
 	err := r.setCountryCodeAllowlist(ctx, plan, countryCodes)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update country code allowlist", err.Error())
 		return
 	}
-
 	tflog.Info(ctx, "Country code allowlist updated")
 
+	// Update the plan and set the state.
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 func (r *countryCodeAllowlistResource) Delete(
@@ -276,14 +359,15 @@ func (r *countryCodeAllowlistResource) Delete(
 	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
 	tflog.Info(ctx, "Setting country code allowlist to default value")
 
+	// Reset the country code allowlist to the default allowed country codes.
 	err := r.setCountryCodeAllowlist(ctx, state, countrycodeallowlist.DefaultCountryCodes)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to reset country code allowlist", err.Error())
 		return
 	}
+	tflog.Info(ctx, "Reset country code allowlist to default state")
 
 	// No need to update the state since the resource is being deleted.
-	tflog.Info(ctx, "Reset country code allowlist to default state")
 }
 
 func (r *countryCodeAllowlistResource) ImportState(
