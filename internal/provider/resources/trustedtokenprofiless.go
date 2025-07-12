@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -21,35 +20,35 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &trustedTokenProfilesResource{}
-	_ resource.ResourceWithConfigure   = &trustedTokenProfilesResource{}
-	_ resource.ResourceWithImportState = &trustedTokenProfilesResource{}
+	_ resource.Resource                = &trustedTokenProfileResource{}
+	_ resource.ResourceWithConfigure   = &trustedTokenProfileResource{}
+	_ resource.ResourceWithImportState = &trustedTokenProfileResource{}
 )
 
-func NewTrustedTokenProfilesResource() resource.Resource {
-	return &trustedTokenProfilesResource{}
+func NewTrustedTokenProfileResource() resource.Resource {
+	return &trustedTokenProfileResource{}
 }
 
-type trustedTokenProfilesResource struct {
+type trustedTokenProfileResource struct {
 	client *api.API
 }
 
-type trustedTokenProfilesModel struct {
+type trustedTokenProfileModel struct {
 	ID               types.String `tfsdk:"id"`
 	ProjectID        types.String `tfsdk:"project_id"`
 	ProfileID        types.String `tfsdk:"profile_id"`
 	Name             types.String `tfsdk:"name"`
 	Audience         types.String `tfsdk:"audience"`
 	Issuer           types.String `tfsdk:"issuer"`
-	JwksURL          types.String `tfsdk:"jwks_url"`
+	JwksUrl          types.String `tfsdk:"jwks_url"`
 	AttributeMapping types.Map    `tfsdk:"attribute_mapping"`
-	PEMFiles         types.List   `tfsdk:"pem_files"`
+	PemFiles         types.List   `tfsdk:"pem_files"`
 	PublicKeyType    types.String `tfsdk:"public_key_type"`
 	LastUpdated      types.String `tfsdk:"last_updated"`
 }
 
 type pemFileModel struct {
-	PEMFileID types.String `tfsdk:"pem_file_id"`
+	PemFileID types.String `tfsdk:"pem_file_id"`
 	PublicKey types.String `tfsdk:"public_key"`
 }
 
@@ -61,7 +60,7 @@ func (m pemFileModel) AttributeTypes() map[string]attr.Type {
 }
 
 // Configure sets provider-level data for the resource.
-func (r *trustedTokenProfilesResource) Configure(
+func (r *trustedTokenProfileResource) Configure(
 	_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse,
 ) {
 	// Add a nil check when handling ProviderData because Terraform sets that data after it calls
@@ -85,14 +84,14 @@ func (r *trustedTokenProfilesResource) Configure(
 }
 
 // Metadata returns the resource type name.
-func (r *trustedTokenProfilesResource) Metadata(
+func (r *trustedTokenProfileResource) Metadata(
 	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_trusted_token_profiles"
+	resp.TypeName = req.ProviderTypeName + "_trusted_token_profile"
 }
 
 // Schema defines the schema for the resource.
-func (r *trustedTokenProfilesResource) Schema(
+func (r *trustedTokenProfileResource) Schema(
 	ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
@@ -141,7 +140,7 @@ func (r *trustedTokenProfilesResource) Schema(
 				ElementType: types.StringType,
 			},
 			"pem_files": schema.ListNestedAttribute{
-				Optional:    true,
+				Computed:    true,
 				Description: "List of PEM files associated with the trusted token profile.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -150,13 +149,14 @@ func (r *trustedTokenProfilesResource) Schema(
 							Description: "The unique identifier for the PEM file.",
 						},
 						"public_key": schema.StringAttribute{
+							Computed:    true,
 							Description: "The public key content.",
 						},
 					},
 				},
 			},
 			"public_key_type": schema.StringAttribute{
-				Required:    true,
+				Computed:    true,
 				Description: "The type of public key.",
 			},
 			"last_updated": schema.StringAttribute{
@@ -167,60 +167,12 @@ func (r *trustedTokenProfilesResource) Schema(
 	}
 }
 
-func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(ctx context.Context, r trustedtokenprofiles.TrustedTokenProfile) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	ttp.ID = types.StringValue(r.ID)
-	ttp.ProfileID = types.StringValue(r.ID)
-	ttp.Name = types.StringValue(r.Name)
-	ttp.Audience = types.StringValue(r.Audience)
-	ttp.Issuer = types.StringValue(r.Issuer)
-	ttp.PublicKeyType = types.StringValue(r.PublicKeyType)
-
-	if r.JwksURL != nil {
-		ttp.JwksURL = types.StringValue(*r.JwksURL)
-	} else {
-		ttp.JwksURL = types.StringNull()
-	}
-
-	if r.AttributeMapping != nil {
-		attributeMapping := make(map[string]attr.Value)
-		for k, v := range r.AttributeMapping {
-			if strVal, ok := v.(string); ok {
-				attributeMapping[k] = types.StringValue(strVal)
-			}
-		}
-		ttp.AttributeMapping = types.MapValueMust(types.StringType, attributeMapping)
-	} else {
-		ttp.AttributeMapping = types.MapNull(types.StringType)
-	}
-
-	if len(r.PEMFiles) > 0 {
-		ttp.PEMFiles = types.ListValueMust(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()},
-			func() []attr.Value {
-				values := make([]attr.Value, len(r.PEMFiles))
-				for i, pemFile := range r.PEMFiles {
-					values[i] = types.ObjectValueMust(pemFileModel{}.AttributeTypes(), map[string]attr.Value{
-						"pem_file_id": types.StringValue(pemFile.ID),
-						"public_key":  types.StringValue(pemFile.PublicKey),
-					})
-				}
-				return values
-			}())
-	} else {
-		ttp.PEMFiles = types.ListNull(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()})
-	}
-
-	ttp.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-	return diags
-}
-
 // Create creates the resource and sets the initial Terraform state.
-func (r *trustedTokenProfilesResource) Create(
+func (r *trustedTokenProfileResource) Create(
 	ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
 ) {
 	// Get the plan from the request.
-	var plan trustedTokenProfilesModel
+	var plan trustedTokenProfileModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -230,6 +182,7 @@ func (r *trustedTokenProfilesResource) Create(
 	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
 	tflog.Info(ctx, "Creating trusted token profile")
 
+	// Convert attribute mapping to map[string]interface{}
 	var attributeMapping map[string]interface{}
 	if !plan.AttributeMapping.IsNull() && !plan.AttributeMapping.IsUnknown() {
 		diags = plan.AttributeMapping.ElementsAs(ctx, &attributeMapping, false)
@@ -239,30 +192,24 @@ func (r *trustedTokenProfilesResource) Create(
 		}
 	}
 
-	var pemFiles []string
-	if !plan.PEMFiles.IsNull() && !plan.PEMFiles.IsUnknown() {
-		diags = plan.PEMFiles.ElementsAs(ctx, &pemFiles, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	}
-
+	// Prepare the create request
 	createReq := &trustedtokenprofiles.CreateTrustedTokenProfileRequest{
 		ProjectID:        plan.ProjectID.ValueString(),
 		Name:             plan.Name.ValueString(),
 		Audience:         plan.Audience.ValueString(),
 		Issuer:           plan.Issuer.ValueString(),
 		AttributeMapping: attributeMapping,
-		PEMFiles:         pemFiles,
-		PublicKeyType:    plan.PublicKeyType.ValueString(),
+		PemFiles:         []string{}, // Start with empty PEM files
+		PublicKeyType:    "rsa",      // Default to RSA
 	}
 
-	if !plan.JwksURL.IsNull() && !plan.JwksURL.IsUnknown() {
-		jwksUrl := plan.JwksURL.ValueString()
-		createReq.JwksURL = &jwksUrl
+	// Add JWKS URL if provided
+	if !plan.JwksUrl.IsNull() && !plan.JwksUrl.IsUnknown() {
+		jwksUrl := plan.JwksUrl.ValueString()
+		createReq.JwksUrl = &jwksUrl
 	}
 
+	// Create the trusted token profile
 	createResp, err := r.client.TrustedTokenProfiles.Create(ctx, createReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -272,21 +219,24 @@ func (r *trustedTokenProfilesResource) Create(
 		return
 	}
 
-	plan.ProfileID = types.StringValue(createResp.TrustedTokenProfile.ID)
+	// Set the profile ID from the response
+	plan.ProfileID = types.StringValue(createResp.ProfileID)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
-	plan.ID = types.StringValue(fmt.Sprintf("%s.%s", plan.ProjectID.ValueString(), createResp.TrustedTokenProfile.ID))
+	// Set the computed ID
+	plan.ID = types.StringValue(fmt.Sprintf("%s/%s", plan.ProjectID.ValueString(), createResp.ProfileID))
 
+	// Set state
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *trustedTokenProfilesResource) Read(
+func (r *trustedTokenProfileResource) Read(
 	ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse,
 ) {
 	// Get the current state
-	var state trustedTokenProfilesModel
+	var state trustedTokenProfileModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -317,15 +267,15 @@ func (r *trustedTokenProfilesResource) Read(
 	state.PublicKeyType = types.StringValue(getResp.TrustedTokenProfile.PublicKeyType)
 
 	// Handle JWKS URL
-	if getResp.TrustedTokenProfile.JwksURL != nil {
-		state.JwksURL = types.StringValue(*getResp.TrustedTokenProfile.JwksURL)
+	if getResp.TrustedTokenProfile.JwksUrl != nil {
+		state.JwksUrl = types.StringValue(*getResp.TrustedTokenProfile.JwksUrl)
 	} else {
-		state.JwksURL = types.StringNull()
+		state.JwksUrl = types.StringNull()
 	}
 
 	// Handle attribute mapping
 	if getResp.TrustedTokenProfile.AttributeMapping != nil {
-		attributeMapping := make(map[string]attr.Value)
+		attributeMapping := make(map[string]types.String)
 		for k, v := range getResp.TrustedTokenProfile.AttributeMapping {
 			if strVal, ok := v.(string); ok {
 				attributeMapping[k] = types.StringValue(strVal)
@@ -337,14 +287,14 @@ func (r *trustedTokenProfilesResource) Read(
 	}
 
 	// Handle PEM files
-	pemFiles := make([]pemFileModel, 0, len(getResp.TrustedTokenProfile.PEMFiles))
-	for _, pemFile := range getResp.TrustedTokenProfile.PEMFiles {
+	pemFiles := make([]pemFileModel, 0, len(getResp.TrustedTokenProfile.PemFiles))
+	for _, pemFile := range getResp.TrustedTokenProfile.PemFiles {
 		pemFiles = append(pemFiles, pemFileModel{
-			PEMFileID: types.StringValue(pemFile.ID),
+			PEMFileID: types.StringValue(pemFile.PemFileID),
 			PublicKey: types.StringValue(pemFile.PublicKey),
 		})
 	}
-	state.PEMFiles = types.ListValueMust(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()},
+	state.PemFiles = types.ListValueMust(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()},
 		func() []attr.Value {
 			values := make([]attr.Value, len(pemFiles))
 			for i, pemFile := range pemFiles {
@@ -362,10 +312,11 @@ func (r *trustedTokenProfilesResource) Read(
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *trustedTokenProfilesResource) Update(
+func (r *trustedTokenProfileResource) Update(
 	ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	var plan trustedTokenProfilesModel
+	// Get the plan from the request
+	var plan trustedTokenProfileModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -376,6 +327,7 @@ func (r *trustedTokenProfilesResource) Update(
 	ctx = tflog.SetField(ctx, "profile_id", plan.ProfileID.ValueString())
 	tflog.Info(ctx, "Updating trusted token profile")
 
+	// Convert attribute mapping to map[string]interface{}
 	var attributeMapping map[string]interface{}
 	if !plan.AttributeMapping.IsNull() && !plan.AttributeMapping.IsUnknown() {
 		diags = plan.AttributeMapping.ElementsAs(ctx, &attributeMapping, false)
@@ -385,6 +337,7 @@ func (r *trustedTokenProfilesResource) Update(
 		}
 	}
 
+	// Prepare the update request
 	updateReq := &trustedtokenprofiles.UpdateTrustedTokenProfileRequest{
 		ProjectID:        plan.ProjectID.ValueString(),
 		ProfileID:        plan.ProfileID.ValueString(),
@@ -394,11 +347,13 @@ func (r *trustedTokenProfilesResource) Update(
 		AttributeMapping: attributeMapping,
 	}
 
-	if !plan.JwksURL.IsNull() && !plan.JwksURL.IsUnknown() {
-		jwksUrl := plan.JwksURL.ValueString()
-		updateReq.JwksURL = &jwksUrl
+	// Add JWKS URL if provided
+	if !plan.JwksUrl.IsNull() && !plan.JwksUrl.IsUnknown() {
+		jwksUrl := plan.JwksUrl.ValueString()
+		updateReq.JwksUrl = &jwksUrl
 	}
 
+	// Update the trusted token profile
 	_, err := r.client.TrustedTokenProfiles.Update(ctx, updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -408,17 +363,20 @@ func (r *trustedTokenProfilesResource) Update(
 		return
 	}
 
+	// Update the last_updated field
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
+	// Set state
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *trustedTokenProfilesResource) Delete(
+func (r *trustedTokenProfileResource) Delete(
 	ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse,
 ) {
-	var state trustedTokenProfilesModel
+	// Get the state from the request
+	var state trustedTokenProfileModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -429,6 +387,7 @@ func (r *trustedTokenProfilesResource) Delete(
 	ctx = tflog.SetField(ctx, "profile_id", state.ProfileID.ValueString())
 	tflog.Info(ctx, "Deleting trusted token profile")
 
+	// Delete the trusted token profile
 	_, err := r.client.TrustedTokenProfiles.Delete(ctx, &trustedtokenprofiles.DeleteTrustedTokenProfileRequest{
 		ProjectID: state.ProjectID.ValueString(),
 		ProfileID: state.ProfileID.ValueString(),
@@ -443,16 +402,16 @@ func (r *trustedTokenProfilesResource) Delete(
 }
 
 // ImportState imports the resource into Terraform state.
-func (r *trustedTokenProfilesResource) ImportState(
+func (r *trustedTokenProfileResource) ImportState(
 	ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
-	// Parse the import ID (format: project_id.profile_id)
+	// Parse the import ID (format: project_id/profile_id)
 	importID := req.ID
-	parts := strings.Split(importID, ".")
+	parts := strings.Split(importID, "/")
 	if len(parts) != 2 {
 		resp.Diagnostics.AddError(
 			"Invalid import ID",
-			"Import ID must be in the format 'project_id.profile_id'",
+			"Import ID must be in the format 'project_id/profile_id'",
 		)
 		return
 	}
