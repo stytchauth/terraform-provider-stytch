@@ -272,13 +272,16 @@ func (r *trustedTokenProfilesResource) Create(
 		return
 	}
 
-	plan.ProfileID = types.StringValue(createResp.TrustedTokenProfile.ID)
+	// Now update the state with the response
+	diags = plan.refreshFromTrustedTokenProfile(ctx, createResp.TrustedTokenProfile)
+	resp.Diagnostics.Append(diags...)
+	plan.ID = types.StringValue(plan.ProjectID.ValueString() + "." + plan.ProfileID.ValueString())
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-
-	plan.ID = types.StringValue(fmt.Sprintf("%s.%s", plan.ProjectID.ValueString(), createResp.TrustedTokenProfile.ID))
-
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -399,7 +402,7 @@ func (r *trustedTokenProfilesResource) Update(
 		updateReq.JwksURL = &jwksUrl
 	}
 
-	_, err := r.client.TrustedTokenProfiles.Update(ctx, updateReq)
+	updateResp, err := r.client.TrustedTokenProfiles.Update(ctx, updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating trusted token profile",
@@ -408,10 +411,16 @@ func (r *trustedTokenProfilesResource) Update(
 		return
 	}
 
+	// Now update the state with the response
+	diags = plan.refreshFromTrustedTokenProfile(ctx, updateResp.TrustedTokenProfile)
+	resp.Diagnostics.Append(diags...)
+	plan.ID = types.StringValue(plan.ProjectID.ValueString() + "." + plan.ProfileID.ValueString())
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
