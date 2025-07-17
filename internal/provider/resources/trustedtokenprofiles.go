@@ -43,7 +43,7 @@ type trustedTokenProfilesModel struct {
 	Issuer           types.String `tfsdk:"issuer"`
 	JwksURL          types.String `tfsdk:"jwks_url"`
 	AttributeMapping types.Map    `tfsdk:"attribute_mapping"`
-	PEMFiles         types.List   `tfsdk:"pem_files"`
+	PEMFiles         types.Set    `tfsdk:"pem_files"`
 	PublicKeyType    types.String `tfsdk:"public_key_type"`
 	LastUpdated      types.String `tfsdk:"last_updated"`
 }
@@ -140,9 +140,9 @@ func (r *trustedTokenProfilesResource) Schema(
 				Description: "The attribute mapping for the trusted token profile.",
 				ElementType: types.StringType,
 			},
-			"pem_files": schema.ListNestedAttribute{
+			"pem_files": schema.SetNestedAttribute{
 				Optional:    true,
-				Description: "List of PEM files associated with the trusted token profile.",
+				Description: "Set of PEM files associated with the trusted token profile.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"pem_file_id": schema.StringAttribute{
@@ -150,6 +150,7 @@ func (r *trustedTokenProfilesResource) Schema(
 							Description: "The unique identifier for the PEM file.",
 						},
 						"public_key": schema.StringAttribute{
+							Required:    true,
 							Description: "The public key content.",
 						},
 					},
@@ -183,7 +184,7 @@ func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(ctx context
 		ttp.JwksURL = types.StringNull()
 	}
 
-	if r.AttributeMapping != nil {
+	if r.AttributeMapping != nil && len(r.AttributeMapping) > 0 {
 		attributeMapping := make(map[string]attr.Value)
 		for k, v := range r.AttributeMapping {
 			if strVal, ok := v.(string); ok {
@@ -196,7 +197,7 @@ func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(ctx context
 	}
 
 	if len(r.PEMFiles) > 0 {
-		ttp.PEMFiles = types.ListValueMust(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()},
+		ttp.PEMFiles = types.SetValueMust(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()},
 			func() []attr.Value {
 				values := make([]attr.Value, len(r.PEMFiles))
 				for i, pemFile := range r.PEMFiles {
@@ -208,11 +209,83 @@ func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(ctx context
 				return values
 			}())
 	} else {
-		ttp.PEMFiles = types.ListNull(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()})
+		ttp.PEMFiles = types.SetNull(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()})
 	}
 
 	ttp.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	return diags
+}
+
+// extractPEMFilesFromPlan extracts PEM file content from the plan
+func extractPEMFilesFromPlan(ctx context.Context, plan trustedTokenProfilesModel) ([]string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var pemFiles []string
+
+	if !plan.PEMFiles.IsNull() && !plan.PEMFiles.IsUnknown() {
+		// For SetNestedAttribute, we need to iterate through the set elements
+		for _, elem := range plan.PEMFiles.Elements() {
+			if obj, ok := elem.(types.Object); ok {
+				// Extract the public_key from the object
+				if publicKeyAttr, ok := obj.Attributes()["public_key"]; ok {
+					if publicKey, ok := publicKeyAttr.(types.String); ok && !publicKey.IsNull() && !publicKey.IsUnknown() {
+						pemFiles = append(pemFiles, publicKey.ValueString())
+					}
+				}
+			}
+		}
+	}
+
+	return pemFiles, diags
+}
+
+// extractPEMFilesFromState extracts PEM file content and IDs from the state
+func extractPEMFilesFromState(ctx context.Context, state trustedTokenProfilesModel) (map[string]string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	pemFileMap := make(map[string]string) // public_key -> pem_file_id
+
+	if !state.PEMFiles.IsNull() && !state.PEMFiles.IsUnknown() {
+		// For SetNestedAttribute, we need to iterate through the set elements
+		for _, elem := range state.PEMFiles.Elements() {
+			if obj, ok := elem.(types.Object); ok {
+				attrs := obj.Attributes()
+
+				// Extract public_key and pem_file_id from the object
+				if publicKeyAttr, ok := attrs["public_key"]; ok {
+					if publicKey, ok := publicKeyAttr.(types.String); ok && !publicKey.IsNull() && !publicKey.IsUnknown() {
+						if pemFileIDAttr, ok := attrs["pem_file_id"]; ok {
+							if pemFileID, ok := pemFileIDAttr.(types.String); ok && !pemFileID.IsNull() && !pemFileID.IsUnknown() {
+								pemFileMap[publicKey.ValueString()] = pemFileID.ValueString()
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return pemFileMap, diags
+}
+
+// extractPEMFilesFromPlanAsMap extracts PEM file content from the plan as a map for comparison
+func extractPEMFilesFromPlanAsMap(ctx context.Context, plan trustedTokenProfilesModel) (map[string]bool, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	pemFileMap := make(map[string]bool)
+
+	if !plan.PEMFiles.IsNull() && !plan.PEMFiles.IsUnknown() {
+		// For SetNestedAttribute, we need to iterate through the set elements
+		for _, elem := range plan.PEMFiles.Elements() {
+			if obj, ok := elem.(types.Object); ok {
+				// Extract the public_key from the object
+				if publicKeyAttr, ok := obj.Attributes()["public_key"]; ok {
+					if publicKey, ok := publicKeyAttr.(types.String); ok && !publicKey.IsNull() && !publicKey.IsUnknown() {
+						pemFileMap[publicKey.ValueString()] = true
+					}
+				}
+			}
+		}
+	}
+
+	return pemFileMap, diags
 }
 
 // Create creates the resource and sets the initial Terraform state.
@@ -239,13 +312,11 @@ func (r *trustedTokenProfilesResource) Create(
 		}
 	}
 
-	var pemFiles []string
-	if !plan.PEMFiles.IsNull() && !plan.PEMFiles.IsUnknown() {
-		diags = plan.PEMFiles.ElementsAs(ctx, &pemFiles, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	// Extract PEM files from plan
+	pemFiles, diags := extractPEMFilesFromPlan(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	createReq := &trustedtokenprofiles.CreateTrustedTokenProfileRequest{
@@ -254,13 +325,20 @@ func (r *trustedTokenProfilesResource) Create(
 		Audience:         plan.Audience.ValueString(),
 		Issuer:           plan.Issuer.ValueString(),
 		AttributeMapping: attributeMapping,
-		PEMFiles:         pemFiles,
 		PublicKeyType:    plan.PublicKeyType.ValueString(),
 	}
 
-	if !plan.JwksURL.IsNull() && !plan.JwksURL.IsUnknown() {
-		jwksUrl := plan.JwksURL.ValueString()
-		createReq.JwksURL = &jwksUrl
+	if plan.PublicKeyType.ValueString() == "jwk" {
+		if !plan.JwksURL.IsNull() && !plan.JwksURL.IsUnknown() {
+			jwksUrl := plan.JwksURL.ValueString()
+			createReq.JwksURL = &jwksUrl
+		}
+		plan.PEMFiles = types.SetNull(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()})
+	} else if plan.PublicKeyType.ValueString() == "pem" {
+		if !plan.PEMFiles.IsNull() && !plan.PEMFiles.IsUnknown() {
+			createReq.PEMFiles = pemFiles
+		}
+		plan.JwksURL = types.StringNull()
 	}
 
 	createResp, err := r.client.TrustedTokenProfiles.Create(ctx, createReq)
@@ -327,7 +405,7 @@ func (r *trustedTokenProfilesResource) Read(
 	}
 
 	// Handle attribute mapping
-	if getResp.TrustedTokenProfile.AttributeMapping != nil {
+	if getResp.TrustedTokenProfile.AttributeMapping != nil && len(getResp.TrustedTokenProfile.AttributeMapping) > 0 {
 		attributeMapping := make(map[string]attr.Value)
 		for k, v := range getResp.TrustedTokenProfile.AttributeMapping {
 			if strVal, ok := v.(string); ok {
@@ -340,24 +418,28 @@ func (r *trustedTokenProfilesResource) Read(
 	}
 
 	// Handle PEM files
-	pemFiles := make([]pemFileModel, 0, len(getResp.TrustedTokenProfile.PEMFiles))
-	for _, pemFile := range getResp.TrustedTokenProfile.PEMFiles {
-		pemFiles = append(pemFiles, pemFileModel{
-			PEMFileID: types.StringValue(pemFile.ID),
-			PublicKey: types.StringValue(pemFile.PublicKey),
-		})
+	if len(getResp.TrustedTokenProfile.PEMFiles) > 0 {
+		pemFiles := make([]pemFileModel, 0, len(getResp.TrustedTokenProfile.PEMFiles))
+		for _, pemFile := range getResp.TrustedTokenProfile.PEMFiles {
+			pemFiles = append(pemFiles, pemFileModel{
+				PEMFileID: types.StringValue(pemFile.ID),
+				PublicKey: types.StringValue(pemFile.PublicKey),
+			})
+		}
+		state.PEMFiles = types.SetValueMust(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()},
+			func() []attr.Value {
+				values := make([]attr.Value, len(pemFiles))
+				for i, pemFile := range pemFiles {
+					values[i] = types.ObjectValueMust(pemFile.AttributeTypes(), map[string]attr.Value{
+						"pem_file_id": pemFile.PEMFileID,
+						"public_key":  pemFile.PublicKey,
+					})
+				}
+				return values
+			}())
+	} else {
+		state.PEMFiles = types.SetNull(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()})
 	}
-	state.PEMFiles = types.ListValueMust(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()},
-		func() []attr.Value {
-			values := make([]attr.Value, len(pemFiles))
-			for i, pemFile := range pemFiles {
-				values[i] = types.ObjectValueMust(pemFile.AttributeTypes(), map[string]attr.Value{
-					"pem_file_id": pemFile.PEMFileID,
-					"public_key":  pemFile.PublicKey,
-				})
-			}
-			return values
-		}())
 
 	// Set state
 	diags = resp.State.Set(ctx, state)
@@ -368,8 +450,14 @@ func (r *trustedTokenProfilesResource) Read(
 func (r *trustedTokenProfilesResource) Update(
 	ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	var plan trustedTokenProfilesModel
+	var plan, state trustedTokenProfilesModel
 	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -402,7 +490,7 @@ func (r *trustedTokenProfilesResource) Update(
 		updateReq.JwksURL = &jwksUrl
 	}
 
-	updateResp, err := r.client.TrustedTokenProfiles.Update(ctx, updateReq)
+	_, err := r.client.TrustedTokenProfiles.Update(ctx, updateReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating trusted token profile",
@@ -411,8 +499,89 @@ func (r *trustedTokenProfilesResource) Update(
 		return
 	}
 
-	// Now update the state with the response
-	diags = plan.refreshFromTrustedTokenProfile(ctx, updateResp.TrustedTokenProfile)
+	// Handle PEM files - compare current state with desired plan
+	currentPEMs, diags := extractPEMFilesFromState(ctx, state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	desiredPEMs, diags := extractPEMFilesFromPlanAsMap(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Find PEM files to add (in plan but not in state)
+	var pemFilesToAdd []string
+	for desiredPEM := range desiredPEMs {
+		if _, exists := currentPEMs[desiredPEM]; !exists {
+			pemFilesToAdd = append(pemFilesToAdd, desiredPEM)
+		}
+	}
+
+	// Find PEM file IDs to delete (in state but not in plan)
+	var pemFileIDsToDelete []string
+	for currentPEM, pemFileID := range currentPEMs {
+		if !desiredPEMs[currentPEM] {
+			pemFileIDsToDelete = append(pemFileIDsToDelete, pemFileID)
+		}
+	}
+
+	// Add new PEM files
+	for _, pemContent := range pemFilesToAdd {
+		tflog.Info(ctx, "Adding PEM file", map[string]interface{}{
+			"profile_id": plan.ProfileID.ValueString(),
+		})
+		_, err := r.client.TrustedTokenProfiles.CreatePEM(ctx, &trustedtokenprofiles.CreatePEMFileRequest{
+			ProjectID: plan.ProjectID.ValueString(),
+			ProfileID: plan.ProfileID.ValueString(),
+			PublicKey: pemContent,
+		})
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error adding PEM file",
+				fmt.Sprintf("Could not add PEM file: %s", err),
+			)
+			return
+		}
+	}
+
+	// Remove old PEM files
+	for _, pemFileID := range pemFileIDsToDelete {
+		tflog.Info(ctx, "Removing PEM file", map[string]interface{}{
+			"profile_id":  plan.ProfileID.ValueString(),
+			"pem_file_id": pemFileID,
+		})
+		_, err := r.client.TrustedTokenProfiles.DeletePEM(ctx, &trustedtokenprofiles.DeletePEMFileRequest{
+			ProjectID: plan.ProjectID.ValueString(),
+			ProfileID: plan.ProfileID.ValueString(),
+			PEMFileID: pemFileID,
+		})
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error deleting PEM file",
+				fmt.Sprintf("Could not delete PEM file %s: %s", pemFileID, err),
+			)
+			return
+		}
+	}
+
+	// Get the final state to ensure we have the correct PEM file IDs
+	getResp, err := r.client.TrustedTokenProfiles.Get(ctx, &trustedtokenprofiles.GetTrustedTokenProfileRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+		ProfileID: plan.ProfileID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading trusted token profile after update",
+			fmt.Sprintf("Could not read trusted token profile: %s", err),
+		)
+		return
+	}
+
+	// Now update the state with the final response
+	diags = plan.refreshFromTrustedTokenProfile(ctx, getResp.TrustedTokenProfile)
 	resp.Diagnostics.Append(diags...)
 	plan.ID = types.StringValue(plan.ProjectID.ValueString() + "." + plan.ProfileID.ValueString())
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
