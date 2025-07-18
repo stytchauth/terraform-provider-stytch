@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -32,26 +33,41 @@ type redirectURLResource struct {
 }
 
 type redirectURLModel struct {
-	ProjectID   types.String           `tfsdk:"project_id"`
-	LastUpdated types.String           `tfsdk:"last_updated"`
-	URL         types.String           `tfsdk:"url"`
-	ValidTypes  []redirectURLTypeModel `tfsdk:"valid_types"`
+	ProjectID   types.String `tfsdk:"project_id"`
+	LastUpdated types.String `tfsdk:"last_updated"`
+	URL         types.String `tfsdk:"url"`
+	ValidTypes  types.Set    `tfsdk:"valid_types"`
 }
 
 func (m *redirectURLModel) refreshFromRedirectURL(r redirecturls.RedirectURL) {
 	m.URL = types.StringValue(r.URL)
-	m.ValidTypes = make([]redirectURLTypeModel, len(r.ValidTypes))
-	for i, vt := range r.ValidTypes {
-		m.ValidTypes[i] = redirectURLTypeModel{
-			Type:      types.StringValue(string(vt.Type)),
-			IsDefault: types.BoolValue(vt.IsDefault),
-		}
+	if len(r.ValidTypes) > 0 {
+		m.ValidTypes = types.SetValueMust(types.ObjectType{AttrTypes: redirectURLTypeModel{}.AttributeTypes()},
+			func() []attr.Value {
+				values := make([]attr.Value, len(r.ValidTypes))
+				for i, vt := range r.ValidTypes {
+					values[i] = types.ObjectValueMust(redirectURLTypeModel{}.AttributeTypes(), map[string]attr.Value{
+						"type":       types.StringValue(string(vt.Type)),
+						"is_default": types.BoolValue(vt.IsDefault),
+					})
+				}
+				return values
+			}())
+	} else {
+		m.ValidTypes = types.SetNull(types.ObjectType{AttrTypes: redirectURLTypeModel{}.AttributeTypes()})
 	}
 }
 
 type redirectURLTypeModel struct {
 	Type      types.String `tfsdk:"type"`
 	IsDefault types.Bool   `tfsdk:"is_default"`
+}
+
+func (m redirectURLTypeModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"type":       types.StringType,
+		"is_default": types.BoolType,
+	}
 }
 
 func (r *redirectURLResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -123,25 +139,24 @@ func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
-func (r redirectURLResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var data redirectURLModel
-	diags := req.Config.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+func (m redirectURLModel) toValidTypes() []redirecturls.URLRedirectType {
+	var validTypes []redirecturls.URLRedirectType
+
+	if m.ValidTypes.IsNull() || m.ValidTypes.IsUnknown() {
+		return validTypes
 	}
 
-	m := make(map[string]bool)
-	for _, typ := range data.ValidTypes {
-		if m[typ.Type.ValueString()] {
-			resp.Diagnostics.AddError("Duplicate type", fmt.Sprintf("Duplicate type %s", typ.Type.ValueString()))
+	for _, elem := range m.ValidTypes.Elements() {
+		if obj, ok := elem.(types.Object); ok {
+			attrs := obj.Attributes()
+			validTypes = append(validTypes, redirecturls.URLRedirectType{
+				Type:      redirecturls.RedirectType(attrs["type"].(types.String).ValueString()),
+				IsDefault: attrs["is_default"].(types.Bool).ValueBool(),
+			})
 		}
-		m[typ.Type.ValueString()] = true
 	}
 
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	return validTypes
 }
 
 // Create creates the resource and sets the initial Terraform state.
@@ -158,14 +173,8 @@ func (r *redirectURLResource) Create(ctx context.Context, req resource.CreateReq
 	tflog.Info(ctx, "Creating redirect URL")
 
 	redirectURL := redirecturls.RedirectURL{
-		URL: plan.URL.ValueString(),
-	}
-
-	for _, typ := range plan.ValidTypes {
-		redirectURL.ValidTypes = append(redirectURL.ValidTypes, redirecturls.URLRedirectType{
-			Type:      redirecturls.RedirectType(typ.Type.ValueString()),
-			IsDefault: typ.IsDefault.ValueBool(),
-		})
+		URL:        plan.URL.ValueString(),
+		ValidTypes: plan.toValidTypes(),
 	}
 
 	createResp, err := r.client.RedirectURLs.Create(ctx, redirecturls.CreateRequest{
@@ -239,14 +248,8 @@ func (r *redirectURLResource) Update(ctx context.Context, req resource.UpdateReq
 	tflog.Info(ctx, "Updating redirect URL")
 
 	redirectURL := redirecturls.RedirectURL{
-		URL: plan.URL.ValueString(),
-	}
-
-	for _, typ := range plan.ValidTypes {
-		redirectURL.ValidTypes = append(redirectURL.ValidTypes, redirecturls.URLRedirectType{
-			Type:      redirecturls.RedirectType(typ.Type.ValueString()),
-			IsDefault: typ.IsDefault.ValueBool(),
-		})
+		URL:        plan.URL.ValueString(),
+		ValidTypes: plan.toValidTypes(),
 	}
 
 	updateResp, err := r.client.RedirectURLs.Update(ctx, redirecturls.UpdateRequest{
