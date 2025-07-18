@@ -168,7 +168,7 @@ func (r *trustedTokenProfilesResource) Schema(
 	}
 }
 
-func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(ctx context.Context, r trustedtokenprofiles.TrustedTokenProfile) diag.Diagnostics {
+func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(r trustedtokenprofiles.TrustedTokenProfile) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	ttp.ID = types.StringValue(r.ID)
@@ -216,8 +216,8 @@ func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(ctx context
 	return diags
 }
 
-// extractPEMFilesFromPlan extracts PEM file content from the plan
-func extractPEMFilesFromPlan(ctx context.Context, plan trustedTokenProfilesModel) ([]string, diag.Diagnostics) {
+// extractPEMFilesFromPlan extracts PEM file content from the plan.
+func extractPEMFilesFromPlan(plan trustedTokenProfilesModel) ([]string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var pemFiles []string
 
@@ -238,8 +238,8 @@ func extractPEMFilesFromPlan(ctx context.Context, plan trustedTokenProfilesModel
 	return pemFiles, diags
 }
 
-// extractPEMFilesFromState extracts PEM file content and IDs from the state
-func extractPEMFilesFromState(ctx context.Context, state trustedTokenProfilesModel) (map[string]string, diag.Diagnostics) {
+// extractPEMFilesFromState extracts PEM file content and IDs from the state.
+func extractPEMFilesFromState(state trustedTokenProfilesModel) (map[string]string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	pemFileMap := make(map[string]string) // public_key -> pem_file_id
 
@@ -266,8 +266,8 @@ func extractPEMFilesFromState(ctx context.Context, state trustedTokenProfilesMod
 	return pemFileMap, diags
 }
 
-// extractPEMFilesFromPlanAsMap extracts PEM file content from the plan as a map for comparison
-func extractPEMFilesFromPlanAsMap(ctx context.Context, plan trustedTokenProfilesModel) (map[string]bool, diag.Diagnostics) {
+// extractPEMFilesFromPlanAsMap extracts PEM file content from the plan as a map for comparison.
+func extractPEMFilesFromPlanAsMap(plan trustedTokenProfilesModel) (map[string]bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	pemFileMap := make(map[string]bool)
 
@@ -314,7 +314,7 @@ func (r *trustedTokenProfilesResource) Create(
 	}
 
 	// Extract PEM files from plan
-	pemFiles, diags := extractPEMFilesFromPlan(ctx, plan)
+	pemFiles, diags := extractPEMFilesFromPlan(plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -352,7 +352,7 @@ func (r *trustedTokenProfilesResource) Create(
 	}
 
 	// Now update the state with the response
-	diags = plan.refreshFromTrustedTokenProfile(ctx, createResp.TrustedTokenProfile)
+	diags = plan.refreshFromTrustedTokenProfile(createResp.TrustedTokenProfile)
 	resp.Diagnostics.Append(diags...)
 	plan.ID = types.StringValue(plan.ProjectID.ValueString() + "." + plan.ProfileID.ValueString())
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
@@ -502,13 +502,13 @@ func (r *trustedTokenProfilesResource) Update(
 	}
 
 	// Handle PEM files - compare current state with desired plan
-	currentPEMs, diags := extractPEMFilesFromState(ctx, state)
+	currentPEMs, diags := extractPEMFilesFromState(state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	desiredPEMs, diags := extractPEMFilesFromPlanAsMap(ctx, plan)
+	desiredPEMs, diags := extractPEMFilesFromPlanAsMap(plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -583,7 +583,7 @@ func (r *trustedTokenProfilesResource) Update(
 	}
 
 	// Now update the state with the final response
-	diags = plan.refreshFromTrustedTokenProfile(ctx, getResp.TrustedTokenProfile)
+	diags = plan.refreshFromTrustedTokenProfile(getResp.TrustedTokenProfile)
 	resp.Diagnostics.Append(diags...)
 	plan.ID = types.StringValue(plan.ProjectID.ValueString() + "." + plan.ProfileID.ValueString())
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
