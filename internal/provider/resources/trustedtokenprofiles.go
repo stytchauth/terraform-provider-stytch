@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -35,17 +36,17 @@ type trustedTokenProfilesResource struct {
 }
 
 type trustedTokenProfilesModel struct {
-	ID               types.String `tfsdk:"id"`
-	ProjectID        types.String `tfsdk:"project_id"`
-	ProfileID        types.String `tfsdk:"profile_id"`
-	Name             types.String `tfsdk:"name"`
-	Audience         types.String `tfsdk:"audience"`
-	Issuer           types.String `tfsdk:"issuer"`
-	JwksURL          types.String `tfsdk:"jwks_url"`
-	AttributeMapping types.Map    `tfsdk:"attribute_mapping"`
-	PEMFiles         types.Set    `tfsdk:"pem_files"`
-	PublicKeyType    types.String `tfsdk:"public_key_type"`
-	LastUpdated      types.String `tfsdk:"last_updated"`
+	ID                   types.String `tfsdk:"id"`
+	ProjectID            types.String `tfsdk:"project_id"`
+	ProfileID            types.String `tfsdk:"profile_id"`
+	Name                 types.String `tfsdk:"name"`
+	Audience             types.String `tfsdk:"audience"`
+	Issuer               types.String `tfsdk:"issuer"`
+	JwksURL              types.String `tfsdk:"jwks_url"`
+	AttributeMappingJSON types.String `tfsdk:"attribute_mapping_json"`
+	PEMFiles             types.Set    `tfsdk:"pem_files"`
+	PublicKeyType        types.String `tfsdk:"public_key_type"`
+	LastUpdated          types.String `tfsdk:"last_updated"`
 }
 
 type pemFileModel struct {
@@ -135,10 +136,9 @@ func (r *trustedTokenProfilesResource) Schema(
 				Optional:    true,
 				Description: "The JWKS URL for the trusted token profile.",
 			},
-			"attribute_mapping": schema.MapAttribute{
+			"attribute_mapping_json": schema.StringAttribute{
 				Optional:    true,
-				Description: "The attribute mapping for the trusted token profile.",
-				ElementType: types.StringType,
+				Description: "The attribute mapping as a JSON string. Keys must be strings, values can be strings, numbers, booleans, or nested objects.",
 			},
 			"pem_files": schema.SetNestedAttribute{
 				Optional:    true,
@@ -184,16 +184,16 @@ func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(ctx context
 		ttp.JwksURL = types.StringNull()
 	}
 
-	if r.AttributeMapping != nil && len(r.AttributeMapping) > 0 {
-		attributeMapping := make(map[string]attr.Value)
-		for k, v := range r.AttributeMapping {
-			if strVal, ok := v.(string); ok {
-				attributeMapping[k] = types.StringValue(strVal)
-			}
+	if len(r.AttributeMapping) > 0 {
+		// Convert the map to JSON string
+		jsonBytes, err := json.Marshal(r.AttributeMapping)
+		if err != nil {
+			diags.AddError("Failed to marshal attribute mapping", err.Error())
+			return diags
 		}
-		ttp.AttributeMapping = types.MapValueMust(types.StringType, attributeMapping)
+		ttp.AttributeMappingJSON = types.StringValue(string(jsonBytes))
 	} else {
-		ttp.AttributeMapping = types.MapNull(types.StringType)
+		ttp.AttributeMappingJSON = types.StringNull()
 	}
 
 	if len(r.PEMFiles) > 0 {
@@ -304,10 +304,11 @@ func (r *trustedTokenProfilesResource) Create(
 	tflog.Info(ctx, "Creating trusted token profile")
 
 	var attributeMapping map[string]interface{}
-	if !plan.AttributeMapping.IsNull() && !plan.AttributeMapping.IsUnknown() {
-		diags = plan.AttributeMapping.ElementsAs(ctx, &attributeMapping, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
+	if !plan.AttributeMappingJSON.IsNull() && !plan.AttributeMappingJSON.IsUnknown() {
+		jsonStr := plan.AttributeMappingJSON.ValueString()
+		err := json.Unmarshal([]byte(jsonStr), &attributeMapping)
+		if err != nil {
+			resp.Diagnostics.AddError("Invalid JSON", "attribute_mapping_json must be valid JSON object")
 			return
 		}
 	}
@@ -405,16 +406,16 @@ func (r *trustedTokenProfilesResource) Read(
 	}
 
 	// Handle attribute mapping
-	if getResp.TrustedTokenProfile.AttributeMapping != nil && len(getResp.TrustedTokenProfile.AttributeMapping) > 0 {
-		attributeMapping := make(map[string]attr.Value)
-		for k, v := range getResp.TrustedTokenProfile.AttributeMapping {
-			if strVal, ok := v.(string); ok {
-				attributeMapping[k] = types.StringValue(strVal)
-			}
+	if len(getResp.TrustedTokenProfile.AttributeMapping) > 0 {
+		// Convert the map to JSON string
+		jsonBytes, err := json.Marshal(getResp.TrustedTokenProfile.AttributeMapping)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to marshal attribute mapping", err.Error())
+			return
 		}
-		state.AttributeMapping = types.MapValueMust(types.StringType, attributeMapping)
+		state.AttributeMappingJSON = types.StringValue(string(jsonBytes))
 	} else {
-		state.AttributeMapping = types.MapNull(types.StringType)
+		state.AttributeMappingJSON = types.StringNull()
 	}
 
 	// Handle PEM files
@@ -468,10 +469,11 @@ func (r *trustedTokenProfilesResource) Update(
 	tflog.Info(ctx, "Updating trusted token profile")
 
 	var attributeMapping map[string]interface{}
-	if !plan.AttributeMapping.IsNull() && !plan.AttributeMapping.IsUnknown() {
-		diags = plan.AttributeMapping.ElementsAs(ctx, &attributeMapping, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
+	if !plan.AttributeMappingJSON.IsNull() && !plan.AttributeMappingJSON.IsUnknown() {
+		jsonStr := plan.AttributeMappingJSON.ValueString()
+		err := json.Unmarshal([]byte(jsonStr), &attributeMapping)
+		if err != nil {
+			resp.Diagnostics.AddError("Invalid JSON", "attribute_mapping_json must be valid JSON object")
 			return
 		}
 	}
