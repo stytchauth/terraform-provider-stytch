@@ -230,6 +230,8 @@ func extractPEMFilesFromPlan(plan trustedTokenProfilesModel) ([]string, diag.Dia
 					if publicKey, ok := publicKeyAttr.(types.String); ok && !publicKey.IsNull() && !publicKey.IsUnknown() {
 						pemFiles = append(pemFiles, publicKey.ValueString())
 					}
+				} else {
+					diags.AddError("Invalid PEM file", "public_key is required")
 				}
 			}
 		}
@@ -258,6 +260,8 @@ func extractPEMFilesFromState(state trustedTokenProfilesModel) (map[string]strin
 							}
 						}
 					}
+				} else {
+					diags.AddError("Invalid PEM file", "public_key is required")
 				}
 			}
 		}
@@ -280,6 +284,8 @@ func extractPEMFilesFromPlanAsMap(plan trustedTokenProfilesModel) (map[string]bo
 					if publicKey, ok := publicKeyAttr.(types.String); ok && !publicKey.IsNull() && !publicKey.IsUnknown() {
 						pemFileMap[publicKey.ValueString()] = true
 					}
+				} else {
+					diags.AddError("Invalid PEM file", "public_key is required")
 				}
 			}
 		}
