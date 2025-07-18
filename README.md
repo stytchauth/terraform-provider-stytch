@@ -2,7 +2,7 @@
 
 The Stytch Terraform Provider is the official plugin for managing your Stytch workspace configuration via Terraform.
 
-This provider is currently in a _beta_ state. Please report any bugs or
+This provider is currently in a _beta_ state. Please report any bugs.
 
 ## Documentation
 
