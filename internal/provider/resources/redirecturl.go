@@ -149,9 +149,16 @@ func (m redirectURLModel) toValidTypes() []redirecturls.URLRedirectType {
 	for _, elem := range m.ValidTypes.Elements() {
 		if obj, ok := elem.(types.Object); ok {
 			attrs := obj.Attributes()
+
+			typeAttr, isTypeStr := attrs["type"].(types.String)
+			isDefaultAttr, isDefaultBool := attrs["is_default"].(types.Bool)
+			if !isTypeStr || !isDefaultBool {
+				continue
+			}
+
 			validTypes = append(validTypes, redirecturls.URLRedirectType{
-				Type:      redirecturls.RedirectType(attrs["type"].(types.String).ValueString()),
-				IsDefault: attrs["is_default"].(types.Bool).ValueBool(),
+				Type:      redirecturls.RedirectType(typeAttr.ValueString()),
+				IsDefault: isDefaultAttr.ValueBool(),
 			})
 		}
 	}
