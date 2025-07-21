@@ -408,9 +408,9 @@ func (r rbacPolicyResource) ValidateConfig(ctx context.Context, req resource.Val
 		return
 	}
 
-	// If the projectID isn't yet known, skip validation for now.
+	// If the projectID isn't yet known or the provider client is not injected, skip validation for now.
 	// The plugin framework will call ValidateConfig again when all required values are known.
-	if data.ProjectID.IsUnknown() {
+	if data.ProjectID.IsUnknown() || r.client == nil {
 		return
 	}
 
