@@ -151,6 +151,8 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 
 	// Now we're finally ready to create the stytch-management-go client.
 	var opts []api.APIOption
+
+	opts = append(opts, api.WithUserAgentSuffix("terraform-provider-stytch/"+p.version))
 	if baseURI != "" {
 		ctx = tflog.SetField(ctx, "base_uri", baseURI)
 		opts = append(opts, api.WithBaseURI(baseURI))
