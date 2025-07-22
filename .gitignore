@@ -37,3 +37,6 @@ website/vendor
 # Ignore env files
 .env
 .envrc
+
+# ignore go vendor
+vendor/
