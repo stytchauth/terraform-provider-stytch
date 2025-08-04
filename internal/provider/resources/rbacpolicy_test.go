@@ -81,6 +81,38 @@ func TestAccRBACPolicyResource(t *testing.T) {
 				}),
 			},
 		},
+		{
+			Name: "admin-resource",
+			Config: testutil.B2BProjectConfig + `
+			resource "stytch_rbac_policy" "test" {
+				project_id = stytch_project.project.test_project_id
+				stytch_admin = {
+					permissions = [
+						{
+							resource_id = "custom_resource_1"
+							actions     = ["read"]
+						}
+					]
+				}
+
+				custom_resources = [
+					{
+						resource_id       = "custom_resource_1"
+						description       = "A custom resource for testing."
+						available_actions = ["read", "write"]
+					}
+				]
+			}
+			`,
+			Checks: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("stytch_rbac_policy.test", "custom_resources.#", "1"),
+				resource.TestCheckTypeSetElemNestedAttrs("stytch_rbac_policy.test", "stytch_admin.*", map[string]string{
+					"role_id":       "my-custom-admin",
+					"description":   "My custom admin role",
+					"permissions.#": "2",
+				}),
+			},
+		},
 	} {
 		t.Run(testCase.Name, func(t *testing.T) {
 			resource.Test(t, resource.TestCase{

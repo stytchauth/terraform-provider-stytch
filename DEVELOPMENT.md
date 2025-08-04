@@ -7,6 +7,9 @@ Thanks for contributing to Stytch's Terraform Provider plugin! If you run into t
 ### Prerequisites
 
 - [Terraform](https://www.terraform.io/)
+
+* [Go](https://go.dev/doc/install) (version 1.24 or later)
+
 - A [Stytch](https://stytch.com) workspace
 - A [workspace management key + secret](https://stytch.com/dashboard/settings/management-api) for your Stytch workspace
   - Create a new key and store the key + secret somewhere safe
@@ -22,6 +25,31 @@ export STYTCH_WORKSPACE_KEY_SECRET=my_secret_goes_here
 
 The `stytch` provider will attempt to read environment variables for configuring the client.
 You can also set these directly in the provider configuration, but it is not recommended.
+
+### Pointing terraform to your local provider
+
+First get the location of your go bin:
+
+```sh
+echo "${GOBIN:-$(go env GOPATH)/bin}"
+```
+
+Add the following to your `~/.terraformrc` file to point Terraform to your local provider build:
+
+```hcl
+provider_installation {
+
+  dev_overrides {
+      # "registry.terraform.io/stytchauth/stytch" = "INSERT_GOBIN_PATH_HERE"
+  }
+
+  # For all other providers, install them directly from their origin provider
+  # registries as normal. If you omit this, Terraform will _only_ use
+  # the dev_overrides block, and so no other providers will be available.
+  direct {}
+}
+
+```
 
 ## Issues and Pull Requests
 
