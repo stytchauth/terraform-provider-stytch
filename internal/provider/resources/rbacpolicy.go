@@ -121,6 +121,44 @@ func (m rbacPolicyModel) toPolicy(ctx context.Context) (rbacpolicy.Policy, diag.
 func (m *rbacPolicyModel) reloadFromPolicy(ctx context.Context, p rbacpolicy.Policy) diag.Diagnostics {
 	var diags diag.Diagnostics
 
+	// This will get a bit complicated, but the StytchMember and StytchAdmin roles have a number of "default" fields that we want
+	// to silently support and ignore if the developer didn't *explicitly* set them. This section will ensure that the resource
+	// stays in a consistent state, even if the developer doesn't set all default permissions.
+
+	if !m.StytchMember.IsUnknown() {
+		planMemberObj, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), m.StytchMember)
+		diags = append(diags, diag...)
+
+		var planMember rbacPolicyRoleModel
+		diag = planMemberObj.As(ctx, &planMember, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})
+		diags = append(diags, diag...)
+
+		p.StytchMember.Permissions = []rbacpolicy.Permission{}
+		for _, perm := range planMember.Permissions {
+			p.StytchMember.Permissions = append(p.StytchMember.Permissions, perm.toPermission())
+		}
+	}
+
+	if !m.StytchAdmin.IsUnknown() {
+		planAdminObj, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), m.StytchAdmin)
+		diags = append(diags, diag...)
+
+		var planAdmin rbacPolicyRoleModel
+		diag = planAdminObj.As(ctx, &planAdmin, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})
+		diags = append(diags, diag...)
+
+		p.StytchAdmin.Permissions = []rbacpolicy.Permission{}
+		for _, perm := range planAdmin.Permissions {
+			p.StytchAdmin.Permissions = append(p.StytchAdmin.Permissions, perm.toPermission())
+		}
+	}
+
 	stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(p.StytchMember))
 	diags = append(diags, diag...)
 
@@ -243,6 +281,17 @@ func rbacPolicyResourceModelFrom(r rbacpolicy.Resource) rbacPolicyResourceModel 
 type rbacPolicyPermissionModel struct {
 	ResourceID types.String   `tfsdk:"resource_id"`
 	Actions    []types.String `tfsdk:"actions"`
+}
+
+func (m rbacPolicyPermissionModel) toPermission() rbacpolicy.Permission {
+	actions := make([]string, len(m.Actions))
+	for i, a := range m.Actions {
+		actions[i] = a.ValueString()
+	}
+	return rbacpolicy.Permission{
+		ResourceID: m.ResourceID.ValueString(),
+		Actions:    actions,
+	}
 }
 
 func (m rbacPolicyPermissionModel) AttributeTypes() map[string]attr.Type {
@@ -438,22 +487,67 @@ func (r *rbacPolicyResource) Create(ctx context.Context, req resource.CreateRequ
 
 	// Since we're not allowed to edit certain attributes of the default stytch member
 	// and the RBAC API requires setting *all* fields, we now *retrieve* the current value.
-	if plan.StytchMember.IsUnknown() || plan.StytchAdmin.IsUnknown() {
-		getResp, err := r.client.RBACPolicy.Get(ctx, rbacpolicy.GetRequest{
-			ProjectID: plan.ProjectID.ValueString(),
+	getResp, err := r.client.RBACPolicy.Get(ctx, rbacpolicy.GetRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to fetch default Stytch role", "Failed to fetch default Stytch member or admin role for RBAC policy")
+		return
+	}
+
+	stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchMember))
+	resp.Diagnostics.Append(diag...)
+	stytchAdmin, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchAdmin))
+	resp.Diagnostics.Append(diag...)
+
+	if plan.StytchMember.IsUnknown() {
+		plan.StytchMember = stytchMember
+	} else {
+		// If the provisioner set the StytchMember, we need to ensure that it has the same role ID and description as the default one.
+		planMemberObj, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), plan.StytchMember)
+		diags = append(diags, diag...)
+
+		var planMember rbacPolicyRoleModel
+		diag = planMemberObj.As(ctx, &planMember, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
 		})
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to fetch default Stytch role", "Failed to fetch default Stytch member or admin role for RBAC policy")
-			return
+		diags = append(diags, diag...)
+
+		if planMember.RoleID.IsUnknown() {
+			planMember.RoleID = types.StringValue(getResp.Policy.StytchMember.RoleID)
+		}
+		if planMember.Description.IsUnknown() {
+			planMember.Description = types.StringValue(getResp.Policy.StytchMember.Description)
 		}
 
-		stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchMember))
-		resp.Diagnostics.Append(diag...)
-		stytchAdmin, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchAdmin))
-		resp.Diagnostics.Append(diag...)
-
-		plan.StytchMember = stytchMember
+		plan.StytchMember, diag = types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), planMember)
+		diags = append(diags, diag...)
+	}
+	if plan.StytchAdmin.IsUnknown() {
 		plan.StytchAdmin = stytchAdmin
+	} else {
+		// If the provisioner set the StytchAdmin, we need to ensure that it has the same role ID and description as the default one.
+		planAdminObj, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), plan.StytchAdmin)
+		diags = append(diags, diag...)
+
+		var planAdmin rbacPolicyRoleModel
+		diag = planAdminObj.As(ctx, &planAdmin, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})
+		diags = append(diags, diag...)
+
+		if planAdmin.RoleID.IsUnknown() {
+			planAdmin.RoleID = types.StringValue(getResp.Policy.StytchAdmin.RoleID)
+		}
+
+		if planAdmin.Description.IsUnknown() {
+			planAdmin.Description = types.StringValue(getResp.Policy.StytchAdmin.Description)
+		}
+
+		plan.StytchAdmin, diag = types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), planAdmin)
+		diags = append(diags, diag...)
 	}
 
 	policy, diags := plan.toPolicy(ctx)
@@ -517,24 +611,67 @@ func (r *rbacPolicyResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	// Since we're not allowed to edit certain attributes of the default stytch member
-	// and the RBAC API requires setting *all* fields, we now *retrieve* the current value.
-	if plan.StytchMember.IsUnknown() || plan.StytchAdmin.IsUnknown() {
-		getResp, err := r.client.RBACPolicy.Get(ctx, rbacpolicy.GetRequest{
-			ProjectID: plan.ProjectID.ValueString(),
+	getResp, err := r.client.RBACPolicy.Get(ctx, rbacpolicy.GetRequest{
+		ProjectID: plan.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to fetch default Stytch role", "Failed to fetch default Stytch member or admin role for RBAC policy")
+		return
+	}
+
+	stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchMember))
+	resp.Diagnostics.Append(diag...)
+	stytchAdmin, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchAdmin))
+	resp.Diagnostics.Append(diag...)
+
+	if plan.StytchMember.IsUnknown() {
+		plan.StytchMember = stytchMember
+	} else {
+		// If the provisioner set the StytchMember, we need to ensure that it has the same role ID and description as the default one.
+		planMemberObj, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), plan.StytchMember)
+		diags = append(diags, diag...)
+
+		var planMember rbacPolicyRoleModel
+		diag = planMemberObj.As(ctx, &planMember, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
 		})
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to fetch default Stytch role", "Failed to fetch default Stytch member or admin role for RBAC policy")
-			return
+		diags = append(diags, diag...)
+
+		if planMember.RoleID.IsUnknown() {
+			planMember.RoleID = types.StringValue(getResp.Policy.StytchMember.RoleID)
+		}
+		if planMember.Description.IsUnknown() {
+			planMember.Description = types.StringValue(getResp.Policy.StytchMember.Description)
 		}
 
-		stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchMember))
-		resp.Diagnostics.Append(diag...)
-		stytchAdmin, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(getResp.Policy.StytchAdmin))
-		resp.Diagnostics.Append(diag...)
-
-		plan.StytchMember = stytchMember
+		plan.StytchMember, diag = types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), planMember)
+		diags = append(diags, diag...)
+	}
+	if plan.StytchAdmin.IsUnknown() {
 		plan.StytchAdmin = stytchAdmin
+	} else {
+		// If the provisioner set the StytchAdmin, we need to ensure that it has the same role ID and description as the default one.
+		planAdminObj, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), plan.StytchAdmin)
+		diags = append(diags, diag...)
+
+		var planAdmin rbacPolicyRoleModel
+		diag = planAdminObj.As(ctx, &planAdmin, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})
+		diags = append(diags, diag...)
+
+		if planAdmin.RoleID.IsUnknown() {
+			planAdmin.RoleID = types.StringValue(getResp.Policy.StytchAdmin.RoleID)
+		}
+
+		if planAdmin.Description.IsUnknown() {
+			planAdmin.Description = types.StringValue(getResp.Policy.StytchAdmin.Description)
+		}
+
+		plan.StytchAdmin, diag = types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), planAdmin)
+		diags = append(diags, diag...)
 	}
 
 	policy, diags := plan.toPolicy(ctx)
@@ -572,11 +709,18 @@ func (r *rbacPolicyResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 
 	// To delete this resource, we remove all custom roles and resources
-	policy, diags := state.toPolicy(ctx)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	// Oddly enough, before we begin we need to look up the *current* policy, because there could be a number of "default" permissions
+	// that we'll have to keep on the StytchMember and StytchAdmin roles to avoid a 400 error from the API. These are not stored in
+	// the Terraform state, so we need to fetch them from the API.
+	getResp, err := r.client.RBACPolicy.Get(ctx, rbacpolicy.GetRequest{
+		ProjectID: state.ProjectID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to fetch current RBAC policy", "Failed to fetch current RBAC policy for deletion")
 		return
 	}
+
+	policy := getResp.Policy
 
 	// First find the resources that need to be removed from the default roles
 	resourcesToRemove := make(map[string]struct{})
@@ -607,7 +751,9 @@ func (r *rbacPolicyResource) Delete(ctx context.Context, req resource.DeleteRequ
 	policy.CustomRoles = []rbacpolicy.Role{}
 	policy.CustomResources = []rbacpolicy.Resource{}
 
-	_, err := r.client.RBACPolicy.Set(ctx, rbacpolicy.SetRequest{
+	tflog.Info(ctx, "Setting RBAC policy to remove custom roles and resources", map[string]interface{}{"policy": policy})
+
+	_, err = r.client.RBACPolicy.Set(ctx, rbacpolicy.SetRequest{
 		ProjectID: state.ProjectID.ValueString(),
 		Policy:    policy,
 	})
