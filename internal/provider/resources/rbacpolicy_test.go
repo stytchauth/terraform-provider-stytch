@@ -82,14 +82,30 @@ func TestAccRBACPolicyResource(t *testing.T) {
 			},
 		},
 		{
-			Name: "admin-resource",
+			Name: "admin-resource-with-default",
 			Config: testutil.B2BProjectConfig + `
 			resource "stytch_rbac_policy" "test" {
 				project_id = stytch_project.project.test_project_id
 				stytch_admin = {
 					permissions = [
 						{
-							resource_id = "custom_resource_1"
+							resource_id = "stytch.member"
+							actions     = ["*"]
+						},
+						{
+							resource_id = "stytch.organization"
+							actions     = ["*"]
+						},
+						{
+							resource_id = "stytch.sso"
+							actions     = ["*"]
+						},
+						{
+							resource_id = "stytch.scim"
+							actions     = ["*"]
+						},
+						{
+							resource_id = "my-only-resource"
 							actions     = ["read"]
 						}
 					]
@@ -97,21 +113,13 @@ func TestAccRBACPolicyResource(t *testing.T) {
 
 				custom_resources = [
 					{
-						resource_id       = "custom_resource_1"
-						description       = "A custom resource for testing."
+						resource_id       = "my-only-resource"
+						description       = "My only resource"
 						available_actions = ["read", "write"]
 					}
 				]
 			}
 			`,
-			Checks: []resource.TestCheckFunc{
-				resource.TestCheckResourceAttr("stytch_rbac_policy.test", "custom_resources.#", "1"),
-				resource.TestCheckTypeSetElemNestedAttrs("stytch_rbac_policy.test", "stytch_admin.*", map[string]string{
-					"role_id":       "my-custom-admin",
-					"description":   "My custom admin role",
-					"permissions.#": "2",
-				}),
-			},
 		},
 	} {
 		t.Run(testCase.Name, func(t *testing.T) {
@@ -172,5 +180,36 @@ func TestAccRBACPolicyResource(t *testing.T) {
 				},
 			})
 		})
+	}
+}
+
+func TestAccRBACPolicyResource_Invalid(t *testing.T) {
+	for _, errorCase := range []testutil.ErrorCase{
+		{
+			Name: "admin-resource-missing-default",
+			Config: testutil.B2BProjectConfig + `
+			resource "stytch_rbac_policy" "test" {
+				project_id = stytch_project.project.test_project_id
+				stytch_admin = {
+					permissions = [
+						{
+							resource_id = "my-only-resource"
+							actions     = ["read"]
+						}
+					]
+				}
+
+				custom_resources = [
+					{
+						resource_id       = "my-only-resource"
+						description       = "My only resource"
+						available_actions = ["read", "write"]
+					}
+				]
+			}
+			`,
+		},
+	} {
+		errorCase.AssertAnyError(t)
 	}
 }
