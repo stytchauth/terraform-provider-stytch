@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -193,6 +194,12 @@ func (m rbacPolicyRoleModel) toRole() rbacpolicy.Role {
 func (m rbacPolicyRoleModel) enforceDefaultPermissions(defaultPerms []rbacpolicy.Permission) diag.Diagnostics {
 	var diags diag.Diagnostics
 	for _, perm := range defaultPerms {
+		if !strings.HasPrefix(perm.ResourceID, "stytch.") {
+			// Only enforce default permissions for Stytch-created resources
+			// TODO: We could be better about detecting this and instead enumerate the stytch_resources
+			continue
+		}
+
 		found := false
 		for _, p := range m.Permissions {
 			if p.ResourceID.ValueString() == perm.ResourceID {
