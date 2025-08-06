@@ -459,7 +459,7 @@ func (r *rbacPolicyResource) Create(ctx context.Context, req resource.CreateRequ
 		ProjectID: plan.ProjectID.ValueString(),
 	})
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to fetch default Stytch role", "Failed to fetch default Stytch member or admin role for RBAC policy")
+		resp.Diagnostics.AddError("Failed to fetch default RBAC policy", "Failed to fetch default RBAC policy")
 		return
 	}
 
