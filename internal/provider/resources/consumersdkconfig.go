@@ -252,7 +252,7 @@ func consumerSDKConfigDFPPAModelFromSDKConfig(c sdk.ConsumerDFPPAConfig) consume
 	return consumerSDKConfigDFPPAModel{
 		Enabled:              types.StringValue(string(c.Enabled)),
 		OnChallenge:          types.StringValue(string(c.OnChallenge)),
-		LookupTimeoutSeconds: types.Int32Value(c.LookupTimeoutSeconds),
+		LookupTimeoutSeconds: types.Int32Value(0), // Deprecated field, set to default
 	}
 }
 
@@ -314,8 +314,8 @@ func (m consumerSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.ConsumerCo
 	var diags diag.Diagnostics
 	c := sdk.ConsumerConfig{
 		Basic: &sdk.ConsumerBasicConfig{
-			Enabled:        m.Config.Basic.Enabled.ValueBool(),
-			CreateNewUsers: m.Config.Basic.CreateNewUsers.ValueBool(),
+			Enabled: m.Config.Basic.Enabled.ValueBool(),
+			// CreateNewUsers is deprecated and no longer affects SDK functionality
 		},
 	}
 
@@ -436,9 +436,9 @@ func (m consumerSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.ConsumerCo
 			UnhandledUnknownAsEmpty: true,
 		})...)
 		c.DFPPA = &sdk.ConsumerDFPPAConfig{
-			Enabled:              sdk.DFPPASetting(dfppa.Enabled.ValueString()),
-			OnChallenge:          sdk.DFPPAOnChallengeAction(dfppa.OnChallenge.ValueString()),
-			LookupTimeoutSeconds: dfppa.LookupTimeoutSeconds.ValueInt32(),
+			Enabled:     sdk.DFPPASetting(dfppa.Enabled.ValueString()),
+			OnChallenge: sdk.DFPPAOnChallengeAction(dfppa.OnChallenge.ValueString()),
+			// LookupTimeoutSeconds is deprecated and no longer affects SDK functionality
 		}
 	}
 
@@ -565,7 +565,7 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.
 	cfg := consumerSDKConfigInnerModel{
 		Basic: consumerSDKConfigBasicModel{
 			Enabled:        types.BoolValue(c.Basic.Enabled),
-			CreateNewUsers: types.BoolValue(c.Basic.CreateNewUsers),
+			CreateNewUsers: types.BoolValue(false), // Deprecated field, set to default
 			Domains:        domains,
 			BundleIDs:      bundleIDs,
 		},
