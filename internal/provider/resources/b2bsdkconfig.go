@@ -241,7 +241,7 @@ func b2bSDKConfigDFPPAModelFromSDKConfig(c sdk.B2BDFPPAConfig) b2bSDKConfigDFPPA
 	return b2bSDKConfigDFPPAModel{
 		Enabled:              types.StringValue(string(c.Enabled)),
 		OnChallenge:          types.StringValue(string(c.OnChallenge)),
-		LookupTimeoutSeconds: types.Int32Value(0), // Deprecated field, set to default
+		LookupTimeoutSeconds: types.Int32Value(c.LookupTimeoutSeconds), //nolint:staticcheck
 	}
 }
 
@@ -284,8 +284,8 @@ func (m b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, diag
 	var diags diag.Diagnostics
 	c := sdk.B2BConfig{
 		Basic: &sdk.B2BBasicConfig{
-			Enabled: m.Config.Basic.Enabled.ValueBool(),
-			// CreateNewMembers is deprecated and no longer affects SDK functionality
+			Enabled:                 m.Config.Basic.Enabled.ValueBool(),
+			CreateNewMembers:        m.Config.Basic.CreateNewMembers.ValueBool(),
 			AllowSelfOnboarding:     m.Config.Basic.AllowSelfOnboarding.ValueBool(),
 			EnableMemberPermissions: m.Config.Basic.EnableMemberPermissions.ValueBool(),
 		},
@@ -397,9 +397,9 @@ func (m b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, diag
 			UnhandledUnknownAsEmpty: true,
 		})...)
 		c.DFPPA = &sdk.B2BDFPPAConfig{
-			Enabled:     sdk.DFPPASetting(dfppa.Enabled.ValueString()),
-			OnChallenge: sdk.DFPPAOnChallengeAction(dfppa.OnChallenge.ValueString()),
-			// LookupTimeoutSeconds is deprecated and no longer affects SDK functionality
+			Enabled:              sdk.DFPPASetting(dfppa.Enabled.ValueString()),
+			OnChallenge:          sdk.DFPPAOnChallengeAction(dfppa.OnChallenge.ValueString()),
+			LookupTimeoutSeconds: dfppa.LookupTimeoutSeconds.ValueInt32(),
 		}
 	}
 
@@ -502,7 +502,7 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 	cfg := b2bSDKConfigInnerModel{
 		Basic: b2bSDKConfigBasicModel{
 			Enabled:                 types.BoolValue(c.Basic.Enabled),
-			CreateNewMembers:        types.BoolValue(false), // Deprecated field, set to default
+			CreateNewMembers:        types.BoolValue(c.Basic.CreateNewMembers), //nolint:staticcheck
 			AllowSelfOnboarding:     types.BoolValue(c.Basic.AllowSelfOnboarding),
 			EnableMemberPermissions: types.BoolValue(c.Basic.EnableMemberPermissions),
 			Domains:                 domains,
