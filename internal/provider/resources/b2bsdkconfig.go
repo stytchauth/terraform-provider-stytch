@@ -241,7 +241,7 @@ func b2bSDKConfigDFPPAModelFromSDKConfig(c sdk.B2BDFPPAConfig) b2bSDKConfigDFPPA
 	return b2bSDKConfigDFPPAModel{
 		Enabled:              types.StringValue(string(c.Enabled)),
 		OnChallenge:          types.StringValue(string(c.OnChallenge)),
-		LookupTimeoutSeconds: types.Int32Value(c.LookupTimeoutSeconds),
+		LookupTimeoutSeconds: types.Int32Value(c.LookupTimeoutSeconds), //nolint:staticcheck
 	}
 }
 
@@ -502,7 +502,7 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 	cfg := b2bSDKConfigInnerModel{
 		Basic: b2bSDKConfigBasicModel{
 			Enabled:                 types.BoolValue(c.Basic.Enabled),
-			CreateNewMembers:        types.BoolValue(c.Basic.CreateNewMembers),
+			CreateNewMembers:        types.BoolValue(c.Basic.CreateNewMembers), //nolint:staticcheck
 			AllowSelfOnboarding:     types.BoolValue(c.Basic.AllowSelfOnboarding),
 			EnableMemberPermissions: types.BoolValue(c.Basic.EnableMemberPermissions),
 			Domains:                 domains,
@@ -584,9 +584,10 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								Description: "A boolean indicating whether the B2B project SDK is enabled. This allows the SDK to manage user and session data.",
 							},
 							"create_new_members": schema.BoolAttribute{
-								Optional:    true,
-								Computed:    true,
-								Description: "A boolean indicating whether new members can be created with the SDK.",
+								Optional:           true,
+								Computed:           true,
+								Description:        "A boolean indicating whether new members can be created with the SDK.",
+								DeprecationMessage: "This field is deprecated and no longer affects SDK functionality. It will be removed in a future major release.",
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.UseStateForUnknown(),
 								},
@@ -866,9 +867,10 @@ func (r *b2bSDKConfigResource) Schema(_ context.Context, _ resource.SchemaReques
 								},
 							},
 							"lookup_timeout_seconds": schema.Int32Attribute{
-								Optional:    true,
-								Computed:    true,
-								Description: "How long to wait for a DFPPA lookup to complete before timing out.",
+								Optional:           true,
+								Computed:           true,
+								Description:        "How long to wait for a DFPPA lookup to complete before timing out.",
+								DeprecationMessage: "This field is deprecated and no longer affects SDK functionality. It will be removed in a future major release.",
 								PlanModifiers: []planmodifier.Int32{
 									int32planmodifier.UseStateForUnknown(),
 								},

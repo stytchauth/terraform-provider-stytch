@@ -18,10 +18,9 @@ resource "stytch_consumer_sdk_config" "consumer_sdk_config" {
   project_id = stytch_project.consumer_project.test_project_id
   config = {
     basic = {
-      enabled          = true
-      create_new_users = true
-      domains          = []
-      bundle_ids       = []
+      enabled    = true
+      domains    = []
+      bundle_ids = []
     }
     sessions = {
       max_session_duration_minutes = 60
@@ -82,7 +81,7 @@ Required:
 Optional:
 
 - `bundle_ids` (Set of String) A list of bundle IDs authorized for use in the SDK.
-- `create_new_users` (Boolean) A boolean indicating whether new users can be created with the SDK.
+- `create_new_users` (Boolean, Deprecated) A boolean indicating whether new users can be created with the SDK.
 - `domains` (Set of String) A list of domains authorized for use in the SDK.
 
 
@@ -118,7 +117,7 @@ Optional:
 Optional:
 
 - `enabled` (String) A boolean indicating whether Device Fingerprinting Protected Auth is enabled in the SDK.
-- `lookup_timeout_seconds` (Number) How long to wait for a DFPPA lookup to complete before timing out.
+- `lookup_timeout_seconds` (Number, Deprecated) How long to wait for a DFPPA lookup to complete before timing out.
 - `on_challenge` (String) The action to take when a DFPPA 'challenge' verdict is returned.
 
 

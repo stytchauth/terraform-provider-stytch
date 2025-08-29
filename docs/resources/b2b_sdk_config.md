@@ -19,7 +19,6 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
   config = {
     basic = {
       enabled                   = true
-      create_new_members        = true
       allow_self_onboarding     = true
       enable_member_permissions = true
       domains                   = []
@@ -33,9 +32,8 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
       create_totps = true
     }
     dfppa = {
-      enabled                = "ENABLED"
-      on_challenge           = "TRIGGER_CAPTCHA"
-      lookup_timeout_seconds = 3
+      enabled      = "ENABLED"
+      on_challenge = "TRIGGER_CAPTCHA"
     }
     cookies = {
       http_only = "DISABLED"
@@ -87,7 +85,7 @@ Optional:
 
 - `allow_self_onboarding` (Boolean) A boolean indicating whether self-onboarding is allowed for members in the SDK.
 - `bundle_ids` (Set of String) A list of bundle IDs authorized for use in the SDK.
-- `create_new_members` (Boolean) A boolean indicating whether new members can be created with the SDK.
+- `create_new_members` (Boolean, Deprecated) A boolean indicating whether new members can be created with the SDK.
 - `domains` (Attributes Set) A list of domains authorized for use in the SDK. (see [below for nested schema](#nestedatt--config--basic--domains))
 - `enable_member_permissions` (Boolean) A boolean indicating whether member permissions RBAC are enabled in the SDK.
 
@@ -115,7 +113,7 @@ Optional:
 Optional:
 
 - `enabled` (String) A boolean indicating whether Device Fingerprinting Protected Auth is enabled in the SDK.
-- `lookup_timeout_seconds` (Number) How long to wait for a DFPPA lookup to complete before timing out.
+- `lookup_timeout_seconds` (Number, Deprecated) How long to wait for a DFPPA lookup to complete before timing out.
 - `on_challenge` (String) The action to take when a DFPPA 'challenge' verdict is returned.
 
 
