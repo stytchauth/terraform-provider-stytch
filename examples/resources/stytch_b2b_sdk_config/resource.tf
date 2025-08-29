@@ -4,7 +4,6 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
   config = {
     basic = {
       enabled                   = true
-      create_new_members        = true
       allow_self_onboarding     = true
       enable_member_permissions = true
       domains                   = []
@@ -18,9 +17,8 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
       create_totps = true
     }
     dfppa = {
-      enabled                = "ENABLED"
-      on_challenge           = "TRIGGER_CAPTCHA"
-      lookup_timeout_seconds = 3
+      enabled      = "ENABLED"
+      on_challenge = "TRIGGER_CAPTCHA"
     }
     cookies = {
       http_only = "DISABLED"

@@ -647,9 +647,10 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								Description: "A boolean indicating whether the consumer project SDK is enabled. This allows the SDK to manage user and session data.",
 							},
 							"create_new_users": schema.BoolAttribute{
-								Optional:    true,
-								Computed:    true,
-								Description: "A boolean indicating whether new users can be created with the SDK.",
+								Optional:           true,
+								Computed:           true,
+								Description:        "A boolean indicating whether new users can be created with the SDK.",
+								DeprecationMessage: "This field is deprecated and no longer affects SDK functionality. It will be removed in a future major release.",
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.UseStateForUnknown(),
 								},
@@ -959,9 +960,10 @@ func (r *consumerSDKConfigResource) Schema(_ context.Context, _ resource.SchemaR
 								},
 							},
 							"lookup_timeout_seconds": schema.Int32Attribute{
-								Optional:    true,
-								Computed:    true,
-								Description: "How long to wait for a DFPPA lookup to complete before timing out.",
+								Optional:           true,
+								Computed:           true,
+								Description:        "How long to wait for a DFPPA lookup to complete before timing out.",
+								DeprecationMessage: "This field is deprecated and no longer affects SDK functionality. It will be removed in a future major release.",
 								PlanModifiers: []planmodifier.Int32{
 									int32planmodifier.UseStateForUnknown(),
 								},
