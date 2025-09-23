@@ -2,7 +2,9 @@ name: Create GitHub release
 
 on:
   push:
-    branches: [main]
+    branches:
+      - "main"
+      - "v1"
 
 permissions:
   contents: write # Required for creating releases and pushing tags.
