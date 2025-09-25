@@ -16,8 +16,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/stytchauth/stytch-management-go/v2/pkg/api"
-	"github.com/stytchauth/stytch-management-go/v2/pkg/models/projects"
+	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
+	"github.com/stytchauth/stytch-management-go/v3/pkg/models/projects"
 )
 
 // Ensure the implementation satisfies the expected interfaces.

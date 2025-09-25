@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/stytchauth/stytch-management-go/v2/pkg/models/jwttemplates"
+	"github.com/stytchauth/stytch-management-go/v3/pkg/models/jwttemplates"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
 
