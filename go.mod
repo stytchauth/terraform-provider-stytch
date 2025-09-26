@@ -9,6 +9,7 @@ require (
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.2
 	github.com/stytchauth/stytch-management-go/v2 v2.7.2
+	github.com/stytchauth/stytch-management-go/v3 v3.0.0-alpha.1
 )
 
 require (
