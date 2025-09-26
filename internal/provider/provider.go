@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v2/pkg/api"
-	"github.com/stytchauth/terraform-provider-stytch/internal/provider/resources"
 )
 
 // Ensure StytchProvider satisfies various provider interfaces.
@@ -167,21 +166,7 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 }
 
 func (p *StytchProvider) Resources(ctx context.Context) []func() resource.Resource {
-	return []func() resource.Resource{
-		resources.NewB2BSDKConfigResource,
-		resources.NewConsumerSDKConfigResource,
-		resources.NewCountryCodeAllowlistResource,
-		resources.NewEmailTemplateResource,
-		resources.NewEventLogStreamingResource,
-		resources.NewJWTTemplateResource,
-		resources.NewPasswordConfigResource,
-		resources.NewProjectResource,
-		resources.NewPublicTokenResource,
-		resources.NewRBACPolicyResource,
-		resources.NewRedirectURLResource,
-		resources.NewSecretResource,
-		resources.NewTrustedTokenProfilesResource,
-	}
+	return []func() resource.Resource{}
 }
 
 func (p *StytchProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
