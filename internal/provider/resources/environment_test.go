@@ -77,7 +77,7 @@ func TestAccEnvironmentResource(t *testing.T) {
 				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 					name:                "Environment Test Project",
 					vertical:            projects.VerticalConsumer,
-					liveEnvironmentName: "Production",
+					liveEnvironmentName: strPtr("Production"),
 				}) + environmentResource(environmentResourceArgs{
 					projectSlug:     "stytch_project.test.project_slug",
 					name:            "Test Environment",
@@ -104,7 +104,7 @@ func TestAccEnvironmentResource(t *testing.T) {
 				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 					name:                "Environment Test Project",
 					vertical:            projects.VerticalConsumer,
-					liveEnvironmentName: "Production",
+					liveEnvironmentName: strPtr("Production"),
 				}) + environmentResource(environmentResourceArgs{
 					projectSlug: "stytch_project.test.project_slug",
 					name:        "Updated Test Environment",
@@ -134,7 +134,7 @@ func TestAccEnvironmentResourceWithConfig(t *testing.T) {
 				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 					name:                "Config Test Project",
 					vertical:            projects.VerticalB2B,
-					liveEnvironmentName: "Production",
+					liveEnvironmentName: strPtr("Production"),
 				}),
 			},
 			{
@@ -142,7 +142,7 @@ func TestAccEnvironmentResourceWithConfig(t *testing.T) {
 				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 					name:                "Config Test Project",
 					vertical:            projects.VerticalB2B,
-					liveEnvironmentName: "Production",
+					liveEnvironmentName: strPtr("Production"),
 				}) + environmentResource(environmentResourceArgs{
 					projectSlug:                  "stytch_project.test.project_slug",
 					name:                         "Test with Config",
@@ -171,7 +171,7 @@ func TestAccEnvironmentResourceWithConfig(t *testing.T) {
 				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 					name:                "Config Test Project",
 					vertical:            projects.VerticalB2B,
-					liveEnvironmentName: "Production",
+					liveEnvironmentName: strPtr("Production"),
 				}) + environmentResource(environmentResourceArgs{
 					projectSlug:              "stytch_project.test.project_slug",
 					name:                     "Test with Updated Config",

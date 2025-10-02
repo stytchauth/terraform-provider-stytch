@@ -16,12 +16,16 @@ var (
 	envSlugRegex     = regexp.MustCompile(`^[a-z0-9-]+$`)
 )
 
+func strPtr(s string) *string {
+	return &s
+}
+
 type projectResourceArgs struct {
 	name                         string
 	vertical                     projects.Vertical
 	projectSlug                  *string
 	liveEnvironmentSlug          *string
-	liveEnvironmentName          string
+	liveEnvironmentName          *string
 	crossOrgPasswordsEnabled     *bool
 	userImpersonationEnabled     *bool
 	zeroDowntimeSessionMigration *string
@@ -47,7 +51,11 @@ resource "stytch_project" "test" {
 	if args.liveEnvironmentSlug != nil {
 		config += fmt.Sprintf("\n    environment_slug = \"%s\"", *args.liveEnvironmentSlug)
 	}
-	config += fmt.Sprintf("\n    name = \"%s\"", args.liveEnvironmentName)
+	envName := "Production"
+	if args.liveEnvironmentName != nil {
+		envName = *args.liveEnvironmentName
+	}
+	config += fmt.Sprintf("\n    name = \"%s\"", envName)
 
 	if args.crossOrgPasswordsEnabled != nil {
 		config += fmt.Sprintf("\n    cross_org_passwords_enabled = %t", *args.crossOrgPasswordsEnabled)
@@ -85,6 +93,7 @@ resource "stytch_project" "test" {
 func TestAccProjectResource(t *testing.T) {
 	for _, vertical := range []projects.Vertical{projects.VerticalConsumer, projects.VerticalB2B} {
 		projectSlug := strings.ToLower(fmt.Sprintf("test-acc-project-resource-%s", string(vertical)))
+		prodEnv := "Production"
 		t.Run(string(vertical), func(t *testing.T) {
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
@@ -95,7 +104,7 @@ func TestAccProjectResource(t *testing.T) {
 							name:                "AccProjectResource",
 							projectSlug:         &projectSlug,
 							vertical:            vertical,
-							liveEnvironmentName: "Production",
+							liveEnvironmentName: &prodEnv,
 						}),
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("stytch_project.test", "name", "AccProjectResource"),
@@ -122,7 +131,7 @@ func TestAccProjectResource(t *testing.T) {
 						Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 							name:                "test2",
 							vertical:            vertical,
-							liveEnvironmentName: "Live Environment",
+							liveEnvironmentName: strPtr("Live Environment"),
 						}),
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("stytch_project.test", "name", "test2"),
@@ -153,7 +162,7 @@ func TestAccProjectResourceWithEnvironmentConfig(t *testing.T) {
 				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 					name:                         "Environment Config Test",
 					vertical:                     projects.VerticalB2B,
-					liveEnvironmentName:          "Production",
+					liveEnvironmentName:          strPtr("Production"),
 					crossOrgPasswordsEnabled:     &trueVal,
 					userImpersonationEnabled:     &trueVal,
 					zeroDowntimeSessionMigration: &zeroDowntime,
@@ -179,7 +188,7 @@ func TestAccProjectResourceWithEnvironmentConfig(t *testing.T) {
 				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 					name:                     "Environment Config Test",
 					vertical:                 projects.VerticalB2B,
-					liveEnvironmentName:      "Production Updated",
+					liveEnvironmentName:      strPtr("Production Updated"),
 					crossOrgPasswordsEnabled: &falseVal,
 					userImpersonationEnabled: &falseVal,
 					userLockSelfServeEnabled: &falseVal,
@@ -219,7 +228,7 @@ resource "stytch_project" "test" {
 				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 					name:                "Test Without Live Env",
 					vertical:            projects.VerticalConsumer,
-					liveEnvironmentName: "Production",
+					liveEnvironmentName: strPtr("Production"),
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_project.test", "name", "Test Without Live Env"),
@@ -240,7 +249,7 @@ func TestAccProjectResourceCannotRemoveLiveEnvironment(t *testing.T) {
 				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
 					name:                "Test Removal",
 					vertical:            projects.VerticalConsumer,
-					liveEnvironmentName: "Production",
+					liveEnvironmentName: strPtr("Production"),
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_project.test", "live_environment.name", "Production"),
