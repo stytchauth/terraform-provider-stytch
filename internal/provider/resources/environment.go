@@ -419,7 +419,7 @@ func (r *environmentResource) ImportState(ctx context.Context, req resource.Impo
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
 
-// Helper function to refresh environment model from API response
+// Helper function to refresh the environment model from API response.
 func refreshFromEnvironment(env environments.Environment) environmentResourceModel {
 	return environmentResourceModel{
 		ID:                                  types.StringValue(fmt.Sprintf("%s.%s", env.ProjectSlug, env.EnvironmentSlug)),

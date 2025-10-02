@@ -11,11 +11,6 @@ import (
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
 
-var (
-	projectSlugRegex = regexp.MustCompile(`^[a-z0-9-]+$`)
-	envSlugRegex     = regexp.MustCompile(`^[a-z0-9-]+$`)
-)
-
 func strPtr(s string) *string {
 	return &s
 }
