@@ -3,70 +3,96 @@
 page_title: "stytch_project Resource - stytch"
 subcategory: ""
 description: |-
-  Manages a project within your Stytch workspace.
+  Manages a Stytch project and its live environment.
 ---
 
 # stytch_project (Resource)
 
-Manages a project within your Stytch workspace.
+Manages a Stytch project and its live environment.
 
 ## Example Usage
 
 ```terraform
-# Create a consumer project
-resource "stytch_project" "consumer_project" {
-  name     = "tf-consumer"
+# Create a project without a live environment
+resource "stytch_project" "minimal" {
+  name     = "My Project"
   vertical = "CONSUMER"
 }
 
-# Create a B2B project
-resource "stytch_project" "b2b_project" {
-  name     = "tf-b2b"
+# Create a B2B project with a live environment
+resource "stytch_project" "b2b_with_live" {
+  name     = "My B2B Project"
   vertical = "B2B"
+
+  live_environment = {
+    name = "Production"
+  }
 }
 
-# Create a consumer project with user impersonation enabled
-resource "stytch_project" "consumer_project_impersonation" {
-  name     = "tf-consumer-impersonation"
+# Create a project with a custom project slug and custom live environment slug
+resource "stytch_project" "custom_slugs" {
+  name         = "Custom Project"
+  vertical     = "CONSUMER"
+  project_slug = "my-custom-project"
+
+  live_environment = {
+    environment_slug = "prod"
+    name             = "Production"
+  }
+}
+
+# Create a B2B project with cross-org passwords enabled
+resource "stytch_project" "b2b_cross_org" {
+  name     = "B2B with Cross-Org Passwords"
+  vertical = "B2B"
+
+  live_environment = {
+    name                        = "Production"
+    cross_org_passwords_enabled = true
+  }
+}
+
+# Create a project with user impersonation enabled
+resource "stytch_project" "with_impersonation" {
+  name     = "Project with Impersonation"
   vertical = "CONSUMER"
 
-  live_user_impersonation_enabled = true
-  test_user_impersonation_enabled = true
+  live_environment = {
+    name                       = "Production"
+    user_impersonation_enabled = true
+  }
 }
 
-# Create a B2B project with cross-org passwords enabled in the test environment
-resource "stytch_project" "b2b_project_cross_org" {
-  name     = "tf-b2b-cross-org"
-  vertical = "B2B"
-
-  test_cross_org_passwords_enabled = true
-  live_cross_org_passwords_enabled = false
-}
-
-# Create a consumer project with user lock self-serve enabled
-# and custom lock thresholds
-resource "stytch_project" "consumer_project_lock_self_serve" {
-  name     = "tf-consumer-lock-self-serve"
+# Create a project with user lock configuration
+resource "stytch_project" "with_user_lock" {
+  name     = "Project with User Lock"
   vertical = "CONSUMER"
 
-  test_user_lock_self_serve_enabled = true
-  live_user_lock_self_serve_enabled = true
-
-  test_user_lock_threshold = 20
-  live_user_lock_threshold = 5
+  live_environment = {
+    name                         = "Production"
+    user_lock_self_serve_enabled = true
+    user_lock_threshold          = 5
+    user_lock_ttl                = 7200 # 2 hours in seconds
+  }
 }
 
-# Create a B2B project with user lock self-serve enabled
-# and custom lock TTLs
-resource "stytch_project" "b2b_project_lock_self_serve" {
-  name     = "tf-b2b-lock-self-serve"
+# Create a B2B project with a complex environment configuration
+resource "stytch_project" "full_config" {
+  name     = "Fully Configured B2B Project"
   vertical = "B2B"
 
-  test_user_lock_self_serve_enabled = true
-  live_user_lock_self_serve_enabled = true
-
-  test_user_lock_ttl = 300  # 5 minutes
-  live_user_lock_ttl = 7200 # 2 hours
+  live_environment = {
+    name                                    = "Production"
+    environment_slug                        = "production"
+    cross_org_passwords_enabled             = true
+    user_impersonation_enabled              = true
+    zero_downtime_session_migration_url     = "https://example.com/userinfo"
+    user_lock_self_serve_enabled            = true
+    user_lock_threshold                     = 10
+    user_lock_ttl                           = 3600
+    idp_authorization_url                   = "https://example.com/.well-known/openid-configuration"
+    idp_dynamic_client_registration_enabled = true
+  }
 }
 ```
 
@@ -76,36 +102,49 @@ resource "stytch_project" "b2b_project_lock_self_serve" {
 ### Required
 
 - `name` (String) The project's name.
-- `vertical` (String) The project's vertical. This cannot be changed after creation.
+- `vertical` (String) The project's vertical (CONSUMER or B2B). Cannot be changed after creation.
 
 ### Optional
 
-- `live_cross_org_passwords_enabled` (Boolean) Whether cross-org passwords are enabled for the live project.
-- `live_user_impersonation_enabled` (Boolean) Whether user impersonation is enabled for the live project.
-- `live_user_lock_self_serve_enabled` (Boolean) Whether users in the live project who get locked out should automatically get an unlock email magic link.
-- `live_user_lock_threshold` (Number) The number of failed authenticate attempts that will cause a user in the live project to be locked.
-- `live_user_lock_ttl` (Number) The time in seconds that the user in the live project remains locked once the lock is set.
-- `test_cross_org_passwords_enabled` (Boolean) Whether cross-org passwords are enabled for the test project.
-- `test_user_impersonation_enabled` (Boolean) Whether user impersonation is enabled for the test project.
-- `test_user_lock_self_serve_enabled` (Boolean) Whether users in the test project who get locked out should automatically get an unlock email magic link.
-- `test_user_lock_threshold` (Number) The number of failed authenticate attempts that will cause a user in the test project to be locked.
-- `test_user_lock_ttl` (Number) The time in seconds that the user in the test project remains locked once the lock is set.
+- `live_environment` (Attributes) Configuration for the project's live environment. Optional, but once created cannot be removed. (see [below for nested schema](#nestedatt--live_environment))
+- `project_slug` (String) The immutable unique identifier for the project. If not provided, one will be generated.
 
 ### Read-Only
 
 - `created_at` (String) The ISO-8601 timestamp when the project was created.
 - `id` (String) A computed ID field used for Terraform resource management.
-- `last_updated` (String) Timestamp of the last Terraform update of the order.
-- `live_oauth_callback_id` (String) The callback ID used in OAuth requests for the live project.
-- `live_project_id` (String) The unique identifier for the live project.
-- `test_oauth_callback_id` (String) The callback ID used in OAuth requests for the test project.
-- `test_project_id` (String) The unique identifier for the test project.
+- `last_updated` (String) Timestamp of the last Terraform update for the resource.
+
+<a id="nestedatt--live_environment"></a>
+### Nested Schema for `live_environment`
+
+Required:
+
+- `name` (String) The environment's name.
+
+Optional:
+
+- `cross_org_passwords_enabled` (Boolean) Whether cross-org passwords are enabled for the environment. Irrelevant for Consumer projects.
+- `environment_slug` (String) The unique identifier (slug) for the live environment. Defaults to 'production'.
+- `idp_authorization_url` (String) The OpenID Configuration endpoint for Connected Apps for the environment.
+- `idp_dynamic_client_registration_access_token_template_content` (String) The access token template to use for clients created through Dynamic Client Registration (DCR).
+- `idp_dynamic_client_registration_enabled` (Boolean) Whether the project has opted in to Dynamic Client Registration (DCR) for Connected Apps.
+- `user_impersonation_enabled` (Boolean) Whether user impersonation is enabled for the environment.
+- `user_lock_self_serve_enabled` (Boolean) Whether users who get locked out should automatically get an unlock email magic link.
+- `user_lock_threshold` (Number) The number of failed authenticate attempts that will cause a user to be locked. Defaults to 10.
+- `user_lock_ttl` (Number) The time in seconds that a user remains locked once the lock is set. Defaults to 1 hour (3600 seconds).
+- `zero_downtime_session_migration_url` (String) The OIDC-compliant UserInfo endpoint for session migration.
+
+Read-Only:
+
+- `created_at` (String) The ISO-8601 timestamp when the environment was created.
+- `oauth_callback_id` (String) The callback ID used in OAuth requests for the environment.
 
 ## Import
 
 Import is supported using the following syntax:
 
 ```shell
-# A Stytch project can be imported by specifying the relevant *live* project ID
-terraform import stytch_project.example project-live-00000000-0000-0000-0000-000000000000
+# A Stytch project can be imported by specifying the project slug
+terraform import stytch_project.example my-project-slug
 ```
