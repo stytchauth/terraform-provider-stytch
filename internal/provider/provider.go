@@ -176,6 +176,7 @@ func (p *StytchProvider) Configure(
 func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.NewEnvironmentResource,
+		resources.NewPasswordConfigResource,
 		resources.NewProjectResource,
 		resources.NewSecretResource,
 	}
