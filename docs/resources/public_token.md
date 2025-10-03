@@ -32,7 +32,7 @@ resource "stytch_public_token" "example" {
 
 - `created_at` (String) The ISO-8601 timestamp when the public token was created.
 - `id` (String) A computed ID field used for Terraform resource management (format: project_slug.environment_slug.public_token).
-- `public_token` (String) The public token value, which also serves as the unique identifier for the token.
+- `public_token` (String) The public token value, which also serves as part of the unique identifier for the token.
 
 ## Import
 

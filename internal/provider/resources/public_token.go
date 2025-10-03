@@ -86,7 +86,7 @@ func (r *publicTokenResource) Schema(
 			},
 			"public_token": schema.StringAttribute{
 				Computed:    true,
-				Description: "The public token value, which also serves as the unique identifier for the token.",
+				Description: "The public token value, which also serves as part of the unique identifier for the token.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
