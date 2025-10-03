@@ -1,4 +1,5 @@
 # Manage a Stytch project secret
 resource "stytch_secret" "secret" {
-  project_id = stytch_project.consumer_project.live_project_id
+  project_slug     = stytch_project.example.project_slug
+  environment_slug = stytch_environment.test.environment_slug
 }

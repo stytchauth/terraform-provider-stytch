@@ -11,83 +11,8 @@ import (
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
 
-var (
-	projectSlugRegex = regexp.MustCompile(`^[a-z0-9-]+$`)
-	envSlugRegex     = regexp.MustCompile(`^[a-z0-9-]+$`)
-)
-
 func strPtr(s string) *string {
 	return &s
-}
-
-type projectResourceArgs struct {
-	name                         string
-	vertical                     projects.Vertical
-	projectSlug                  *string
-	liveEnvironmentSlug          *string
-	liveEnvironmentName          *string
-	crossOrgPasswordsEnabled     *bool
-	userImpersonationEnabled     *bool
-	zeroDowntimeSessionMigration *string
-	userLockSelfServeEnabled     *bool
-	userLockThreshold            *int32
-	userLockTTL                  *int32
-	idpAuthorizationURL          *string
-	idpDCREnabled                *bool
-	idpDCRTemplate               *string
-}
-
-func projectResource(args projectResourceArgs) string {
-	config := fmt.Sprintf(`
-resource "stytch_project" "test" {
-  name     = "%s"
-  vertical = "%s"`, args.name, string(args.vertical))
-
-	if args.projectSlug != nil {
-		config += fmt.Sprintf("\n  project_slug = \"%s\"", *args.projectSlug)
-	}
-
-	config += "\n  live_environment = {"
-	if args.liveEnvironmentSlug != nil {
-		config += fmt.Sprintf("\n    environment_slug = \"%s\"", *args.liveEnvironmentSlug)
-	}
-	envName := "Production"
-	if args.liveEnvironmentName != nil {
-		envName = *args.liveEnvironmentName
-	}
-	config += fmt.Sprintf("\n    name = \"%s\"", envName)
-
-	if args.crossOrgPasswordsEnabled != nil {
-		config += fmt.Sprintf("\n    cross_org_passwords_enabled = %t", *args.crossOrgPasswordsEnabled)
-	}
-	if args.userImpersonationEnabled != nil {
-		config += fmt.Sprintf("\n    user_impersonation_enabled = %t", *args.userImpersonationEnabled)
-	}
-	if args.zeroDowntimeSessionMigration != nil {
-		config += fmt.Sprintf("\n    zero_downtime_session_migration_url = \"%s\"", *args.zeroDowntimeSessionMigration)
-	}
-	if args.userLockSelfServeEnabled != nil {
-		config += fmt.Sprintf("\n    user_lock_self_serve_enabled = %t", *args.userLockSelfServeEnabled)
-	}
-	if args.userLockThreshold != nil {
-		config += fmt.Sprintf("\n    user_lock_threshold = %d", *args.userLockThreshold)
-	}
-	if args.userLockTTL != nil {
-		config += fmt.Sprintf("\n    user_lock_ttl = %d", *args.userLockTTL)
-	}
-	if args.idpAuthorizationURL != nil {
-		config += fmt.Sprintf("\n    idp_authorization_url = \"%s\"", *args.idpAuthorizationURL)
-	}
-	if args.idpDCREnabled != nil {
-		config += fmt.Sprintf("\n    idp_dynamic_client_registration_enabled = %t", *args.idpDCREnabled)
-	}
-	if args.idpDCRTemplate != nil {
-		config += fmt.Sprintf("\n    idp_dynamic_client_registration_access_token_template_content = \"%s\"", *args.idpDCRTemplate)
-	}
-
-	config += "\n  }"
-	config += "\n}"
-	return config
 }
 
 func TestAccProjectResource(t *testing.T) {
@@ -100,11 +25,11 @@ func TestAccProjectResource(t *testing.T) {
 				Steps: []resource.TestStep{
 					{
 						// Create and Read testing
-						Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-							name:                "AccProjectResource",
-							projectSlug:         &projectSlug,
-							vertical:            vertical,
-							liveEnvironmentName: &prodEnv,
+						Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+							Name:                "AccProjectResource",
+							ProjectSlug:         &projectSlug,
+							Vertical:            vertical,
+							LiveEnvironmentName: &prodEnv,
 						}),
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("stytch_project.test", "name", "AccProjectResource"),
@@ -128,10 +53,10 @@ func TestAccProjectResource(t *testing.T) {
 					},
 					{
 						// Update and Read testing
-						Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-							name:                "test2",
-							vertical:            vertical,
-							liveEnvironmentName: strPtr("Live Environment"),
+						Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+							Name:                "test2",
+							Vertical:            vertical,
+							LiveEnvironmentName: strPtr("Live Environment"),
 						}),
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("stytch_project.test", "name", "test2"),
@@ -159,18 +84,18 @@ func TestAccProjectResourceWithEnvironmentConfig(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				// Create with all environment configurations
-				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-					name:                         "Environment Config Test",
-					vertical:                     projects.VerticalB2B,
-					liveEnvironmentName:          strPtr("Production"),
-					crossOrgPasswordsEnabled:     &trueVal,
-					userImpersonationEnabled:     &trueVal,
-					zeroDowntimeSessionMigration: &zeroDowntime,
-					userLockSelfServeEnabled:     &trueVal,
-					userLockThreshold:            &threshold,
-					userLockTTL:                  &ttl,
-					idpAuthorizationURL:          &idpAuthURL,
-					idpDCREnabled:                &trueVal,
+				Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+					Name:                         "Environment Config Test",
+					Vertical:                     projects.VerticalB2B,
+					LiveEnvironmentName:          strPtr("Production"),
+					CrossOrgPasswordsEnabled:     &trueVal,
+					UserImpersonationEnabled:     &trueVal,
+					ZeroDowntimeSessionMigration: &zeroDowntime,
+					UserLockSelfServeEnabled:     &trueVal,
+					UserLockThreshold:            &threshold,
+					UserLockTTL:                  &ttl,
+					IdpAuthorizationURL:          &idpAuthURL,
+					IdpDCREnabled:                &trueVal,
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_project.test", "live_environment.cross_org_passwords_enabled", "true"),
@@ -185,15 +110,15 @@ func TestAccProjectResourceWithEnvironmentConfig(t *testing.T) {
 			},
 			{
 				// Update environment configurations
-				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-					name:                     "Environment Config Test",
-					vertical:                 projects.VerticalB2B,
-					liveEnvironmentName:      strPtr("Production Updated"),
-					crossOrgPasswordsEnabled: &falseVal,
-					userImpersonationEnabled: &falseVal,
-					userLockSelfServeEnabled: &falseVal,
-					userLockThreshold:        &threshold,
-					userLockTTL:              &ttl,
+				Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+					Name:                     "Environment Config Test",
+					Vertical:                 projects.VerticalB2B,
+					LiveEnvironmentName:      strPtr("Production Updated"),
+					CrossOrgPasswordsEnabled: &falseVal,
+					UserImpersonationEnabled: &falseVal,
+					UserLockSelfServeEnabled: &falseVal,
+					UserLockThreshold:        &threshold,
+					UserLockTTL:              &ttl,
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_project.test", "live_environment.name", "Production Updated"),
@@ -225,10 +150,10 @@ resource "stytch_project" "test" {
 			},
 			{
 				// Add live environment
-				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-					name:                "Test Without Live Env",
-					vertical:            projects.VerticalConsumer,
-					liveEnvironmentName: strPtr("Production"),
+				Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+					Name:                "Test Without Live Env",
+					Vertical:            projects.VerticalConsumer,
+					LiveEnvironmentName: strPtr("Production"),
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_project.test", "name", "Test Without Live Env"),
@@ -246,10 +171,10 @@ func TestAccProjectResourceCannotRemoveLiveEnvironment(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				// Create project with live environment
-				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-					name:                "Test Removal",
-					vertical:            projects.VerticalConsumer,
-					liveEnvironmentName: strPtr("Production"),
+				Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+					Name:                "Test Removal",
+					Vertical:            projects.VerticalConsumer,
+					LiveEnvironmentName: strPtr("Production"),
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_project.test", "live_environment.name", "Production"),

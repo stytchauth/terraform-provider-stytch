@@ -1,7 +1,6 @@
 package resources_test
 
 import (
-	"fmt"
 	"regexp"
 	"testing"
 
@@ -9,62 +8,6 @@ import (
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/projects"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
-
-type environmentResourceArgs struct {
-	projectSlug                  string
-	environmentSlug              *string
-	name                         string
-	crossOrgPasswordsEnabled     *bool
-	userImpersonationEnabled     *bool
-	zeroDowntimeSessionMigration *string
-	userLockSelfServeEnabled     *bool
-	userLockThreshold            *int32
-	userLockTTL                  *int32
-	idpAuthorizationURL          *string
-	idpDCREnabled                *bool
-	idpDCRTemplate               *string
-}
-
-func environmentResource(args environmentResourceArgs) string {
-	config := fmt.Sprintf(`
-resource "stytch_environment" "test" {
-  project_slug = %s
-  name         = "%s"`, args.projectSlug, args.name)
-
-	if args.environmentSlug != nil {
-		config += fmt.Sprintf("\n  environment_slug = \"%s\"", *args.environmentSlug)
-	}
-	if args.crossOrgPasswordsEnabled != nil {
-		config += fmt.Sprintf("\n  cross_org_passwords_enabled = %t", *args.crossOrgPasswordsEnabled)
-	}
-	if args.userImpersonationEnabled != nil {
-		config += fmt.Sprintf("\n  user_impersonation_enabled = %t", *args.userImpersonationEnabled)
-	}
-	if args.zeroDowntimeSessionMigration != nil {
-		config += fmt.Sprintf("\n  zero_downtime_session_migration_url = \"%s\"", *args.zeroDowntimeSessionMigration)
-	}
-	if args.userLockSelfServeEnabled != nil {
-		config += fmt.Sprintf("\n  user_lock_self_serve_enabled = %t", *args.userLockSelfServeEnabled)
-	}
-	if args.userLockThreshold != nil {
-		config += fmt.Sprintf("\n  user_lock_threshold = %d", *args.userLockThreshold)
-	}
-	if args.userLockTTL != nil {
-		config += fmt.Sprintf("\n  user_lock_ttl = %d", *args.userLockTTL)
-	}
-	if args.idpAuthorizationURL != nil {
-		config += fmt.Sprintf("\n  idp_authorization_url = \"%s\"", *args.idpAuthorizationURL)
-	}
-	if args.idpDCREnabled != nil {
-		config += fmt.Sprintf("\n  idp_dynamic_client_registration_enabled = %t", *args.idpDCREnabled)
-	}
-	if args.idpDCRTemplate != nil {
-		config += fmt.Sprintf("\n  idp_dynamic_client_registration_access_token_template_content = \"%s\"", *args.idpDCRTemplate)
-	}
-
-	config += "\n}"
-	return config
-}
 
 func TestAccEnvironmentResource(t *testing.T) {
 	envSlug := "test"
@@ -74,14 +17,14 @@ func TestAccEnvironmentResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				// Create a test environment
-				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-					name:                "Environment Test Project",
-					vertical:            projects.VerticalConsumer,
-					liveEnvironmentName: strPtr("Production"),
-				}) + environmentResource(environmentResourceArgs{
-					projectSlug:     "stytch_project.test.project_slug",
-					name:            "Test Environment",
-					environmentSlug: &envSlug,
+				Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+					Name:                "Environment Test Project",
+					Vertical:            projects.VerticalConsumer,
+					LiveEnvironmentName: strPtr("Production"),
+				}) + testutil.EnvironmentResource(testutil.EnvironmentResourceArgs{
+					ProjectSlug:     "stytch_project.test.project_slug",
+					Name:            "Test Environment",
+					EnvironmentSlug: &envSlug,
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_environment.test", "name", "Test Environment"),
@@ -101,13 +44,13 @@ func TestAccEnvironmentResource(t *testing.T) {
 			},
 			{
 				// Update the environment
-				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-					name:                "Environment Test Project",
-					vertical:            projects.VerticalConsumer,
-					liveEnvironmentName: strPtr("Production"),
-				}) + environmentResource(environmentResourceArgs{
-					projectSlug: "stytch_project.test.project_slug",
-					name:        "Updated Test Environment",
+				Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+					Name:                "Environment Test Project",
+					Vertical:            projects.VerticalConsumer,
+					LiveEnvironmentName: strPtr("Production"),
+				}) + testutil.EnvironmentResource(testutil.EnvironmentResourceArgs{
+					ProjectSlug: "stytch_project.test.project_slug",
+					Name:        "Updated Test Environment",
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_environment.test", "name", "Updated Test Environment"),
@@ -131,29 +74,29 @@ func TestAccEnvironmentResourceWithConfig(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				// Create project
-				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-					name:                "Config Test Project",
-					vertical:            projects.VerticalB2B,
-					liveEnvironmentName: strPtr("Production"),
+				Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+					Name:                "Config Test Project",
+					Vertical:            projects.VerticalB2B,
+					LiveEnvironmentName: strPtr("Production"),
 				}),
 			},
 			{
 				// Create environment with all configs
-				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-					name:                "Config Test Project",
-					vertical:            projects.VerticalB2B,
-					liveEnvironmentName: strPtr("Production"),
-				}) + environmentResource(environmentResourceArgs{
-					projectSlug:                  "stytch_project.test.project_slug",
-					name:                         "Test with Config",
-					crossOrgPasswordsEnabled:     &trueVal,
-					userImpersonationEnabled:     &trueVal,
-					zeroDowntimeSessionMigration: &zeroDowntime,
-					userLockSelfServeEnabled:     &trueVal,
-					userLockThreshold:            &threshold,
-					userLockTTL:                  &ttl,
-					idpAuthorizationURL:          &idpAuthURL,
-					idpDCREnabled:                &trueVal,
+				Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+					Name:                "Config Test Project",
+					Vertical:            projects.VerticalB2B,
+					LiveEnvironmentName: strPtr("Production"),
+				}) + testutil.EnvironmentResource(testutil.EnvironmentResourceArgs{
+					ProjectSlug:                  "stytch_project.test.project_slug",
+					Name:                         "Test with Config",
+					CrossOrgPasswordsEnabled:     &trueVal,
+					UserImpersonationEnabled:     &trueVal,
+					ZeroDowntimeSessionMigration: &zeroDowntime,
+					UserLockSelfServeEnabled:     &trueVal,
+					UserLockThreshold:            &threshold,
+					UserLockTTL:                  &ttl,
+					IdpAuthorizationURL:          &idpAuthURL,
+					IdpDCREnabled:                &trueVal,
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_environment.test", "cross_org_passwords_enabled", "true"),
@@ -168,18 +111,18 @@ func TestAccEnvironmentResourceWithConfig(t *testing.T) {
 			},
 			{
 				// Update environment configs
-				Config: testutil.ProviderConfig + projectResource(projectResourceArgs{
-					name:                "Config Test Project",
-					vertical:            projects.VerticalB2B,
-					liveEnvironmentName: strPtr("Production"),
-				}) + environmentResource(environmentResourceArgs{
-					projectSlug:              "stytch_project.test.project_slug",
-					name:                     "Test with Updated Config",
-					crossOrgPasswordsEnabled: &falseVal,
-					userImpersonationEnabled: &falseVal,
-					userLockSelfServeEnabled: &falseVal,
-					userLockThreshold:        &threshold,
-					userLockTTL:              &ttl,
+				Config: testutil.ProviderConfig + testutil.ProjectResource(testutil.ProjectResourceArgs{
+					Name:                "Config Test Project",
+					Vertical:            projects.VerticalB2B,
+					LiveEnvironmentName: strPtr("Production"),
+				}) + testutil.EnvironmentResource(testutil.EnvironmentResourceArgs{
+					ProjectSlug:              "stytch_project.test.project_slug",
+					Name:                     "Test with Updated Config",
+					CrossOrgPasswordsEnabled: &falseVal,
+					UserImpersonationEnabled: &falseVal,
+					UserLockSelfServeEnabled: &falseVal,
+					UserLockThreshold:        &threshold,
+					UserLockTTL:              &ttl,
 				}),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_environment.test", "name", "Test with Updated Config"),
