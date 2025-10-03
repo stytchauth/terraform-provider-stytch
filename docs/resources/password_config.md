@@ -46,6 +46,7 @@ resource "stytch_password_config" "example" {
 ### Read-Only
 
 - `id` (String) A computed ID field used for Terraform resource management (format: project_slug.environment_slug).
+- `last_updated` (String) Timestamp of the last Terraform update.
 
 ## Import
 

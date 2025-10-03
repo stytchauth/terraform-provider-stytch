@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -47,6 +48,7 @@ type passwordConfigModel struct {
 	ValidationPolicy            types.String `tfsdk:"validation_policy"`
 	LudsMinPasswordLength       types.Int64  `tfsdk:"luds_min_password_length"`
 	LudsMinPasswordComplexity   types.Int64  `tfsdk:"luds_min_password_complexity"`
+	LastUpdated                 types.String `tfsdk:"last_updated"`
 }
 
 func (r *passwordConfigResource) Configure(
@@ -148,6 +150,10 @@ func (r *passwordConfigResource) Schema(
 					int64planmodifier.UseStateForUnknown(),
 				},
 			},
+			"last_updated": schema.StringAttribute{
+				Description: "Timestamp of the last Terraform update.",
+				Computed:    true,
+			},
 		},
 	}
 }
@@ -195,6 +201,7 @@ func (r *passwordConfigResource) Create(
 	tflog.Info(ctx, "Created password config")
 
 	plan.ID = types.StringValue(fmt.Sprintf("%s.%s", plan.ProjectSlug.ValueString(), plan.EnvironmentSlug.ValueString()))
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	r.updateModelFromAPI(&plan, &setResp.PasswordStrengthConfig)
 
 	diags = resp.State.Set(ctx, plan)
@@ -275,6 +282,7 @@ func (r *passwordConfigResource) Update(
 
 	tflog.Info(ctx, "Updated password config")
 
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	r.updateModelFromAPI(&plan, &setResp.PasswordStrengthConfig)
 
 	diags = resp.State.Set(ctx, plan)

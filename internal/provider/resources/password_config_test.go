@@ -67,9 +67,10 @@ func TestAccPasswordConfigResource(t *testing.T) {
 					},
 					{
 						// Test ImportState.
-						ResourceName:      "stytch_password_config.test",
-						ImportState:       true,
-						ImportStateVerify: true,
+						ResourceName:            "stytch_password_config.test",
+						ImportState:             true,
+						ImportStateVerify:       true,
+						ImportStateVerifyIgnore: []string{"last_updated"},
 					},
 					// Delete is automatically tested in resource.TestCase.
 				},
