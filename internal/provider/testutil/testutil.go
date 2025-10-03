@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stytchauth/stytch-management-go/v3/pkg/models/projects"
+
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -13,31 +15,155 @@ import (
 )
 
 const (
-	// providerConfig is a shared configuration to combine with the actual test configuration so the Stytch client is
-	// properly configured. The tester should set the STYTCH_ environment variables for the workspace key and secret to
-	// allow the tests to run properly.
+	// ProviderConfig is a shared configuration to combine with the actual test configuration so the
+	// Stytch client is properly configured. The tester should set the STYTCH_ environment variables
+	// for the workspace key and secret to allow the tests to run properly.
 	ProviderConfig = `provider "stytch" {}`
 )
 
-// testAccProtoV6ProviderFactories are used to instantiate a provider during
-// acceptance testing. The factory function will be invoked for every Terraform
-// CLI command executed to create a provider server to which the CLI can
-// reattach.
+// TestAccProtoV6ProviderFactories are used to instantiate a provider during acceptance testing.
+// The factory function will be invoked for every Terraform CLI command executed to create a
+// provider server to which the CLI can reattach.
 var TestAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"stytch": providerserver.NewProtocol6WithError(provider.New("test")()),
 }
 
-var ConsumerProjectConfig = `
-resource "stytch_project" "project" {
-  name     = "test"
-  vertical = "CONSUMER"
-}`
+var ConsumerProjectConfig = ProjectResource(
+	ProjectResourceArgs{
+		Name:     "test-consumer",
+		Vertical: projects.VerticalConsumer,
+	})
 
-var B2BProjectConfig = `
-resource "stytch_project" "project" {
-  name     = "test-b2b"
-  vertical = "B2B"
-}`
+var B2BProjectConfig = ProjectResource(ProjectResourceArgs{
+	Name:     "test-b2b",
+	Vertical: projects.VerticalB2B,
+})
+
+type ProjectResourceArgs struct {
+	Name                         string
+	Vertical                     projects.Vertical
+	ProjectSlug                  *string
+	LiveEnvironmentSlug          *string
+	LiveEnvironmentName          *string
+	CrossOrgPasswordsEnabled     *bool
+	UserImpersonationEnabled     *bool
+	ZeroDowntimeSessionMigration *string
+	UserLockSelfServeEnabled     *bool
+	UserLockThreshold            *int32
+	UserLockTTL                  *int32
+	IdpAuthorizationURL          *string
+	IdpDCREnabled                *bool
+	IdpDCRTemplate               *string
+}
+
+type EnvironmentResourceArgs struct {
+	ProjectSlug                  string
+	EnvironmentSlug              *string
+	Name                         string
+	CrossOrgPasswordsEnabled     *bool
+	UserImpersonationEnabled     *bool
+	ZeroDowntimeSessionMigration *string
+	UserLockSelfServeEnabled     *bool
+	UserLockThreshold            *int32
+	UserLockTTL                  *int32
+	IdpAuthorizationURL          *string
+	IdpDCREnabled                *bool
+	IdpDCRTemplate               *string
+}
+
+func ProjectResource(args ProjectResourceArgs) string {
+	config := fmt.Sprintf(`
+resource "stytch_project" "test" {
+  name     = "%s"
+  vertical = "%s"`, args.Name, string(args.Vertical))
+
+	if args.ProjectSlug != nil {
+		config += fmt.Sprintf("\n  project_slug = \"%s\"", *args.ProjectSlug)
+	}
+
+	config += "\n  live_environment = {"
+	if args.LiveEnvironmentSlug != nil {
+		config += fmt.Sprintf("\n    environment_slug = \"%s\"", *args.LiveEnvironmentSlug)
+	}
+	envName := "Production"
+	if args.LiveEnvironmentName != nil {
+		envName = *args.LiveEnvironmentName
+	}
+	config += fmt.Sprintf("\n    name = \"%s\"", envName)
+
+	if args.CrossOrgPasswordsEnabled != nil {
+		config += fmt.Sprintf("\n    cross_org_passwords_enabled = %t", *args.CrossOrgPasswordsEnabled)
+	}
+	if args.UserImpersonationEnabled != nil {
+		config += fmt.Sprintf("\n    user_impersonation_enabled = %t", *args.UserImpersonationEnabled)
+	}
+	if args.ZeroDowntimeSessionMigration != nil {
+		config += fmt.Sprintf("\n    zero_downtime_session_migration_url = \"%s\"", *args.ZeroDowntimeSessionMigration)
+	}
+	if args.UserLockSelfServeEnabled != nil {
+		config += fmt.Sprintf("\n    user_lock_self_serve_enabled = %t", *args.UserLockSelfServeEnabled)
+	}
+	if args.UserLockThreshold != nil {
+		config += fmt.Sprintf("\n    user_lock_threshold = %d", *args.UserLockThreshold)
+	}
+	if args.UserLockTTL != nil {
+		config += fmt.Sprintf("\n    user_lock_ttl = %d", *args.UserLockTTL)
+	}
+	if args.IdpAuthorizationURL != nil {
+		config += fmt.Sprintf("\n    idp_authorization_url = \"%s\"", *args.IdpAuthorizationURL)
+	}
+	if args.IdpDCREnabled != nil {
+		config += fmt.Sprintf("\n    idp_dynamic_client_registration_enabled = %t", *args.IdpDCREnabled)
+	}
+	if args.IdpDCRTemplate != nil {
+		config += fmt.Sprintf("\n    idp_dynamic_client_registration_access_token_template_content = \"%s\"", *args.IdpDCRTemplate)
+	}
+
+	config += "\n  }"
+	config += "\n}"
+	return config
+}
+
+func EnvironmentResource(args EnvironmentResourceArgs) string {
+	config := fmt.Sprintf(`
+resource "stytch_environment" "test" {
+  project_slug = %s
+  name         = "%s"`, args.ProjectSlug, args.Name)
+
+	if args.EnvironmentSlug != nil {
+		config += fmt.Sprintf("\n  environment_slug = \"%s\"", *args.EnvironmentSlug)
+	}
+	if args.CrossOrgPasswordsEnabled != nil {
+		config += fmt.Sprintf("\n  cross_org_passwords_enabled = %t", *args.CrossOrgPasswordsEnabled)
+	}
+	if args.UserImpersonationEnabled != nil {
+		config += fmt.Sprintf("\n  user_impersonation_enabled = %t", *args.UserImpersonationEnabled)
+	}
+	if args.ZeroDowntimeSessionMigration != nil {
+		config += fmt.Sprintf("\n  zero_downtime_session_migration_url = \"%s\"", *args.ZeroDowntimeSessionMigration)
+	}
+	if args.UserLockSelfServeEnabled != nil {
+		config += fmt.Sprintf("\n  user_lock_self_serve_enabled = %t", *args.UserLockSelfServeEnabled)
+	}
+	if args.UserLockThreshold != nil {
+		config += fmt.Sprintf("\n  user_lock_threshold = %d", *args.UserLockThreshold)
+	}
+	if args.UserLockTTL != nil {
+		config += fmt.Sprintf("\n  user_lock_ttl = %d", *args.UserLockTTL)
+	}
+	if args.IdpAuthorizationURL != nil {
+		config += fmt.Sprintf("\n  idp_authorization_url = \"%s\"", *args.IdpAuthorizationURL)
+	}
+	if args.IdpDCREnabled != nil {
+		config += fmt.Sprintf("\n  idp_dynamic_client_registration_enabled = %t", *args.IdpDCREnabled)
+	}
+	if args.IdpDCRTemplate != nil {
+		config += fmt.Sprintf("\n  idp_dynamic_client_registration_access_token_template_content = \"%s\"", *args.IdpDCRTemplate)
+	}
+
+	config += "\n}"
+	return config
+}
 
 type TestCase struct {
 	Name   string

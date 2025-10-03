@@ -39,8 +39,8 @@ type projectResource struct {
 	client *api.API
 }
 
-// NOTE: This struct is almost identical to that of the environment resource
-// see internal/provider/resources/environment.go environmentResourceModel
+// NOTE: This struct is almost identical to that of the environment resource.
+// See internal/provider/resources/environment.go environmentResourceModel.
 type environmentModel struct {
 	EnvironmentSlug                                        types.String `tfsdk:"environment_slug"`
 	Name                                                   types.String `tfsdk:"name"`
@@ -607,7 +607,7 @@ func (r *projectResource) ImportState(ctx context.Context, req resource.ImportSt
 	resource.ImportStatePassthroughID(ctx, path.Root("project_slug"), req, resp)
 }
 
-// Helper method to build environment model from API response
+// Helper method to build the environment model from API response.
 func refreshFromLiveEnv(env environments.Environment) environmentModel {
 	return environmentModel{
 		EnvironmentSlug:                     types.StringValue(env.EnvironmentSlug),
@@ -626,7 +626,7 @@ func refreshFromLiveEnv(env environments.Environment) environmentModel {
 	}
 }
 
-// Helper method to create environment request from plan
+// Helper method to create environment request from plan.
 func buildEnvironmentCreateRequest(projectSlug string, liveEnvPlan environmentModel) environments.CreateRequest {
 	createEnvReq := environments.CreateRequest{
 		ProjectSlug: projectSlug,

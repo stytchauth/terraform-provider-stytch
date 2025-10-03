@@ -26,9 +26,8 @@ var (
 
 // StytchProvider defines the provider implementation.
 type StytchProvider struct {
-	// version is set to the provider version on release, "dev" when the
-	// provider is built and ran locally, and "test" when running acceptance
-	// testing.
+	// version is set to the provider version on release, "dev" when the provider is built and ran
+	// locally, and "test" when running acceptance testing.
 	version string
 }
 
@@ -39,12 +38,16 @@ type StytchProviderModel struct {
 	BaseURI            types.String `tfsdk:"base_uri"`
 }
 
-func (p *StytchProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+func (p *StytchProvider) Metadata(
+	_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse,
+) {
 	resp.TypeName = "stytch"
 	resp.Version = p.version
 }
 
-func (p *StytchProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *StytchProvider) Schema(
+	_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse,
+) {
 	resp.Schema = schema.Schema{
 		Description: "Interact with Stytch's [Programmatic Workspace Actions API](https://stytch.com/docs/workspace-management/pwa/overview) to configure your workspace, including projects, redirect URLs, email templates and more.",
 		Attributes: map[string]schema.Attribute{
@@ -65,13 +68,16 @@ func (p *StytchProvider) Schema(ctx context.Context, req provider.SchemaRequest,
 	}
 }
 
-func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+func (p *StytchProvider) Configure(
+	ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse,
+) {
 	tflog.Info(ctx, "Configuring the Stytch provider")
 
 	var config StytchProviderModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
-	// If practitioner provided a configuration value for any of the attributes, it must be a known value.
+	// If the practitioner provided a configuration value for any of the attributes, it must be a
+	// known value.
 
 	if config.WorkspaceKeyID.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
@@ -103,7 +109,8 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		return
 	}
 
-	// Now we default values to environment variables, but override with Terraform configuration values if set.
+	// We default values to environment variables, but override with Terraform configuration values if
+	// set.
 
 	workspaceKeyID := os.Getenv("STYTCH_WORKSPACE_KEY_ID")
 	workspaceKeySecret := os.Getenv("STYTCH_WORKSPACE_KEY_SECRET")
@@ -166,18 +173,19 @@ func (p *StytchProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	tflog.Info(ctx, "Stytch provider configured", map[string]any{"success": true})
 }
 
-func (p *StytchProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		resources.NewProjectResource,
 		resources.NewEnvironmentResource,
+		resources.NewProjectResource,
+		resources.NewSecretResource,
 	}
 }
 
-func (p *StytchProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+func (p *StytchProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return nil
 }
 
-func (p *StytchProvider) Functions(ctx context.Context) []func() function.Function {
+func (p *StytchProvider) Functions(_ context.Context) []func() function.Function {
 	return nil
 }
 
