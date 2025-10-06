@@ -177,6 +177,7 @@ func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource
 	return []func() resource.Resource{
 		resources.NewCountryCodeAllowlistResource,
 		resources.NewEnvironmentResource,
+		resources.NewPasswordConfigResource,
 		resources.NewProjectResource,
 		resources.NewPublicTokenResource,
 		resources.NewSecretResource,
