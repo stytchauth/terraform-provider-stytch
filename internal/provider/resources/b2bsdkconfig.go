@@ -566,14 +566,13 @@ func (r *b2bSDKConfigResource) Schema(
 				},
 			},
 			"project_slug": schema.StringAttribute{
-				Required: true,
-				Description: "The slug of the B2B project for which to set the SDK config. You may only " +
-					"specify one SDK config per project.",
+				Required:    true,
+				Description: "The slug of the B2B project for which to set the SDK config.",
 			},
 			"environment_slug": schema.StringAttribute{
 				Required: true,
 				Description: "The slug of the environment within the B2B project for which to set the " +
-					"SDK config.",
+					"SDK config. You may only specify one SDK config per project.",
 			},
 			"last_updated": schema.StringAttribute{
 				Description: "Timestamp of the last Terraform update of the order.",
