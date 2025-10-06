@@ -38,9 +38,9 @@ EOT
 }
 
 // TestAccTrustedTokenProfileResource performs acceptance tests for the
-// stytch_trusted_token_profiles resource.
-func TestAccTrustedTokenProfilesResource(t *testing.T) {
-	const resourceName = "stytch_trusted_token_profiles.test_profile"
+// stytch_trusted_token_profile resource.
+func TestAccTrustedTokenProfileResource(t *testing.T) {
+	const resourceName = "stytch_trusted_token_profile.test_profile"
 
 	type testConfig struct {
 		Name             string
@@ -192,7 +192,7 @@ func TestAccTrustedTokenProfilesResource(t *testing.T) {
 			})
 
 			initialResourceConfig := fmt.Sprintf(`
-				resource "stytch_trusted_token_profiles" "test_profile" {
+				resource "stytch_trusted_token_profile" "test_profile" {
 					project_slug     = stytch_project.test.project_slug
 					environment_slug = stytch_environment.test.environment_slug
 					name             = "%s"
@@ -271,7 +271,7 @@ func TestAccTrustedTokenProfilesResource(t *testing.T) {
 
 			// Build update Terraform configuration
 			updateResourceConfig := fmt.Sprintf(`
-				resource "stytch_trusted_token_profiles" "test_profile" {
+				resource "stytch_trusted_token_profile" "test_profile" {
 					project_slug     = stytch_project.test.project_slug
 					environment_slug = stytch_environment.test.environment_slug
 					name             = "%s"

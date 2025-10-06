@@ -25,20 +25,20 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &trustedTokenProfilesResource{}
-	_ resource.ResourceWithConfigure   = &trustedTokenProfilesResource{}
-	_ resource.ResourceWithImportState = &trustedTokenProfilesResource{}
+	_ resource.Resource                = &trustedTokenProfileResource{}
+	_ resource.ResourceWithConfigure   = &trustedTokenProfileResource{}
+	_ resource.ResourceWithImportState = &trustedTokenProfileResource{}
 )
 
-func NewTrustedTokenProfilesResource() resource.Resource {
-	return &trustedTokenProfilesResource{}
+func NewTrustedTokenProfileResource() resource.Resource {
+	return &trustedTokenProfileResource{}
 }
 
-type trustedTokenProfilesResource struct {
+type trustedTokenProfileResource struct {
 	client *api.API
 }
 
-type trustedTokenProfilesModel struct {
+type trustedTokenProfileModel struct {
 	ID                   types.String `tfsdk:"id"`
 	ProjectSlug          types.String `tfsdk:"project_slug"`
 	EnvironmentSlug      types.String `tfsdk:"environment_slug"`
@@ -67,7 +67,7 @@ func (m pemFileModel) AttributeTypes() map[string]attr.Type {
 }
 
 // Configure sets provider-level data for the resource.
-func (r *trustedTokenProfilesResource) Configure(
+func (r *trustedTokenProfileResource) Configure(
 	_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse,
 ) {
 	if req.ProviderData == nil {
@@ -87,14 +87,14 @@ func (r *trustedTokenProfilesResource) Configure(
 }
 
 // Metadata returns the resource type name.
-func (r *trustedTokenProfilesResource) Metadata(
+func (r *trustedTokenProfileResource) Metadata(
 	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_trusted_token_profiles"
+	resp.TypeName = req.ProviderTypeName + "_trusted_token_profile"
 }
 
 // Schema defines the schema for the resource.
-func (r *trustedTokenProfilesResource) Schema(
+func (r *trustedTokenProfileResource) Schema(
 	ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
@@ -191,7 +191,7 @@ func (r *trustedTokenProfilesResource) Schema(
 	}
 }
 
-func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(r trustedtokenprofiles.TrustedTokenProfile) diag.Diagnostics {
+func (ttp *trustedTokenProfileModel) refreshFromTrustedTokenProfile(r trustedtokenprofiles.TrustedTokenProfile) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	ttp.ProfileID = types.StringValue(r.ID)
@@ -239,7 +239,7 @@ func (ttp *trustedTokenProfilesModel) refreshFromTrustedTokenProfile(r trustedto
 }
 
 // extractPEMFilesFromPlan extracts PEM file content from the plan.
-func extractPEMFilesFromPlan(plan trustedTokenProfilesModel) ([]string, diag.Diagnostics) {
+func extractPEMFilesFromPlan(plan trustedTokenProfileModel) ([]string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var pemFiles []string
 
@@ -261,7 +261,7 @@ func extractPEMFilesFromPlan(plan trustedTokenProfilesModel) ([]string, diag.Dia
 }
 
 // extractPEMFilesFromState extracts PEM file content and IDs from the state.
-func extractPEMFilesFromState(state trustedTokenProfilesModel) (map[string]string, diag.Diagnostics) {
+func extractPEMFilesFromState(state trustedTokenProfileModel) (map[string]string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	pemFileMap := make(map[string]string) // public_key -> pem_file_id
 
@@ -289,7 +289,7 @@ func extractPEMFilesFromState(state trustedTokenProfilesModel) (map[string]strin
 }
 
 // extractPEMFilesFromPlanAsMap extracts PEM file content from the plan as a map for comparison.
-func extractPEMFilesFromPlanAsMap(plan trustedTokenProfilesModel) (map[string]bool, diag.Diagnostics) {
+func extractPEMFilesFromPlanAsMap(plan trustedTokenProfileModel) (map[string]bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	pemFileMap := make(map[string]bool)
 
@@ -311,10 +311,10 @@ func extractPEMFilesFromPlanAsMap(plan trustedTokenProfilesModel) (map[string]bo
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *trustedTokenProfilesResource) Create(
+func (r *trustedTokenProfileResource) Create(
 	ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse,
 ) {
-	var plan trustedTokenProfilesModel
+	var plan trustedTokenProfileModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -387,10 +387,10 @@ func (r *trustedTokenProfilesResource) Create(
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *trustedTokenProfilesResource) Read(
+func (r *trustedTokenProfileResource) Read(
 	ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse,
 ) {
-	var state trustedTokenProfilesModel
+	var state trustedTokenProfileModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -472,10 +472,10 @@ func (r *trustedTokenProfilesResource) Read(
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *trustedTokenProfilesResource) Update(
+func (r *trustedTokenProfileResource) Update(
 	ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse,
 ) {
-	var plan, state trustedTokenProfilesModel
+	var plan, state trustedTokenProfileModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -629,10 +629,10 @@ func (r *trustedTokenProfilesResource) Update(
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *trustedTokenProfilesResource) Delete(
+func (r *trustedTokenProfileResource) Delete(
 	ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse,
 ) {
-	var state trustedTokenProfilesModel
+	var state trustedTokenProfileModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -662,7 +662,7 @@ func (r *trustedTokenProfilesResource) Delete(
 }
 
 // ImportState imports the resource into Terraform state.
-func (r *trustedTokenProfilesResource) ImportState(
+func (r *trustedTokenProfileResource) ImportState(
 	ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse,
 ) {
 	ctx = tflog.SetField(ctx, "import_id", req.ID)
