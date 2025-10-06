@@ -1,6 +1,7 @@
-# Define a country code allowlist for a Stytch project.
-resource "stytch_country_code_allowlist" "sms_country_code_allowlist" {
-  project_id      = stytch_project.consumer_project.test_project_id
-  delivery_method = "sms"
-  country_codes   = ["US", "CA"]
+# Define a country code allowlist for SMS delivery
+resource "stytch_country_code_allowlist" "example" {
+  project_slug     = "my-project"
+  environment_slug = "production"
+  delivery_method  = "sms"
+  country_codes    = ["US", "CA", "GB"]
 }
