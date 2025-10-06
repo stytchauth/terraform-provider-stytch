@@ -49,8 +49,8 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
 ### Required
 
 - `config` (Attributes) The B2B project SDK configuration. (see [below for nested schema](#nestedatt--config))
-- `environment_slug` (String) The slug of the environment within the B2B project for which to set the SDK config.
-- `project_slug` (String) The slug of the B2B project for which to set the SDK config. You may only specify one SDK config per project.
+- `environment_slug` (String) The slug of the environment within the B2B project for which to set the SDK config. You may only specify one SDK config per project.
+- `project_slug` (String) The slug of the B2B project for which to set the SDK config.
 
 ### Read-Only
 
