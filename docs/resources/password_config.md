@@ -41,7 +41,7 @@ resource "stytch_password_config" "example" {
 - `check_breach_on_creation` (Boolean) Whether to use the HaveIBeenPwned database to detect password breaches when a user first creates their password.
 - `luds_min_password_complexity` (Number) The minimum number of character types (Lowercase, Uppercase, Digits, Symbols) in a password when using a LUDS validation_policy. Must be between 1 and 4.
 - `luds_min_password_length` (Number) The minimum number of characters in a password if using a LUDS validation_policy. Must be between 8 and 32.
-- `validate_on_authentication` (Boolean) Whether to require a password reset on authentication if a user's current password no longer meets the project's current policy requirements.
+- `validate_on_authentication` (Boolean) Whether to require a password reset on authentication if a user's current password no longer meets the environment's current policy requirements.
 
 ### Read-Only
 

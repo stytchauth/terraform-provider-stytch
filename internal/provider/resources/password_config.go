@@ -120,7 +120,7 @@ func (r *passwordConfigResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
-				Description: "Whether to require a password reset on authentication if a user's current password no longer meets the project's current policy requirements.",
+				Description: "Whether to require a password reset on authentication if a user's current password no longer meets the environment's current policy requirements.",
 			},
 			"validation_policy": schema.StringAttribute{
 				Required:    true,
