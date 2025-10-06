@@ -181,6 +181,7 @@ func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource
 		resources.NewProjectResource,
 		resources.NewPublicTokenResource,
 		resources.NewSecretResource,
+		resources.NewTrustedTokenProfileResource,
 	}
 }
 
