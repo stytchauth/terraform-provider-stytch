@@ -1,2 +1,3 @@
-# A Stytch trusted token profile can be imported by specifying the relevant project ID and the profile ID
-terraform import stytch_trusted_token_profiles.simple_example project-live-00000000-0000-0000-0000-000000000000.trusted-token-profile-test-00000000-0000-0000-0000-000000000000
+# A Stytch trusted token profile can be imported by specifying the project slug, environment slug, and profile ID
+# Format: project_slug.environment_slug.profile_id
+terraform import stytch_trusted_token_profiles.example my-project.production.ttp-test-11111111-1111-1111-1111-111111111111
