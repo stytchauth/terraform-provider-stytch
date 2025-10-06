@@ -1,6 +1,5 @@
 package resources
 
-// nolint:unused
 func toStrings[T ~string](values []T) []string {
 	strs := make([]string, len(values))
 	for i, v := range values {
