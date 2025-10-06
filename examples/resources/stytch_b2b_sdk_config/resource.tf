@@ -1,6 +1,7 @@
 # Manage B2B SDK configuration
 resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
-  project_id = stytch_project.b2b_project.test_project_id
+  project_slug     = stytch_project.example.project_slug
+  environment_slug = stytch_environment.test.environment_slug
   config = {
     basic = {
       enabled                   = true
