@@ -572,10 +572,10 @@ func (r *b2bSDKConfigResource) Schema(
 			"environment_slug": schema.StringAttribute{
 				Required: true,
 				Description: "The slug of the environment within the B2B project for which to set the " +
-					"SDK config. You may only specify one SDK config per project.",
+					"SDK config. You may only specify one SDK config per environment.",
 			},
 			"last_updated": schema.StringAttribute{
-				Description: "Timestamp of the last Terraform update of the order.",
+				Description: "Timestamp of the last Terraform update.",
 				Computed:    true,
 			},
 			"config": schema.SingleNestedAttribute{
@@ -689,7 +689,7 @@ func (r *b2bSDKConfigResource) Schema(
 									"magic links. PKCE increases security by introducing a one-time secret for " +
 									"each auth flow to ensure the user starts and completes each auth flow from " +
 									"the same application on the device. This prevents a malicious app from " +
-									"intercepting a redirect and authenticating with the users token. PKCE is " +
+									"intercepting a redirect and authenticating with the user's token. PKCE is " +
 									"enabled by default for mobile SDKs.",
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.UseStateForUnknown(),
@@ -720,7 +720,7 @@ func (r *b2bSDKConfigResource) Schema(
 									"OAuth. PKCE increases security by introducing a one-time secret for each auth " +
 									"flow to ensure the user starts and completes each auth flow from the same " +
 									"application on the device. This prevents a malicious app from intercepting a " +
-									"redirect and authenticating with the users token. PKCE is enabled by default " +
+									"redirect and authenticating with the user's token. PKCE is enabled by default " +
 									"for mobile SDKs.",
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.UseStateForUnknown(),
@@ -777,7 +777,7 @@ func (r *b2bSDKConfigResource) Schema(
 									"SSO. PKCE increases security by introducing a one-time secret for each auth " +
 									"flow to ensure the user starts and completes each auth flow from the same " +
 									"application on the device. This prevents a malicious app from intercepting a " +
-									"redirect and authenticating with the users token. PKCE is enabled by default " +
+									"redirect and authenticating with the user's token. PKCE is enabled by default " +
 									"for mobile SDKs.",
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.UseStateForUnknown(),
