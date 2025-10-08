@@ -3,12 +3,12 @@
 page_title: "stytch_email_template Resource - stytch"
 subcategory: ""
 description: |-
-  Resource for creating and managing email templates.
+  Resource for creating and managing email templates. Terraform-managed email templates will be consistent across all environments in a project.
 ---
 
 # stytch_email_template (Resource)
 
-Resource for creating and managing email templates.
+Resource for creating and managing email templates. Terraform-managed email templates will be consistent across all environments in a project.
 
 ## Example Usage
 
@@ -105,7 +105,7 @@ resource "stytch_email_template" "custom_html_otp" {
 
 - `name` (String) A human-readable name of the template. This does not have to be unique.
 - `project_slug` (String) The slug of the project to which the email template belongs.
-- `template_id` (String) A unique identifier to use for the template – this is how you'll refer to the template when sending emails from your project or managing this template. It can never be changed after creation.
+- `template_id` (String) An immutable unique identifier to use for the template. This is how you'll refer to the template when sending emails from your project or managing this template. All environments will have an identical email template with this template id.
 
 ### Optional
 
