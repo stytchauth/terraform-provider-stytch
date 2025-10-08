@@ -178,6 +178,7 @@ func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource
 		resources.NewB2BSDKConfigResource,
 		resources.NewConsumerSDKConfigResource,
 		resources.NewCountryCodeAllowlistResource,
+		resources.NewEmailTemplateResource,
 		resources.NewEnvironmentResource,
 		resources.NewJWTTemplateResource,
 		resources.NewPasswordConfigResource,
