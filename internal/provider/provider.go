@@ -181,6 +181,7 @@ func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource
 		resources.NewDefaultEmailTemplateResource,
 		resources.NewEmailTemplateResource,
 		resources.NewEnvironmentResource,
+		resources.NewEventLogStreamingResource,
 		resources.NewJWTTemplateResource,
 		resources.NewPasswordConfigResource,
 		resources.NewProjectResource,
