@@ -229,9 +229,9 @@ resource "stytch_rbac_policy" "consumer_example" {
 - `custom_resources` (Attributes Set) Resources that exist within the environment beyond those defined in stytch_resources. (see [below for nested schema](#nestedatt--custom_resources))
 - `custom_roles` (Attributes Set) Additional roles that exist within the environment beyond the default Stytch roles. (see [below for nested schema](#nestedatt--custom_roles))
 - `custom_scopes` (Attributes Set) Additional scopes that exist within the environment beyond those defined by default. (see [below for nested schema](#nestedatt--custom_scopes))
-- `stytch_admin` (Attributes) **B2B only:** The role assigned to admins within an organization. The role_id and description fields are read-only and cannot be changed. Default permissions for Stytch resources must be retained. (see [below for nested schema](#nestedatt--stytch_admin))
-- `stytch_member` (Attributes) **B2B only:** The default role given to members within the environment. The role_id and description fields are read-only and cannot be changed. Default permissions for Stytch resources must be retained. (see [below for nested schema](#nestedatt--stytch_member))
-- `stytch_user` (Attributes) **Consumer only:** The default role given to users within the environment. The role_id and description fields are read-only and cannot be changed. Default permissions for Stytch resources must be retained. (see [below for nested schema](#nestedatt--stytch_user))
+- `stytch_admin` (Attributes) **B2B only:** The role assigned to admins within an organization. Default permissions for Stytch resources must be retained. (see [below for nested schema](#nestedatt--stytch_admin))
+- `stytch_member` (Attributes) **B2B only:** The default role given to members within the environment. Default permissions for Stytch resources must be retained. (see [below for nested schema](#nestedatt--stytch_member))
+- `stytch_user` (Attributes) **Consumer only:** The default role given to users within the environment. Default permissions for Stytch resources must be retained. (see [below for nested schema](#nestedatt--stytch_user))
 
 ### Read-Only
 
@@ -292,9 +292,7 @@ Optional:
 
 Optional:
 
-- `description` (String) A description of the role
 - `permissions` (Attributes Set) (see [below for nested schema](#nestedatt--stytch_admin--permissions))
-- `role_id` (String) A human-readable name that is unique within the environment
 
 <a id="nestedatt--stytch_admin--permissions"></a>
 ### Nested Schema for `stytch_admin.permissions`
@@ -311,9 +309,7 @@ Optional:
 
 Optional:
 
-- `description` (String) A description of the role
 - `permissions` (Attributes Set) (see [below for nested schema](#nestedatt--stytch_member--permissions))
-- `role_id` (String) A human-readable name that is unique within the environment
 
 <a id="nestedatt--stytch_member--permissions"></a>
 ### Nested Schema for `stytch_member.permissions`
@@ -330,9 +326,7 @@ Optional:
 
 Optional:
 
-- `description` (String) A description of the role
 - `permissions` (Attributes Set) (see [below for nested schema](#nestedatt--stytch_user--permissions))
-- `role_id` (String) A human-readable name that is unique within the environment
 
 <a id="nestedatt--stytch_user--permissions"></a>
 ### Nested Schema for `stytch_user.permissions`

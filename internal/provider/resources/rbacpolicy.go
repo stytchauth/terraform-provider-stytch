@@ -53,39 +53,43 @@ type rbacPolicyModel struct {
 	CustomScopes    types.Set `tfsdk:"custom_scopes"`
 }
 
+// toPolicy converts the Terraform model to an RBAC policy for API requests.
+// It uses toDefaultRole() for default roles (stytch_member, stytch_admin, stytch_user) which returns
+// a DefaultRole containing only permissions, as role_id and description cannot be customized.
+// It uses toRole() for custom roles which returns a full Role with role_id, description, and permissions.
 func (m rbacPolicyModel) toPolicy(ctx context.Context) (rbacpolicy.Policy, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var policy rbacpolicy.Policy
 
-	// B2B fields - use toStytchRole() to omit role_id and description which cannot be edited
+	// B2B fields - use rbacPolicyDefaultRoleModel and toDefaultRole() to create DefaultRole (only permissions)
 	if !m.StytchMember.IsUnknown() && !m.StytchMember.IsNull() {
-		var stytchMember rbacPolicyRoleModel
+		var stytchMember rbacPolicyDefaultRoleModel
 		diags.Append(m.StytchMember.As(ctx, &stytchMember, basetypes.ObjectAsOptions{
 			UnhandledNullAsEmpty:    true,
 			UnhandledUnknownAsEmpty: true,
 		})...)
-		role := stytchMember.toStytchRole()
+		role := stytchMember.toDefaultRole()
 		policy.StytchMember = &role
 	}
 
 	if !m.StytchAdmin.IsUnknown() && !m.StytchAdmin.IsNull() {
-		var stytchAdmin rbacPolicyRoleModel
+		var stytchAdmin rbacPolicyDefaultRoleModel
 		diags.Append(m.StytchAdmin.As(ctx, &stytchAdmin, basetypes.ObjectAsOptions{
 			UnhandledNullAsEmpty:    true,
 			UnhandledUnknownAsEmpty: true,
 		})...)
-		role := stytchAdmin.toStytchRole()
+		role := stytchAdmin.toDefaultRole()
 		policy.StytchAdmin = &role
 	}
 
-	// Consumer field - use toStytchRole() to omit role_id and description which cannot be edited
+	// Consumer field - use rbacPolicyDefaultRoleModel and toDefaultRole() for default roles
 	if !m.StytchUser.IsUnknown() && !m.StytchUser.IsNull() {
-		var stytchUser rbacPolicyRoleModel
+		var stytchUser rbacPolicyDefaultRoleModel
 		diags.Append(m.StytchUser.As(ctx, &stytchUser, basetypes.ObjectAsOptions{
 			UnhandledNullAsEmpty:    true,
 			UnhandledUnknownAsEmpty: true,
 		})...)
-		role := stytchUser.toStytchRole()
+		role := stytchUser.toDefaultRole()
 		policy.StytchUser = &role
 	}
 
@@ -125,6 +129,9 @@ func (m rbacPolicyModel) toPolicy(ctx context.Context) (rbacpolicy.Policy, diag.
 	return policy, diags
 }
 
+// reloadFromPolicy refreshes the Terraform state from an RBAC policy returned by the API.
+// This method is used after Create, Read, and Update operations to ensure the state
+// reflects the actual API response, including computed values like stytch_resources.
 func (m *rbacPolicyModel) reloadFromPolicy(ctx context.Context, p rbacpolicy.Policy) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -132,19 +139,19 @@ func (m *rbacPolicyModel) reloadFromPolicy(ctx context.Context, p rbacpolicy.Pol
 
 	// B2B fields
 	if p.StytchMember != nil {
-		stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(*p.StytchMember))
+		stytchMember, diag := types.ObjectValueFrom(ctx, rbacPolicyDefaultRoleModel{}.AttributeTypes(), rbacPolicyDefaultRoleModelFrom(*p.StytchMember))
 		diags = append(diags, diag...)
 		m.StytchMember = stytchMember
 	} else {
-		m.StytchMember = types.ObjectNull(rbacPolicyRoleModel{}.AttributeTypes())
+		m.StytchMember = types.ObjectNull(rbacPolicyDefaultRoleModel{}.AttributeTypes())
 	}
 
 	if p.StytchAdmin != nil {
-		stytchAdmin, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(*p.StytchAdmin))
+		stytchAdmin, diag := types.ObjectValueFrom(ctx, rbacPolicyDefaultRoleModel{}.AttributeTypes(), rbacPolicyDefaultRoleModelFrom(*p.StytchAdmin))
 		diags = append(diags, diag...)
 		m.StytchAdmin = stytchAdmin
 	} else {
-		m.StytchAdmin = types.ObjectNull(rbacPolicyRoleModel{}.AttributeTypes())
+		m.StytchAdmin = types.ObjectNull(rbacPolicyDefaultRoleModel{}.AttributeTypes())
 	}
 
 	stytchResources := make([]rbacPolicyResourceModel, len(p.StytchResources))
@@ -157,11 +164,11 @@ func (m *rbacPolicyModel) reloadFromPolicy(ctx context.Context, p rbacpolicy.Pol
 
 	// Consumer field
 	if p.StytchUser != nil {
-		stytchUser, diag := types.ObjectValueFrom(ctx, rbacPolicyRoleModel{}.AttributeTypes(), rbacPolicyRoleModelFrom(*p.StytchUser))
+		stytchUser, diag := types.ObjectValueFrom(ctx, rbacPolicyDefaultRoleModel{}.AttributeTypes(), rbacPolicyDefaultRoleModelFrom(*p.StytchUser))
 		diags = append(diags, diag...)
 		m.StytchUser = stytchUser
 	} else {
-		m.StytchUser = types.ObjectNull(rbacPolicyRoleModel{}.AttributeTypes())
+		m.StytchUser = types.ObjectNull(rbacPolicyDefaultRoleModel{}.AttributeTypes())
 	}
 
 	// Shared fields
@@ -192,6 +199,7 @@ func (m *rbacPolicyModel) reloadFromPolicy(ctx context.Context, p rbacpolicy.Pol
 	return diags
 }
 
+// rbacPolicyRoleModel represents a custom role with editable role_id, description, and permissions.
 type rbacPolicyRoleModel struct {
 	RoleID      types.String                `tfsdk:"role_id"`
 	Description types.String                `tfsdk:"description"`
@@ -206,12 +214,24 @@ func (m rbacPolicyRoleModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
+// rbacPolicyDefaultRoleModel represents a Stytch default role (stytch_member, stytch_admin, stytch_user)
+// with only permissions. The role_id and description are managed by Stytch and cannot be customized.
+type rbacPolicyDefaultRoleModel struct {
+	Permissions []rbacPolicyPermissionModel `tfsdk:"permissions"`
+}
+
+func (m rbacPolicyDefaultRoleModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"permissions": types.SetType{ElemType: types.ObjectType{AttrTypes: rbacPolicyPermissionModel{}.AttributeTypes()}},
+	}
+}
+
+// toRole converts a role model to a full Role for custom roles.
+// Custom roles have editable role_id, description, and permissions.
 func (m rbacPolicyRoleModel) toRole() rbacpolicy.Role {
-	roleID := m.RoleID.ValueString()
-	description := m.Description.ValueString()
 	role := rbacpolicy.Role{
-		RoleID:      &roleID,
-		Description: &description,
+		RoleID:      m.RoleID.ValueString(),
+		Description: m.Description.ValueString(),
 		Permissions: make([]rbacpolicy.Permission, len(m.Permissions)),
 	}
 	for i, p := range m.Permissions {
@@ -226,10 +246,10 @@ func (m rbacPolicyRoleModel) toRole() rbacpolicy.Role {
 	return role
 }
 
-// toStytchRole converts to a Role for Stytch default roles, omitting role_id and description
-// as these fields cannot be edited for default roles
-func (m rbacPolicyRoleModel) toStytchRole() rbacpolicy.Role {
-	role := rbacpolicy.Role{
+// toDefaultRole converts a default role model to a DefaultRole for API requests.
+// Used for Stytch default roles (stytch_member, stytch_admin, stytch_user).
+func (m rbacPolicyDefaultRoleModel) toDefaultRole() rbacpolicy.DefaultRole {
+	role := rbacpolicy.DefaultRole{
 		Permissions: make([]rbacpolicy.Permission, len(m.Permissions)),
 	}
 	for i, p := range m.Permissions {
@@ -244,22 +264,28 @@ func (m rbacPolicyRoleModel) toStytchRole() rbacpolicy.Role {
 	return role
 }
 
+// rbacPolicyRoleModelFrom creates a role model from a full Role (used for custom roles).
+// Custom roles have role_id and description fields that are user-defined.
 func rbacPolicyRoleModelFrom(r rbacpolicy.Role) rbacPolicyRoleModel {
 	perms := make([]rbacPolicyPermissionModel, len(r.Permissions))
 	for i, p := range r.Permissions {
 		perms[i] = rbacPolicyPermissionModelFrom(p)
 	}
-	roleID := ""
-	if r.RoleID != nil {
-		roleID = *r.RoleID
-	}
-	description := ""
-	if r.Description != nil {
-		description = *r.Description
-	}
 	return rbacPolicyRoleModel{
-		RoleID:      types.StringValue(roleID),
-		Description: types.StringValue(description),
+		RoleID:      types.StringValue(r.RoleID),
+		Description: types.StringValue(r.Description),
+		Permissions: perms,
+	}
+}
+
+// rbacPolicyDefaultRoleModelFrom creates a default role model from a DefaultRole.
+// Used for Stytch default roles (stytch_member, stytch_admin, stytch_user) which only have permissions.
+func rbacPolicyDefaultRoleModelFrom(r rbacpolicy.DefaultRole) rbacPolicyDefaultRoleModel {
+	perms := make([]rbacPolicyPermissionModel, len(r.Permissions))
+	for i, p := range r.Permissions {
+		perms[i] = rbacPolicyPermissionModelFrom(p)
+	}
+	return rbacPolicyDefaultRoleModel{
 		Permissions: perms,
 	}
 }
@@ -278,6 +304,7 @@ func (m rbacPolicyResourceModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
+// toResource converts a resource model to an RBAC Resource for API requests.
 func (m rbacPolicyResourceModel) toResource() rbacpolicy.Resource {
 	resource := rbacpolicy.Resource{
 		ResourceID:       m.ResourceID.ValueString(),
@@ -290,6 +317,7 @@ func (m rbacPolicyResourceModel) toResource() rbacpolicy.Resource {
 	return resource
 }
 
+// rbacPolicyResourceModelFrom creates a resource model from an RBAC Resource.
 func rbacPolicyResourceModelFrom(r rbacpolicy.Resource) rbacPolicyResourceModel {
 	actions := make([]types.String, len(r.AvailableActions))
 	for i, a := range r.AvailableActions {
@@ -316,6 +344,7 @@ func (m rbacPolicyScopeModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
+// toScope converts a scope model to an RBAC Scope for API requests.
 func (m rbacPolicyScopeModel) toScope() rbacpolicy.Scope {
 	scope := rbacpolicy.Scope{
 		Scope:       m.Scope.ValueString(),
@@ -334,6 +363,7 @@ func (m rbacPolicyScopeModel) toScope() rbacpolicy.Scope {
 	return scope
 }
 
+// rbacPolicyScopeModelFrom creates a scope model from an RBAC Scope.
 func rbacPolicyScopeModelFrom(s rbacpolicy.Scope) rbacPolicyScopeModel {
 	perms := make([]rbacPolicyPermissionModel, len(s.Permissions))
 	for i, p := range s.Permissions {
@@ -358,6 +388,7 @@ func (m rbacPolicyPermissionModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
+// rbacPolicyPermissionModelFrom creates a permission model from an RBAC Permission.
 func rbacPolicyPermissionModelFrom(p rbacpolicy.Permission) rbacPolicyPermissionModel {
 	actions := make([]types.String, len(p.Actions))
 	for i, a := range p.Actions {
@@ -393,6 +424,31 @@ func (r *rbacPolicyResource) Metadata(_ context.Context, req resource.MetadataRe
 	resp.TypeName = req.ProviderTypeName + "_rbac_policy"
 }
 
+// defaultRoleAttributes defines the schema for Stytch default roles (stytch_member, stytch_admin, stytch_user).
+// These roles only have permissions; role_id and description are managed by Stytch.
+var defaultRoleAttributes = map[string]schema.Attribute{
+	"permissions": schema.SetNestedAttribute{
+		Optional: true,
+		Computed: true,
+		NestedObject: schema.NestedAttributeObject{
+			Attributes: map[string]schema.Attribute{
+				"resource_id": schema.StringAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "The ID of the resource that the role can perform actions on.",
+				},
+				"actions": schema.SetAttribute{
+					Optional:    true,
+					Computed:    true,
+					ElementType: types.StringType,
+					Description: "An array of actions that the role can perform on the given resource",
+				},
+			},
+		},
+	},
+}
+
+// roleAttributes defines the schema for custom roles with editable role_id, description, and permissions.
 var roleAttributes = map[string]schema.Attribute{
 	"role_id": schema.StringAttribute{
 		Optional:    true,
@@ -483,17 +539,15 @@ func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Optional: true,
 				Computed: true,
 				Description: "**B2B only:** The default role given to members within the environment. " +
-					"The role_id and description fields are read-only and cannot be changed. " +
 					"Default permissions for Stytch resources must be retained.",
-				Attributes: roleAttributes,
+				Attributes: defaultRoleAttributes,
 			},
 			"stytch_admin": schema.SingleNestedAttribute{
 				Optional: true,
 				Computed: true,
 				Description: "**B2B only:** The role assigned to admins within an organization. " +
-					"The role_id and description fields are read-only and cannot be changed. " +
 					"Default permissions for Stytch resources must be retained.",
-				Attributes: roleAttributes,
+				Attributes: defaultRoleAttributes,
 			},
 			"stytch_resources": schema.SetNestedAttribute{
 				Computed: true,
@@ -507,9 +561,8 @@ func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Optional: true,
 				Computed: true,
 				Description: "**Consumer only:** The default role given to users within the environment. " +
-					"The role_id and description fields are read-only and cannot be changed. " +
 					"Default permissions for Stytch resources must be retained.",
-				Attributes: roleAttributes,
+				Attributes: defaultRoleAttributes,
 			},
 			"custom_roles": schema.SetNestedAttribute{
 				Optional:    true,
