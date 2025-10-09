@@ -1,3 +1,3 @@
-# A Stytch event log streaming destination can be imported by specifying the relevant project ID and the destination ID
-# Note that the sensitive values are not imported, and will need to be set manually.
-terraform import stytch_event_log_streaming.datadog project-live-00000000-0000-0000-0000-000000000000.DATADOG
+# Event log streaming configurations can be imported by specifying the project slug, environment slug, and destination type
+# Note that sensitive values (API keys, passwords) are not imported and will need to be set manually.
+terraform import stytch_event_log_streaming.example my-project-slug.my-environment-slug.DATADOG
