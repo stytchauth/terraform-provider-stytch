@@ -1,2 +1,3 @@
-# Email templates can be imported by specifying the projectID and templateID separated by a '.' character
-terraform import stytch_b2b_sdk_config.example project-live-00000000-0000-0000-0000-000000000000.my-custom-template
+# A Stytch email template can be imported by specifying the project slug and template ID
+# Format: project_slug.template_id
+terraform import stytch_email_template.example my-project.custom-login-template

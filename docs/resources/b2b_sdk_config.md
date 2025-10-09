@@ -49,13 +49,13 @@ resource "stytch_b2b_sdk_config" "b2b_sdk_config" {
 ### Required
 
 - `config` (Attributes) The B2B project SDK configuration. (see [below for nested schema](#nestedatt--config))
-- `environment_slug` (String) The slug of the environment within the B2B project for which to set the SDK config. You may only specify one SDK config per project.
+- `environment_slug` (String) The slug of the environment within the B2B project for which to set the SDK config. You may only specify one SDK config per environment.
 - `project_slug` (String) The slug of the B2B project for which to set the SDK config.
 
 ### Read-Only
 
 - `id` (String) A computed ID field used for Terraform resource management.
-- `last_updated` (String) Timestamp of the last Terraform update of the order.
+- `last_updated` (String) Timestamp of the last Terraform update.
 
 <a id="nestedatt--config"></a>
 ### Nested Schema for `config`
@@ -123,7 +123,7 @@ Optional:
 Optional:
 
 - `enabled` (Boolean) A boolean indicating whether magic links endpoints are enabled in the SDK.
-- `pkce_required` (Boolean) PKCERequired is a boolean indicating whether PKCE is required for magic links. PKCE increases security by introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating with the users token. PKCE is enabled by default for mobile SDKs.
+- `pkce_required` (Boolean) PKCERequired is a boolean indicating whether PKCE is required for magic links. PKCE increases security by introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating with the user's token. PKCE is enabled by default for mobile SDKs.
 
 
 <a id="nestedatt--config--oauth"></a>
@@ -132,7 +132,7 @@ Optional:
 Optional:
 
 - `enabled` (Boolean) A boolean indicating whether OAuth endpoints are enabled in the SDK.
-- `pkce_required` (Boolean) PKCERequired is a boolean indicating whether PKCE is required for OAuth. PKCE increases security by introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating with the users token. PKCE is enabled by default for mobile SDKs.
+- `pkce_required` (Boolean) PKCERequired is a boolean indicating whether PKCE is required for OAuth. PKCE increases security by introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating with the user's token. PKCE is enabled by default for mobile SDKs.
 
 
 <a id="nestedatt--config--otps"></a>
@@ -178,7 +178,7 @@ Optional:
 Optional:
 
 - `enabled` (Boolean) A boolean indicating whether SSO endpoints are enabled in the SDK.
-- `pkce_required` (Boolean) PKCERequired is a boolean indicating whether PKCE is required for SSO. PKCE increases security by introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating with the users token. PKCE is enabled by default for mobile SDKs.
+- `pkce_required` (Boolean) PKCERequired is a boolean indicating whether PKCE is required for SSO. PKCE increases security by introducing a one-time secret for each auth flow to ensure the user starts and completes each auth flow from the same application on the device. This prevents a malicious app from intercepting a redirect and authenticating with the user's token. PKCE is enabled by default for mobile SDKs.
 
 
 <a id="nestedatt--config--totps"></a>

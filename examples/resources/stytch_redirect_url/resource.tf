@@ -1,39 +1,49 @@
-# Manage Stytch Redirect URLs in a consumer project
-resource "stytch_redirect_url" "consumer_redirect_url" {
-  project_id = stytch_project.consumer_project.test_project_id
-  url        = "http://localhost:3000/consumer"
+# Example: Redirect URL for login only
+resource "stytch_redirect_url" "login_redirect" {
+  project_slug     = "my-project"
+  environment_slug = "production"
+  url              = "https://myapp.example.com/auth/callback"
+
+  valid_types = [
+    {
+      type       = "LOGIN"
+      is_default = true
+    }
+  ]
+}
+
+# Example: Redirect URL for multiple authentication types
+resource "stytch_redirect_url" "multi_auth_redirect" {
+  project_slug     = "my-project"
+  environment_slug = "production"
+  url              = "https://myapp.example.com/authenticate"
+
   valid_types = [
     {
       type       = "LOGIN"
       is_default = true
     },
     {
-      type       = "RESET_PASSWORD"
-      is_default = false
-    },
-    {
       type       = "SIGNUP"
       is_default = true
     },
     {
-      type       = "INVITE"
+      type       = "RESET_PASSWORD"
       is_default = false
     }
   ]
 }
 
-# Manage a Stytch Redirect URL in a B2B project (includes DISCOVERY type)
-resource "stytch_redirect_url" "b2b_redirect_url" {
-  project_id = stytch_project.b2b_project.test_project_id
-  url        = "http://localhost:3000/b2b"
+# Example: Development environment redirect URL
+resource "stytch_redirect_url" "dev_redirect" {
+  project_slug     = "my-project"
+  environment_slug = "development"
+  url              = "http://localhost:3000/auth/callback"
+
   valid_types = [
     {
       type       = "LOGIN"
       is_default = true
-    },
-    {
-      type       = "RESET_PASSWORD"
-      is_default = false
     },
     {
       type       = "SIGNUP"
@@ -41,10 +51,6 @@ resource "stytch_redirect_url" "b2b_redirect_url" {
     },
     {
       type       = "INVITE"
-      is_default = false
-    },
-    {
-      type       = "DISCOVERY"
       is_default = true
     }
   ]
