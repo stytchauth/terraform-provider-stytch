@@ -19,16 +19,16 @@ func TestAccPasswordConfigResource(t *testing.T) {
       resource "stytch_password_config" "test" {
         project_slug                     = stytch_project.test.project_slug
         environment_slug                 = stytch_environment.test.environment_slug
-        check_breach_on_creation         = true
-        check_breach_on_authentication   = true
-        validate_on_authentication       = false
+        check_breach_on_authentication   = false
         validation_policy                = "ZXCVBN"
       }`,
 			Checks: []resource.TestCheckFunc{
 				resource.TestCheckResourceAttrSet("stytch_password_config.test", "id"),
+				// Confirms that default value is set correctly
 				resource.TestCheckResourceAttr("stytch_password_config.test", "check_breach_on_creation", "true"),
-				resource.TestCheckResourceAttr("stytch_password_config.test", "check_breach_on_authentication", "true"),
-				resource.TestCheckResourceAttr("stytch_password_config.test", "validate_on_authentication", "false"),
+				resource.TestCheckResourceAttr("stytch_password_config.test", "check_breach_on_authentication", "false"),
+				// Confirms that default value is set correctly
+				resource.TestCheckResourceAttr("stytch_password_config.test", "validate_on_authentication", "true"),
 				resource.TestCheckResourceAttr("stytch_password_config.test", "validation_policy", "ZXCVBN"),
 			},
 		},
