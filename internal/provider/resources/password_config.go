@@ -107,19 +107,19 @@ func (r *passwordConfigResource) Schema(
 			"check_breach_on_creation": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Default:     booldefault.StaticBool(false),
+				Default:     booldefault.StaticBool(true),
 				Description: "Whether to use the HaveIBeenPwned database to detect password breaches when a user first creates their password.",
 			},
 			"check_breach_on_authentication": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Default:     booldefault.StaticBool(false),
+				Default:     booldefault.StaticBool(true),
 				Description: "Whether to use the HaveIBeenPwned database to detect password breaches when a user authenticates.",
 			},
 			"validate_on_authentication": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Default:     booldefault.StaticBool(false),
+				Default:     booldefault.StaticBool(true),
 				Description: "Whether to require a password reset on authentication if a user's current password no longer meets the environment's current policy requirements.",
 			},
 			"validation_policy": schema.StringAttribute{
