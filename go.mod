@@ -11,6 +11,8 @@ require (
 	github.com/stytchauth/stytch-management-go/v3 v3.0.0-alpha.3
 )
 
+replace github.com/stytchauth/stytch-management-go/v3 => ../stytch-management-go
+
 require (
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
