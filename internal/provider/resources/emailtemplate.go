@@ -25,9 +25,10 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &emailTemplateResource{}
-	_ resource.ResourceWithConfigure   = &emailTemplateResource{}
-	_ resource.ResourceWithImportState = &emailTemplateResource{}
+	_ resource.Resource                 = &emailTemplateResource{}
+	_ resource.ResourceWithConfigure    = &emailTemplateResource{}
+	_ resource.ResourceWithImportState  = &emailTemplateResource{}
+	_ resource.ResourceWithUpgradeState = &emailTemplateResource{}
 )
 
 func NewEmailTemplateResource() resource.Resource {
@@ -47,6 +48,68 @@ type emailTemplateModel struct {
 	SenderInformation       types.Object `tfsdk:"sender_information"`
 	PrebuiltCustomization   types.Object `tfsdk:"prebuilt_customization"`
 	CustomHTMLCustomization types.Object `tfsdk:"custom_html_customization"`
+}
+
+type emailTemplateResourceModelV0 struct {
+	LiveProjectID           types.String `tfsdk:"live_project_id"`
+	TemplateID              types.String `tfsdk:"template_id"`
+	Name                    types.String `tfsdk:"name"`
+	SenderInformation       types.Object `tfsdk:"sender_information"`
+	PrebuiltCustomization   types.Object `tfsdk:"prebuilt_customization"`
+	CustomHTMLCustomization types.Object `tfsdk:"custom_html_customization"`
+}
+
+var emailTemplateResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"live_project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"template_id": schema.StringAttribute{
+			Required: true,
+		},
+		"name": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"sender_information": schema.SingleNestedAttribute{
+			Optional: true,
+			Computed: true,
+			Attributes: map[string]schema.Attribute{
+				"from_local_part": schema.StringAttribute{Optional: true, Computed: true},
+				"from_domain":     schema.StringAttribute{Optional: true, Computed: true},
+				"from_name":       schema.StringAttribute{Optional: true, Computed: true},
+				"reply_to_local_part": schema.StringAttribute{
+					Optional: true,
+					Computed: true,
+				},
+				"reply_to_name": schema.StringAttribute{
+					Optional: true,
+					Computed: true,
+				},
+			},
+		},
+		"prebuilt_customization": schema.SingleNestedAttribute{
+			Optional: true,
+			Computed: true,
+			Attributes: map[string]schema.Attribute{
+				"button_border_radius": schema.Float32Attribute{Optional: true, Computed: true},
+				"button_color":         schema.StringAttribute{Optional: true, Computed: true},
+				"button_text_color":    schema.StringAttribute{Optional: true, Computed: true},
+				"font_family":          schema.StringAttribute{Optional: true, Computed: true},
+				"text_alignment":       schema.StringAttribute{Optional: true, Computed: true},
+			},
+		},
+		"custom_html_customization": schema.SingleNestedAttribute{
+			Optional: true,
+			Computed: true,
+			Attributes: map[string]schema.Attribute{
+				"template_type":     schema.StringAttribute{Optional: true, Computed: true},
+				"html_content":      schema.StringAttribute{Optional: true, Computed: true},
+				"plaintext_content": schema.StringAttribute{Optional: true, Computed: true},
+				"subject":           schema.StringAttribute{Optional: true, Computed: true},
+			},
+		},
+	},
 }
 
 type emailTemplateSenderInformationModel struct {
@@ -339,6 +402,71 @@ func (r *emailTemplateResource) Configure(ctx context.Context, req resource.Conf
 	r.client = client
 }
 
+func (r *emailTemplateResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &emailTemplateResourceLegacySchema,
+			StateUpgrader: r.upgradeEmailTemplateStateV0ToV1,
+		},
+	}
+}
+
+func (r *emailTemplateResource) upgradeEmailTemplateStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy email template state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior emailTemplateResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	legacyProject, diags := resolveLegacyProject(ctx, r.client, prior.LiveProjectID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	getResp, err := r.client.EmailTemplates.Get(ctx, emailtemplates.GetRequest{
+		ProjectSlug: legacyProject.ProjectSlug,
+		TemplateID:  prior.TemplateID.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to retrieve email template",
+			err.Error(),
+		)
+		return
+	}
+
+	newState := emailTemplateModel{
+		ProjectSlug: types.StringValue(legacyProject.ProjectSlug),
+		TemplateID:  types.StringValue(prior.TemplateID.ValueString()),
+		LastUpdated: types.StringValue(time.Now().Format(time.RFC850)),
+	}
+
+	newState.SenderInformation = types.ObjectNull(emailTemplateSenderInformationModel{}.AttributeTypes())
+	newState.PrebuiltCustomization = types.ObjectNull(emailTemplatePrebuiltCustomizationModel{}.AttributeTypes())
+	newState.CustomHTMLCustomization = types.ObjectNull(emailTemplateCustomHTMLCustomizationModel{}.AttributeTypes())
+
+	diags = r.updateModelFromAPI(ctx, &newState, getResp.EmailTemplate)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 // Metadata returns the resource type name.
 func (r *emailTemplateResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_email_template"
@@ -347,6 +475,7 @@ func (r *emailTemplateResource) Metadata(_ context.Context, req resource.Metadat
 // Schema defines the schema for the resource.
 func (r *emailTemplateResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "Resource for creating and managing email templates. Terraform-managed email templates will be consistent across all environments in a project.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

@@ -163,7 +163,7 @@ func (r *projectResource) upgradeProjectStateV0ToV1(
 		return
 	}
 
-	migrationResp, err := r.client.Migration.GetProject(ctx, migrationprojects.GetProjectRequest{
+	migrationResp, err := r.client.V1ToV3MigrationClient.GetProject(ctx, migrationprojects.GetProjectRequest{
 		ProjectID: liveProjectID,
 	})
 	if err != nil {
@@ -184,7 +184,7 @@ func (r *projectResource) upgradeProjectStateV0ToV1(
 		return
 	}
 
-	liveEnvironmentSlug := legacy.LiveProjectSlug
+	liveEnvironmentSlug := legacy.LiveEnvironmentSlug
 	if liveEnvironmentSlug == "" {
 		resp.Diagnostics.AddError(
 			"Missing live environment slug",

@@ -22,9 +22,10 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &redirectURLResource{}
-	_ resource.ResourceWithConfigure   = &redirectURLResource{}
-	_ resource.ResourceWithImportState = &redirectURLResource{}
+	_ resource.Resource                 = &redirectURLResource{}
+	_ resource.ResourceWithConfigure    = &redirectURLResource{}
+	_ resource.ResourceWithImportState  = &redirectURLResource{}
+	_ resource.ResourceWithUpgradeState = &redirectURLResource{}
 )
 
 func NewRedirectURLResource() resource.Resource {
@@ -42,6 +43,40 @@ type redirectURLModel struct {
 	LastUpdated     types.String `tfsdk:"last_updated"`
 	URL             types.String `tfsdk:"url"`
 	ValidTypes      types.Set    `tfsdk:"valid_types"`
+}
+
+type redirectURLResourceModelV0 struct {
+	ProjectID   types.String `tfsdk:"project_id"`
+	LastUpdated types.String `tfsdk:"last_updated"`
+	URL         types.String `tfsdk:"url"`
+	ValidTypes  types.Set    `tfsdk:"valid_types"`
+}
+
+var redirectURLResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"last_updated": schema.StringAttribute{
+			Computed: true,
+		},
+		"url": schema.StringAttribute{
+			Required: true,
+		},
+		"valid_types": schema.SetNestedAttribute{
+			NestedObject: schema.NestedAttributeObject{
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						Required: true,
+					},
+					"is_default": schema.BoolAttribute{
+						Required: true,
+					},
+				},
+			},
+			Required: true,
+		},
+	},
 }
 
 // updateModelFromAPI updates the model with values from the API response
@@ -98,6 +133,67 @@ func (r *redirectURLResource) Configure(ctx context.Context, req resource.Config
 	r.client = client
 }
 
+func (r *redirectURLResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &redirectURLResourceLegacySchema,
+			StateUpgrader: r.upgradeRedirectURLStateV0ToV1,
+		},
+	}
+}
+
+func (r *redirectURLResource) upgradeRedirectURLStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy redirect URL state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior redirectURLResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := resolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	redirectResp, err := r.client.RedirectURLs.Get(ctx, redirecturls.GetRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: environmentSlug,
+		URL:             prior.URL.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to retrieve redirect URL",
+			err.Error(),
+		)
+		return
+	}
+
+	newState := redirectURLModel{
+		ProjectSlug:     types.StringValue(projectSlug),
+		EnvironmentSlug: types.StringValue(environmentSlug),
+		URL:             prior.URL,
+		ValidTypes:      prior.ValidTypes,
+	}
+	r.updateModelFromAPI(&newState, redirectResp.RedirectURL)
+	newState.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 // Metadata returns the resource type name.
 func (r *redirectURLResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_redirect_url"
@@ -106,6 +202,7 @@ func (r *redirectURLResource) Metadata(_ context.Context, req resource.MetadataR
 // Schema defines the schema for the resource.
 func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "A redirect URL for an environment.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

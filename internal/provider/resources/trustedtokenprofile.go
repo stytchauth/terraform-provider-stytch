@@ -25,9 +25,10 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &trustedTokenProfileResource{}
-	_ resource.ResourceWithConfigure   = &trustedTokenProfileResource{}
-	_ resource.ResourceWithImportState = &trustedTokenProfileResource{}
+	_ resource.Resource                 = &trustedTokenProfileResource{}
+	_ resource.ResourceWithConfigure    = &trustedTokenProfileResource{}
+	_ resource.ResourceWithImportState  = &trustedTokenProfileResource{}
+	_ resource.ResourceWithUpgradeState = &trustedTokenProfileResource{}
 )
 
 func NewTrustedTokenProfileResource() resource.Resource {
@@ -52,6 +53,58 @@ type trustedTokenProfileModel struct {
 	PublicKeyType        types.String `tfsdk:"public_key_type"`
 	CanJITProvision      types.Bool   `tfsdk:"can_jit_provision"`
 	LastUpdated          types.String `tfsdk:"last_updated"`
+}
+
+type trustedTokenProfileResourceModelV0 struct {
+	ProjectID            types.String `tfsdk:"project_id"`
+	ProfileID            types.String `tfsdk:"profile_id"`
+	Name                 types.String `tfsdk:"name"`
+	Audience             types.String `tfsdk:"audience"`
+	Issuer               types.String `tfsdk:"issuer"`
+	JwksURL              types.String `tfsdk:"jwks_url"`
+	AttributeMappingJSON types.String `tfsdk:"attribute_mapping_json"`
+	PEMFiles             types.Set    `tfsdk:"pem_files"`
+	PublicKeyType        types.String `tfsdk:"public_key_type"`
+}
+
+var trustedTokenProfileResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"profile_id": schema.StringAttribute{
+			Computed: true,
+		},
+		"name": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"audience": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"issuer": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"jwks_url": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"attribute_mapping_json": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"pem_files": schema.SetAttribute{
+			ElementType: types.StringType,
+			Optional:    true,
+			Computed:    true,
+		},
+		"public_key_type": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+	},
 }
 
 type pemFileModel struct {
@@ -86,6 +139,119 @@ func (r *trustedTokenProfileResource) Configure(
 	r.client = client
 }
 
+func (r *trustedTokenProfileResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &trustedTokenProfileResourceLegacySchema,
+			StateUpgrader: r.upgradeTrustedTokenProfileStateV0ToV1,
+		},
+	}
+}
+
+func (r *trustedTokenProfileResource) upgradeTrustedTokenProfileStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy trusted token profile state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior trustedTokenProfileResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := resolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	profileID := prior.ProfileID.ValueString()
+	if profileID == "" {
+		resp.Diagnostics.AddError(
+			"Missing profile ID",
+			"The stored state did not contain a trusted token profile ID, so it cannot be upgraded automatically.",
+		)
+		return
+	}
+
+	getResp, err := r.client.TrustedTokenProfiles.Get(ctx, &trustedtokenprofiles.GetTrustedTokenProfileRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: environmentSlug,
+		ProfileID:       profileID,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to retrieve trusted token profile",
+			err.Error(),
+		)
+		return
+	}
+
+	profile := getResp.TrustedTokenProfile
+	newState := trustedTokenProfileModel{
+		ID:              types.StringValue(fmt.Sprintf("%s.%s.%s", projectSlug, environmentSlug, profileID)),
+		ProjectSlug:     types.StringValue(projectSlug),
+		EnvironmentSlug: types.StringValue(environmentSlug),
+		ProfileID:       types.StringValue(profileID),
+		Name:            types.StringValue(profile.Name),
+		Audience:        types.StringValue(profile.Audience),
+		Issuer:          types.StringValue(profile.Issuer),
+		PublicKeyType:   types.StringValue(string(profile.PublicKeyType)),
+		CanJITProvision: types.BoolValue(profile.CanJITProvision),
+		LastUpdated:     types.StringValue(time.Now().Format(time.RFC850)),
+		PEMFiles:        types.SetNull(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()}),
+	}
+
+	if profile.JwksURL != "" {
+		newState.JwksURL = types.StringValue(profile.JwksURL)
+	} else {
+		newState.JwksURL = types.StringNull()
+	}
+
+	if len(profile.AttributeMapping) > 0 {
+		jsonBytes, err := json.Marshal(profile.AttributeMapping)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to marshal attribute mapping", err.Error())
+			return
+		}
+		newState.AttributeMappingJSON = types.StringValue(string(jsonBytes))
+	} else {
+		newState.AttributeMappingJSON = types.StringNull()
+	}
+
+	if len(profile.PEMFiles) > 0 {
+		pemFiles := make([]pemFileModel, 0, len(profile.PEMFiles))
+		for _, pemFile := range profile.PEMFiles {
+			pemFiles = append(pemFiles, pemFileModel{
+				PEMFileID: types.StringValue(pemFile.ID),
+				PublicKey: types.StringValue(pemFile.PublicKey),
+			})
+		}
+		newState.PEMFiles = types.SetValueMust(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()}, func() []attr.Value {
+			values := make([]attr.Value, len(pemFiles))
+			for i, pemFile := range pemFiles {
+				values[i] = types.ObjectValueMust(pemFile.AttributeTypes(), map[string]attr.Value{
+					"pem_file_id": pemFile.PEMFileID,
+					"public_key":  pemFile.PublicKey,
+				})
+			}
+			return values
+		}())
+	}
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 // Metadata returns the resource type name.
 func (r *trustedTokenProfileResource) Metadata(
 	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
@@ -98,6 +264,7 @@ func (r *trustedTokenProfileResource) Schema(
 	ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "Resource for managing trusted token profiles.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

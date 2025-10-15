@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
-	migrationprojects "github.com/stytchauth/stytch-management-go/v3/pkg/models/migration/projects"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/publictokens"
 )
 
@@ -112,12 +111,11 @@ func (r *publicTokenResource) upgradePublicTokenStateV0ToV1(
 		return
 	}
 
-	projectID := prior.ProjectID.ValueString()
-	if projectID == "" {
-		resp.Diagnostics.AddError(
-			"Missing legacy project ID",
-			"The stored state did not contain a project ID, so it cannot be upgraded automatically.",
-		)
+	projectSlug, environmentSlug, diags := resolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -126,44 +124,6 @@ func (r *publicTokenResource) upgradePublicTokenStateV0ToV1(
 		resp.Diagnostics.AddError(
 			"Missing public token",
 			"The stored state did not contain a public token value, so it cannot be upgraded automatically.",
-		)
-		return
-	}
-
-	migrationResp, err := r.client.Migration.GetProject(ctx, migrationprojects.GetProjectRequest{
-		ProjectID: projectID,
-	})
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to retrieve legacy project metadata",
-			err.Error(),
-		)
-		return
-	}
-
-	legacy := migrationResp.Project
-	projectSlug := legacy.ProjectSlug
-	if projectSlug == "" {
-		resp.Diagnostics.AddError(
-			"Missing project slug",
-			"The migration endpoint did not return a project slug for the legacy project.",
-		)
-		return
-	}
-
-	var environmentSlug string
-	switch projectID {
-	case legacy.LiveProjectID:
-		environmentSlug = legacy.LiveProjectSlug
-		if environmentSlug == "" {
-			environmentSlug = "production"
-		}
-	case legacy.TestProjectID:
-		environmentSlug = legacy.TestProjectSlug
-	default:
-		resp.Diagnostics.AddError(
-			"Unknown project identifier",
-			"The stored project ID does not match the live or test project returned by the migration endpoint.",
 		)
 		return
 	}

@@ -28,6 +28,7 @@ var (
 	_ resource.ResourceWithConfigure        = &passwordConfigResource{}
 	_ resource.ResourceWithImportState      = &passwordConfigResource{}
 	_ resource.ResourceWithConfigValidators = &passwordConfigResource{}
+	_ resource.ResourceWithUpgradeState     = &passwordConfigResource{}
 )
 
 func NewPasswordConfigResource() resource.Resource {
@@ -51,6 +52,48 @@ type passwordConfigModel struct {
 	LastUpdated                 types.String `tfsdk:"last_updated"`
 }
 
+type passwordConfigResourceModelV0 struct {
+	ProjectID                   types.String `tfsdk:"project_id"`
+	CheckBreachOnCreation       types.Bool   `tfsdk:"check_breach_on_creation"`
+	CheckBreachOnAuthentication types.Bool   `tfsdk:"check_breach_on_authentication"`
+	ValidateOnAuthentication    types.Bool   `tfsdk:"validate_on_authentication"`
+	ValidationPolicy            types.String `tfsdk:"validation_policy"`
+	LudsMinPasswordLength       types.Int32  `tfsdk:"luds_min_password_length"`
+	LudsMinPasswordComplexity   types.Int32  `tfsdk:"luds_min_password_complexity"`
+}
+
+var passwordConfigResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"check_breach_on_creation": schema.BoolAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"check_breach_on_authentication": schema.BoolAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"validate_on_authentication": schema.BoolAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"validation_policy": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"luds_min_password_length": schema.Int32Attribute{
+			Optional: true,
+			Computed: true,
+		},
+		"luds_min_password_complexity": schema.Int32Attribute{
+			Optional: true,
+			Computed: true,
+		},
+	},
+}
+
 func (r *passwordConfigResource) Configure(
 	ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse,
 ) {
@@ -71,6 +114,66 @@ func (r *passwordConfigResource) Configure(
 	r.client = client
 }
 
+func (r *passwordConfigResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &passwordConfigResourceLegacySchema,
+			StateUpgrader: r.upgradePasswordConfigStateV0ToV1,
+		},
+	}
+}
+
+func (r *passwordConfigResource) upgradePasswordConfigStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy password config state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior passwordConfigResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := resolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	getResp, err := r.client.PasswordStrengthConfig.Get(ctx, passwordstrengthconfig.GetRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: environmentSlug,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to retrieve password config",
+			err.Error(),
+		)
+		return
+	}
+
+	newState := passwordConfigModel{
+		ID:              types.StringValue(fmt.Sprintf("%s.%s", projectSlug, environmentSlug)),
+		ProjectSlug:     types.StringValue(projectSlug),
+		EnvironmentSlug: types.StringValue(environmentSlug),
+		LastUpdated:     types.StringValue(time.Now().Format(time.RFC850)),
+	}
+
+	r.updateModelFromAPI(&newState, &getResp.PasswordStrengthConfig)
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 func (r *passwordConfigResource) Metadata(
 	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
 ) {
@@ -81,6 +184,7 @@ func (r *passwordConfigResource) Schema(
 	_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "Manages password strength configuration for an environment within a Stytch project.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

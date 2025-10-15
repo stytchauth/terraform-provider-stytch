@@ -27,9 +27,10 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &eventLogStreamingResource{}
-	_ resource.ResourceWithConfigure   = &eventLogStreamingResource{}
-	_ resource.ResourceWithImportState = &eventLogStreamingResource{}
+	_ resource.Resource                 = &eventLogStreamingResource{}
+	_ resource.ResourceWithConfigure    = &eventLogStreamingResource{}
+	_ resource.ResourceWithImportState  = &eventLogStreamingResource{}
+	_ resource.ResourceWithUpgradeState = &eventLogStreamingResource{}
 )
 
 // preserveSensitiveValuePlanModifier is a plan modifier that preserves sensitive values
@@ -79,6 +80,22 @@ type eventLogStreamingModel struct {
 	DatadogConfig     types.Object `tfsdk:"datadog_config"`
 	GrafanaLokiConfig types.Object `tfsdk:"grafana_loki_config"`
 	Enabled           types.Bool   `tfsdk:"enabled"`
+}
+
+type eventLogStreamingResourceModelV0 struct {
+	ProjectID       types.String `tfsdk:"project_id"`
+	DestinationType types.String `tfsdk:"destination_type"`
+}
+
+var eventLogStreamingResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"destination_type": schema.StringAttribute{
+			Required: true,
+		},
+	},
 }
 
 type datadogConfigModel struct {
@@ -218,8 +235,75 @@ func (r *eventLogStreamingResource) Configure(_ context.Context, req resource.Co
 	r.client = client
 }
 
+func (r *eventLogStreamingResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &eventLogStreamingResourceLegacySchema,
+			StateUpgrader: r.upgradeEventLogStreamingStateV0ToV1,
+		},
+	}
+}
+
+func (r *eventLogStreamingResource) upgradeEventLogStreamingStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy event log streaming state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior eventLogStreamingResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := resolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	destinationType := strings.ToUpper(prior.DestinationType.ValueString())
+	getResp, err := r.client.EventLogStreaming.Get(ctx, eventlogstreaming.GetEventLogStreamingRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: environmentSlug,
+		DestinationType: eventlogstreaming.DestinationType(destinationType),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to retrieve event log streaming configuration", err.Error())
+		return
+	}
+
+	newState := eventLogStreamingModel{
+		ID:                types.StringValue(fmt.Sprintf("%s.%s.%s", projectSlug, environmentSlug, destinationType)),
+		ProjectSlug:       types.StringValue(projectSlug),
+		EnvironmentSlug:   types.StringValue(environmentSlug),
+		DestinationType:   types.StringValue(destinationType),
+		LastUpdated:       types.StringValue(time.Now().Format(time.RFC850)),
+		DatadogConfig:     types.ObjectNull(datadogConfigModelAttrTypes),
+		GrafanaLokiConfig: types.ObjectNull(grafanaLokiConfigModelAttrTypes),
+	}
+
+	diags = newState.refreshFromMaskedEventLogStreaming(ctx, getResp.EventLogStreamingConfig)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 func (r *eventLogStreamingResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "Manages event log streaming configuration for an environment. Configure streaming to send Stytch event logs to external destinations like Datadog or Grafana Loki.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
