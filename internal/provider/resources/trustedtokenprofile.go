@@ -95,10 +95,20 @@ var trustedTokenProfileResourceLegacySchema = schema.Schema{
 			Optional: true,
 			Computed: true,
 		},
-		"pem_files": schema.SetAttribute{
-			ElementType: types.StringType,
-			Optional:    true,
-			Computed:    true,
+		"pem_files": schema.SetNestedAttribute{
+			Optional: true,
+			Computed: true,
+			NestedObject: schema.NestedAttributeObject{
+				Attributes: map[string]schema.Attribute{
+					"pem_file_id": schema.StringAttribute{
+						Computed: true,
+					},
+					"public_key": schema.StringAttribute{
+						Optional: true,
+						Computed: true,
+					},
+				},
+			},
 		},
 		"public_key_type": schema.StringAttribute{
 			Optional: true,
@@ -256,7 +266,9 @@ func (r *trustedTokenProfileResource) upgradeTrustedTokenProfileStateV0ToV1(
 func (r *trustedTokenProfileResource) Metadata(
 	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_trusted_token_profile"
+	// NOTE: This is a decision from when the first version of this resource was
+	// created. It should eventually be changed to singular.
+	resp.TypeName = req.ProviderTypeName + "_trusted_token_profiles"
 }
 
 // Schema defines the schema for the resource.

@@ -142,7 +142,7 @@ func (r *countryCodeAllowlistResource) upgradeCountryCodeAllowlistStateV0ToV1(
 		return
 	}
 
-	deliveryMethod := strings.ToUpper(prior.DeliveryMethod.ValueString())
+	deliveryMethod := prior.DeliveryMethod.ValueString()
 	var countryCodes []string
 
 	switch countrycodeallowlist.DeliveryMethod(deliveryMethod) {

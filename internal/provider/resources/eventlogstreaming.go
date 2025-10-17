@@ -85,6 +85,10 @@ type eventLogStreamingModel struct {
 type eventLogStreamingResourceModelV0 struct {
 	ProjectID       types.String `tfsdk:"project_id"`
 	DestinationType types.String `tfsdk:"destination_type"`
+	// We need to fetch these from the previous version to preserve sensitive data
+	// in the StateUpgrade
+	DatadogConfig     types.Object `tfsdk:"datadog_config"`
+	GrafanaLokiConfig types.Object `tfsdk:"grafana_loki_config"`
 }
 
 var eventLogStreamingResourceLegacySchema = schema.Schema{
@@ -94,6 +98,33 @@ var eventLogStreamingResourceLegacySchema = schema.Schema{
 		},
 		"destination_type": schema.StringAttribute{
 			Required: true,
+		},
+		"datadog_config": schema.SingleNestedAttribute{
+			Optional: true,
+			Attributes: map[string]schema.Attribute{
+				"site": schema.StringAttribute{
+					Optional: true,
+				},
+				"api_key": schema.StringAttribute{
+					Optional:  true,
+					Sensitive: true,
+				},
+			},
+		},
+		"grafana_loki_config": schema.SingleNestedAttribute{
+			Optional: true,
+			Attributes: map[string]schema.Attribute{
+				"hostname": schema.StringAttribute{
+					Optional: true,
+				},
+				"username": schema.StringAttribute{
+					Optional: true,
+				},
+				"password": schema.StringAttribute{
+					Optional:  true,
+					Sensitive: true,
+				},
+			},
 		},
 	},
 }
@@ -271,10 +302,12 @@ func (r *eventLogStreamingResource) upgradeEventLogStreamingStateV0ToV1(
 	}
 
 	destinationType := strings.ToUpper(prior.DestinationType.ValueString())
+	destinationTypeEnum := eventlogstreaming.DestinationType(destinationType)
+
 	getResp, err := r.client.EventLogStreaming.Get(ctx, eventlogstreaming.GetEventLogStreamingRequest{
 		ProjectSlug:     projectSlug,
 		EnvironmentSlug: environmentSlug,
-		DestinationType: eventlogstreaming.DestinationType(destinationType),
+		DestinationType: destinationTypeEnum,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to retrieve event log streaming configuration", err.Error())
@@ -289,14 +322,20 @@ func (r *eventLogStreamingResource) upgradeEventLogStreamingStateV0ToV1(
 		LastUpdated:       types.StringValue(time.Now().Format(time.RFC850)),
 		DatadogConfig:     types.ObjectNull(datadogConfigModelAttrTypes),
 		GrafanaLokiConfig: types.ObjectNull(grafanaLokiConfigModelAttrTypes),
+		Enabled:           types.BoolValue(getResp.EventLogStreamingConfig.StreamingStatus == eventlogstreaming.StreamingStatusActive),
 	}
 
-	diags = newState.refreshFromMaskedEventLogStreaming(ctx, getResp.EventLogStreamingConfig)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	switch destinationTypeEnum {
+	case eventlogstreaming.DestinationTypeDatadog:
+		if !prior.DatadogConfig.IsNull() && !prior.DatadogConfig.IsUnknown() {
+			newState.DatadogConfig = prior.DatadogConfig
+		}
+	case eventlogstreaming.DestinationTypeGrafanaLoki:
+		if !prior.GrafanaLokiConfig.IsNull() && !prior.GrafanaLokiConfig.IsUnknown() {
+			newState.GrafanaLokiConfig = prior.GrafanaLokiConfig
 
+		}
+	}
 	diags = resp.State.Set(ctx, newState)
 	resp.Diagnostics.Append(diags...)
 }
