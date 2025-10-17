@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/secrets"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -113,7 +114,7 @@ func (r *secretResource) upgradeSecretStateV0ToV1(
 		return
 	}
 
-	projectSlug, environmentSlug, diags := resolveLegacyProjectAndEnvironment(
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
 		ctx, r.client, prior.ProjectID.ValueString(),
 	)
 	resp.Diagnostics.Append(diags...)

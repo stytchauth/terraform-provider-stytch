@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/emailtemplates"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -429,7 +430,7 @@ func (r *emailTemplateResource) upgradeEmailTemplateStateV0ToV1(
 		return
 	}
 
-	legacyProject, diags := resolveLegacyProject(ctx, r.client, prior.LiveProjectID.ValueString())
+	legacyProject, diags := utils.ResolveLegacyProject(ctx, r.client, prior.LiveProjectID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

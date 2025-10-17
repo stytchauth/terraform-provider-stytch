@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/jwttemplates"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -115,7 +116,7 @@ func (r *jwtTemplateResource) upgradeJWTTemplateStateV0ToV1(
 		return
 	}
 
-	projectSlug, environmentSlug, diags := resolveLegacyProjectAndEnvironment(
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
 		ctx, r.client, prior.ProjectID.ValueString(),
 	)
 	resp.Diagnostics.Append(diags...)

@@ -25,6 +25,7 @@ import (
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/projects"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/sdk"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -583,7 +584,7 @@ func (r *b2bSDKConfigResource) upgradeB2BSDKConfigStateV0ToV1(
 		return
 	}
 
-	projectSlug, environmentSlug, diags := resolveLegacyProjectAndEnvironment(
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
 		ctx, r.client, prior.ProjectID.ValueString(),
 	)
 	resp.Diagnostics.Append(diags...)
