@@ -19,13 +19,15 @@ import (
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/projects"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/rbacpolicy"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &rbacPolicyResource{}
-	_ resource.ResourceWithConfigure   = &rbacPolicyResource{}
-	_ resource.ResourceWithImportState = &rbacPolicyResource{}
+	_ resource.Resource                 = &rbacPolicyResource{}
+	_ resource.ResourceWithConfigure    = &rbacPolicyResource{}
+	_ resource.ResourceWithImportState  = &rbacPolicyResource{}
+	_ resource.ResourceWithUpgradeState = &rbacPolicyResource{}
 )
 
 func NewRBACPolicyResource() resource.Resource {
@@ -51,6 +53,18 @@ type rbacPolicyModel struct {
 	CustomRoles     types.Set `tfsdk:"custom_roles"`
 	CustomResources types.Set `tfsdk:"custom_resources"`
 	CustomScopes    types.Set `tfsdk:"custom_scopes"`
+}
+
+type rbacPolicyResourceModelV0 struct {
+	ProjectID types.String `tfsdk:"project_id"`
+}
+
+var rbacPolicyResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+	},
 }
 
 // toPolicy converts the Terraform model to an RBAC policy for API requests.
@@ -419,6 +433,74 @@ func (r *rbacPolicyResource) Configure(ctx context.Context, req resource.Configu
 	r.client = client
 }
 
+func (r *rbacPolicyResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &rbacPolicyResourceLegacySchema,
+			StateUpgrader: r.upgradeRBACPolicyStateV0ToV1,
+		},
+	}
+}
+
+func (r *rbacPolicyResource) upgradeRBACPolicyStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy RBAC policy state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior rbacPolicyResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	getResp, err := r.client.RBACPolicy.Get(ctx, rbacpolicy.GetRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: environmentSlug,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to retrieve RBAC policy", err.Error())
+		return
+	}
+
+	newState := rbacPolicyModel{
+		ID:              types.StringValue(fmt.Sprintf("%s.%s", projectSlug, environmentSlug)),
+		ProjectSlug:     types.StringValue(projectSlug),
+		EnvironmentSlug: types.StringValue(environmentSlug),
+		LastUpdated:     types.StringValue(time.Now().Format(time.RFC850)),
+		StytchMember:    types.ObjectNull(rbacPolicyDefaultRoleModel{}.AttributeTypes()),
+		StytchAdmin:     types.ObjectNull(rbacPolicyDefaultRoleModel{}.AttributeTypes()),
+		StytchResources: types.SetNull(types.ObjectType{AttrTypes: rbacPolicyResourceModel{}.AttributeTypes()}),
+		StytchUser:      types.ObjectNull(rbacPolicyDefaultRoleModel{}.AttributeTypes()),
+		CustomRoles:     types.SetNull(types.ObjectType{AttrTypes: rbacPolicyRoleModel{}.AttributeTypes()}),
+		CustomResources: types.SetNull(types.ObjectType{AttrTypes: rbacPolicyResourceModel{}.AttributeTypes()}),
+		CustomScopes:    types.SetNull(types.ObjectType{AttrTypes: rbacPolicyScopeModel{}.AttributeTypes()}),
+	}
+
+	diags = newState.reloadFromPolicy(ctx, getResp.Policy)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 // Metadata returns the resource type name.
 func (r *rbacPolicyResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_rbac_policy"
@@ -503,6 +585,7 @@ var resourceAttributes = map[string]schema.Attribute{
 // Schema defines the schema for the resource.
 func (r *rbacPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Version: 1,
 		Description: "A role-based access control (RBAC) policy for an environment. Supports both B2B and Consumer projects.\n\n" +
 			"**B2B-specific fields:** stytch_member, stytch_admin, stytch_resources\n" +
 			"**Consumer-specific fields:** stytch_user\n" +

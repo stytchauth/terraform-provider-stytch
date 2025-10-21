@@ -1,5 +1,5 @@
 # Example: Trusted Token Profile with JWK public key type
-resource "stytch_trusted_token_profile" "example_jwk" {
+resource "stytch_trusted_token_profiles" "example_jwk" {
   project_slug      = "my-project"
   environment_slug  = "production"
   name              = "My JWK Profile"
@@ -16,7 +16,7 @@ resource "stytch_trusted_token_profile" "example_jwk" {
 }
 
 # Example: Trusted Token Profile with PEM public key type
-resource "stytch_trusted_token_profile" "example_pem" {
+resource "stytch_trusted_token_profiles" "example_pem" {
   project_slug     = "my-project"
   environment_slug = "production"
   name             = "My PEM Profile"

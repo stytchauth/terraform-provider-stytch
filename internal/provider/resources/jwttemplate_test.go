@@ -114,3 +114,38 @@ resource "stytch_jwt_template" "test" {
 		})
 	}
 }
+
+func TestAccJWTTemplateResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1ConsumerProjectConfig + `
+resource "stytch_jwt_template" "test" {
+  project_id      = stytch_project.test.live_project_id
+  template_type    = "SESSION"
+  template_content = <<EOT
+  {
+    "role": {{ user.trusted_metadata.role }},
+    "scope": "openid profile email"
+  }
+  EOT
+  custom_audience  = "my-audience"
+}
+`
+
+	v3Config := testutil.ConsumerProjectConfig + `
+resource "stytch_jwt_template" "test" {
+  project_slug     = stytch_project.test.project_slug
+  environment_slug = stytch_project.test.live_environment.environment_slug
+  template_type    = "SESSION"
+  template_content = <<EOT
+  {
+    "role": {{ user.trusted_metadata.role }},
+    "scope": "openid profile email"
+  }
+  EOT
+  custom_audience  = "my-audience"
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}

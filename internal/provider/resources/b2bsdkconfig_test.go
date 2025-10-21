@@ -184,3 +184,36 @@ func TestAccB2BSDKConfigResource_Invalid(t *testing.T) {
 		errorCase.AssertAnyError(t)
 	}
 }
+
+func TestAccB2BSDKConfigResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1B2BProjectConfig + `
+resource "stytch_b2b_sdk_config" "test" {
+  project_id = stytch_project.test.live_project_id
+  config = {
+    basic = {
+      enabled                       = true
+      allow_self_onboarding         = false
+      enable_member_permissions     = false
+    }
+  }
+}
+`
+
+	v3Config := testutil.B2BProjectConfig + `
+resource "stytch_b2b_sdk_config" "test" {
+  project_slug     = stytch_project.test.project_slug
+  environment_slug = stytch_project.test.live_environment.environment_slug
+  config = {
+    basic = {
+      enabled                       = true
+      allow_self_onboarding         = false
+      enable_member_permissions     = false
+    }
+  }
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}

@@ -311,3 +311,32 @@ func TestAccEventLogStreamingResource_Invalid(t *testing.T) {
 		},
 	})
 }
+
+func TestAccEventLogStreamingResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1ConsumerProjectConfig + `
+resource "stytch_event_log_streaming" "test" {
+  project_id       = stytch_project.test.live_project_id
+  destination_type = "DATADOG"
+  datadog_config = {
+    api_key = "0123456789abcdef0123456789abcdef"
+    site    = "US"
+  }
+}
+`
+
+	v3Config := testutil.ConsumerProjectConfig + `
+resource "stytch_event_log_streaming" "test" {
+  project_slug     = stytch_project.test.project_slug
+  environment_slug = stytch_project.test.live_environment.environment_slug
+  destination_type = "DATADOG"
+  datadog_config = {
+    api_key = "0123456789abcdef0123456789abcdef"
+    site    = "US"
+  }
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}

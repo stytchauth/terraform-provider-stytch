@@ -87,3 +87,36 @@ func TestAccRedirectURLResource(t *testing.T) {
 		})
 	}
 }
+
+func TestAccRedirectURLResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1ConsumerProjectConfig + `
+resource "stytch_redirect_url" "test" {
+  project_id  = stytch_project.test.live_project_id
+  url         = "http://localhost:3000/consumer"
+  valid_types = [
+    {
+      type       = "LOGIN"
+      is_default = true
+    }
+  ]
+}
+`
+
+	v3Config := testutil.ConsumerProjectConfig + `
+resource "stytch_redirect_url" "test" {
+  project_slug     = stytch_project.test.project_slug
+  environment_slug = stytch_project.test.live_environment.environment_slug
+  url              = "http://localhost:3000/consumer"
+  valid_types = [
+    {
+      type       = "LOGIN"
+      is_default = true
+    }
+  ]
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}
