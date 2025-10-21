@@ -112,3 +112,26 @@ func TestAccCountryCodeAllowlistResourceUpdate(t *testing.T) {
 		},
 	})
 }
+
+func TestAccCountryCodeAllowlistResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1ConsumerProjectConfig + `
+resource "stytch_country_code_allowlist" "test" {
+  project_id      = stytch_project.test.live_project_id
+  delivery_method = "sms"
+  country_codes   = ["US", "CA", "GB"]
+}
+`
+
+	v3Config := testutil.ConsumerProjectConfig + `
+resource "stytch_country_code_allowlist" "test" {
+  project_slug     = stytch_project.test.project_slug
+  environment_slug = stytch_project.test.live_environment.environment_slug
+  delivery_method  = "sms"
+  country_codes    = ["US", "CA", "GB"]
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}

@@ -18,13 +18,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/countrycodeallowlist"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &countryCodeAllowlistResource{}
-	_ resource.ResourceWithConfigure   = &countryCodeAllowlistResource{}
-	_ resource.ResourceWithImportState = &countryCodeAllowlistResource{}
+	_ resource.Resource                 = &countryCodeAllowlistResource{}
+	_ resource.ResourceWithConfigure    = &countryCodeAllowlistResource{}
+	_ resource.ResourceWithImportState  = &countryCodeAllowlistResource{}
+	_ resource.ResourceWithUpgradeState = &countryCodeAllowlistResource{}
 )
 
 func NewCountryCodeAllowlistResource() resource.Resource {
@@ -42,6 +44,28 @@ type countryCodeAllowlistModel struct {
 	DeliveryMethod  types.String `tfsdk:"delivery_method"`
 	CountryCodes    types.Set    `tfsdk:"country_codes"`
 	LastUpdated     types.String `tfsdk:"last_updated"`
+}
+
+type countryCodeAllowlistResourceModelV0 struct {
+	ProjectID      types.String `tfsdk:"project_id"`
+	DeliveryMethod types.String `tfsdk:"delivery_method"`
+	CountryCodes   types.List   `tfsdk:"country_codes"`
+}
+
+var countryCodeAllowlistResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"delivery_method": schema.StringAttribute{
+			Required: true,
+		},
+		"country_codes": schema.ListAttribute{
+			ElementType: types.StringType,
+			Optional:    true,
+			Computed:    true,
+		},
+	},
 }
 
 func standardizedCountryCodes(countryCodes []string) []string {
@@ -84,6 +108,91 @@ func (r *countryCodeAllowlistResource) Configure(
 	r.client = client
 }
 
+func (r *countryCodeAllowlistResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &countryCodeAllowlistResourceLegacySchema,
+			StateUpgrader: r.upgradeCountryCodeAllowlistStateV0ToV1,
+		},
+	}
+}
+
+func (r *countryCodeAllowlistResource) upgradeCountryCodeAllowlistStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy country code allowlist state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior countryCodeAllowlistResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	deliveryMethod := prior.DeliveryMethod.ValueString()
+	var countryCodes []string
+
+	switch countrycodeallowlist.DeliveryMethod(deliveryMethod) {
+	case countrycodeallowlist.DeliveryMethodSMS:
+		getResp, err := r.client.CountryCodeAllowlist.GetAllowedSMSCountryCodes(ctx, &countrycodeallowlist.GetAllowedSMSCountryCodesRequest{
+			ProjectSlug:     projectSlug,
+			EnvironmentSlug: environmentSlug,
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to retrieve SMS country code allowlist", err.Error())
+			return
+		}
+		countryCodes = getResp.CountryCodes
+	case countrycodeallowlist.DeliveryMethodWhatsApp:
+		getResp, err := r.client.CountryCodeAllowlist.GetAllowedWhatsAppCountryCodes(ctx, &countrycodeallowlist.GetAllowedWhatsAppCountryCodesRequest{
+			ProjectSlug:     projectSlug,
+			EnvironmentSlug: environmentSlug,
+		})
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to retrieve WhatsApp country code allowlist", err.Error())
+			return
+		}
+		countryCodes = getResp.CountryCodes
+	default:
+		resp.Diagnostics.AddError(
+			"Unsupported delivery method",
+			fmt.Sprintf("The delivery method %q is not supported in the v3 provider.", deliveryMethod),
+		)
+		return
+	}
+
+	newState := countryCodeAllowlistModel{
+		ID:              types.StringValue(fmt.Sprintf("%s.%s.%s", projectSlug, environmentSlug, deliveryMethod)),
+		ProjectSlug:     types.StringValue(projectSlug),
+		EnvironmentSlug: types.StringValue(environmentSlug),
+		DeliveryMethod:  types.StringValue(deliveryMethod),
+		LastUpdated:     types.StringValue(time.Now().Format(time.RFC850)),
+	}
+
+	newState.CountryCodes, diags = types.SetValueFrom(ctx, types.StringType, countryCodes)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 // Metadata returns the resource type name.
 func (r *countryCodeAllowlistResource) Metadata(
 	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
@@ -96,6 +205,7 @@ func (r *countryCodeAllowlistResource) Schema(
 	ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "Resource for managing country code allowlists.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

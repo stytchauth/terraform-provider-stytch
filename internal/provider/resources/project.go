@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -21,14 +22,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/environments"
+	migrationprojects "github.com/stytchauth/stytch-management-go/v3/pkg/models/migration/projects"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/projects"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &projectResource{}
-	_ resource.ResourceWithConfigure   = &projectResource{}
-	_ resource.ResourceWithImportState = &projectResource{}
+	_ resource.Resource                 = &projectResource{}
+	_ resource.ResourceWithConfigure    = &projectResource{}
+	_ resource.ResourceWithImportState  = &projectResource{}
+	_ resource.ResourceWithUpgradeState = &projectResource{}
 )
 
 func NewProjectResource() resource.Resource {
@@ -37,6 +40,30 @@ func NewProjectResource() resource.Resource {
 
 type projectResource struct {
 	client *api.API
+}
+
+type projectResourceModelV0 struct {
+	LiveProjectID types.String `tfsdk:"live_project_id"`
+	TestProjectID types.String `tfsdk:"test_project_id"`
+	Name          types.String `tfsdk:"name"`
+	Vertical      types.String `tfsdk:"vertical"`
+}
+
+var projectResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"live_project_id": schema.StringAttribute{
+			Computed: true,
+		},
+		"test_project_id": schema.StringAttribute{
+			Computed: true,
+		},
+		"name": schema.StringAttribute{
+			Optional: true,
+		},
+		"vertical": schema.StringAttribute{
+			Optional: true,
+		},
+	},
 }
 
 // NOTE: This struct is almost identical to that of the environment resource.
@@ -55,6 +82,22 @@ type environmentModel struct {
 	IDPDynamicClientRegistrationEnabled                    types.Bool   `tfsdk:"idp_dynamic_client_registration_enabled"`
 	IDPDynamicClientRegistrationAccessTokenTemplateContent types.String `tfsdk:"idp_dynamic_client_registration_access_token_template_content"`
 	CreatedAt                                              types.String `tfsdk:"created_at"`
+}
+
+var environmentAttributeTypes = map[string]attr.Type{
+	"environment_slug":                        types.StringType,
+	"name":                                    types.StringType,
+	"oauth_callback_id":                       types.StringType,
+	"cross_org_passwords_enabled":             types.BoolType,
+	"user_impersonation_enabled":              types.BoolType,
+	"zero_downtime_session_migration_url":     types.StringType,
+	"user_lock_self_serve_enabled":            types.BoolType,
+	"user_lock_threshold":                     types.Int32Type,
+	"user_lock_ttl":                           types.Int32Type,
+	"idp_authorization_url":                   types.StringType,
+	"idp_dynamic_client_registration_enabled": types.BoolType,
+	"idp_dynamic_client_registration_access_token_template_content": types.StringType,
+	"created_at": types.StringType,
 }
 
 type projectModel struct {
@@ -84,12 +127,129 @@ func (r *projectResource) Configure(ctx context.Context, req resource.ConfigureR
 	r.client = client
 }
 
+func (r *projectResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &projectResourceLegacySchema,
+			StateUpgrader: r.upgradeProjectStateV0ToV1,
+		},
+	}
+}
+
+func (r *projectResource) upgradeProjectStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy project state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior projectResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	liveProjectID := prior.LiveProjectID.ValueString()
+	if liveProjectID == "" {
+		resp.Diagnostics.AddError(
+			"Missing legacy project ID",
+			"The stored state did not contain a live project ID, so it cannot be upgraded automatically.",
+		)
+		return
+	}
+
+	migrationResp, err := r.client.V1ToV3MigrationClient.GetProject(ctx, migrationprojects.GetProjectRequest{
+		ProjectID: liveProjectID,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to retrieve legacy project metadata",
+			err.Error(),
+		)
+		return
+	}
+
+	legacy := migrationResp.Project
+	projectSlug := legacy.ProjectSlug
+	if projectSlug == "" {
+		resp.Diagnostics.AddError(
+			"Missing project slug",
+			"The migration endpoint did not return a project slug for the legacy project.",
+		)
+		return
+	}
+
+	liveEnvironmentSlug := legacy.LiveEnvironmentSlug
+	if liveEnvironmentSlug == "" {
+		resp.Diagnostics.AddError(
+			"Missing live environment slug",
+			"The migration endpoint did not return a live environment slug for the legacy project.",
+		)
+		return
+	}
+
+	projectResp, err := r.client.Projects.Get(ctx, projects.GetRequest{
+		ProjectSlug: projectSlug,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to fetch project details",
+			err.Error(),
+		)
+		return
+	}
+
+	envResp, err := r.client.Environments.Get(ctx, environments.GetRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: liveEnvironmentSlug,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to fetch live environment details",
+			err.Error(),
+		)
+		return
+	}
+
+	liveEnvState := refreshFromLiveEnv(envResp.Environment)
+	liveEnvObj, diags := types.ObjectValueFrom(ctx, environmentAttributeTypes, liveEnvState)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	lastUpdated := time.Now().Format(time.RFC850)
+	createdAt := ""
+	if !projectResp.Project.CreatedAt.IsZero() {
+		createdAt = projectResp.Project.CreatedAt.Format(time.RFC3339)
+	}
+
+	newState := projectModel{
+		ID:              types.StringValue(projectSlug),
+		ProjectSlug:     types.StringValue(projectSlug),
+		Name:            types.StringValue(projectResp.Project.Name),
+		Vertical:        types.StringValue(string(projectResp.Project.Vertical)),
+		CreatedAt:       types.StringValue(createdAt),
+		LastUpdated:     types.StringValue(lastUpdated),
+		LiveEnvironment: liveEnvObj,
+	}
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 func (r *projectResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_project"
 }
 
 func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "Manages a Stytch project and its live environment.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

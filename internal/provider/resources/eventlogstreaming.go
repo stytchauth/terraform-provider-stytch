@@ -23,13 +23,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/eventlogstreaming"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &eventLogStreamingResource{}
-	_ resource.ResourceWithConfigure   = &eventLogStreamingResource{}
-	_ resource.ResourceWithImportState = &eventLogStreamingResource{}
+	_ resource.Resource                 = &eventLogStreamingResource{}
+	_ resource.ResourceWithConfigure    = &eventLogStreamingResource{}
+	_ resource.ResourceWithImportState  = &eventLogStreamingResource{}
+	_ resource.ResourceWithUpgradeState = &eventLogStreamingResource{}
 )
 
 // preserveSensitiveValuePlanModifier is a plan modifier that preserves sensitive values
@@ -79,6 +81,53 @@ type eventLogStreamingModel struct {
 	DatadogConfig     types.Object `tfsdk:"datadog_config"`
 	GrafanaLokiConfig types.Object `tfsdk:"grafana_loki_config"`
 	Enabled           types.Bool   `tfsdk:"enabled"`
+}
+
+type eventLogStreamingResourceModelV0 struct {
+	ProjectID       types.String `tfsdk:"project_id"`
+	DestinationType types.String `tfsdk:"destination_type"`
+	// We need to fetch these from the previous version to preserve sensitive data
+	// in the StateUpgrade
+	DatadogConfig     types.Object `tfsdk:"datadog_config"`
+	GrafanaLokiConfig types.Object `tfsdk:"grafana_loki_config"`
+}
+
+var eventLogStreamingResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"destination_type": schema.StringAttribute{
+			Required: true,
+		},
+		"datadog_config": schema.SingleNestedAttribute{
+			Optional: true,
+			Attributes: map[string]schema.Attribute{
+				"site": schema.StringAttribute{
+					Optional: true,
+				},
+				"api_key": schema.StringAttribute{
+					Optional:  true,
+					Sensitive: true,
+				},
+			},
+		},
+		"grafana_loki_config": schema.SingleNestedAttribute{
+			Optional: true,
+			Attributes: map[string]schema.Attribute{
+				"hostname": schema.StringAttribute{
+					Optional: true,
+				},
+				"username": schema.StringAttribute{
+					Optional: true,
+				},
+				"password": schema.StringAttribute{
+					Optional:  true,
+					Sensitive: true,
+				},
+			},
+		},
+	},
 }
 
 type datadogConfigModel struct {
@@ -218,8 +267,82 @@ func (r *eventLogStreamingResource) Configure(_ context.Context, req resource.Co
 	r.client = client
 }
 
+func (r *eventLogStreamingResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &eventLogStreamingResourceLegacySchema,
+			StateUpgrader: r.upgradeEventLogStreamingStateV0ToV1,
+		},
+	}
+}
+
+func (r *eventLogStreamingResource) upgradeEventLogStreamingStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy event log streaming state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior eventLogStreamingResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	destinationType := strings.ToUpper(prior.DestinationType.ValueString())
+	destinationTypeEnum := eventlogstreaming.DestinationType(destinationType)
+
+	getResp, err := r.client.EventLogStreaming.Get(ctx, eventlogstreaming.GetEventLogStreamingRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: environmentSlug,
+		DestinationType: destinationTypeEnum,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to retrieve event log streaming configuration", err.Error())
+		return
+	}
+
+	newState := eventLogStreamingModel{
+		ID:                types.StringValue(fmt.Sprintf("%s.%s.%s", projectSlug, environmentSlug, destinationType)),
+		ProjectSlug:       types.StringValue(projectSlug),
+		EnvironmentSlug:   types.StringValue(environmentSlug),
+		DestinationType:   types.StringValue(destinationType),
+		LastUpdated:       types.StringValue(time.Now().Format(time.RFC850)),
+		DatadogConfig:     types.ObjectNull(datadogConfigModelAttrTypes),
+		GrafanaLokiConfig: types.ObjectNull(grafanaLokiConfigModelAttrTypes),
+		Enabled:           types.BoolValue(getResp.EventLogStreamingConfig.StreamingStatus == eventlogstreaming.StreamingStatusActive),
+	}
+
+	switch destinationTypeEnum {
+	case eventlogstreaming.DestinationTypeDatadog:
+		if !prior.DatadogConfig.IsNull() && !prior.DatadogConfig.IsUnknown() {
+			newState.DatadogConfig = prior.DatadogConfig
+		}
+	case eventlogstreaming.DestinationTypeGrafanaLoki:
+		if !prior.GrafanaLokiConfig.IsNull() && !prior.GrafanaLokiConfig.IsUnknown() {
+			newState.GrafanaLokiConfig = prior.GrafanaLokiConfig
+		}
+	}
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 func (r *eventLogStreamingResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "Manages event log streaming configuration for an environment. Configure streaming to send Stytch event logs to external destinations like Datadog or Grafana Loki.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

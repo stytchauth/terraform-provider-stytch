@@ -38,9 +38,9 @@ EOT
 }
 
 // TestAccTrustedTokenProfileResource performs acceptance tests for the
-// stytch_trusted_token_profile resource.
+// stytch_trusted_token_profiles resource.
 func TestAccTrustedTokenProfileResource(t *testing.T) {
-	const resourceName = "stytch_trusted_token_profile.test_profile"
+	const resourceName = "stytch_trusted_token_profiles.test_profile"
 
 	type testConfig struct {
 		Name             string
@@ -192,7 +192,7 @@ func TestAccTrustedTokenProfileResource(t *testing.T) {
 			})
 
 			initialResourceConfig := fmt.Sprintf(`
-				resource "stytch_trusted_token_profile" "test_profile" {
+				resource "stytch_trusted_token_profiles" "test_profile" {
 					project_slug     = stytch_project.test.project_slug
 					environment_slug = stytch_environment.test.environment_slug
 					name             = "%s"
@@ -271,7 +271,7 @@ func TestAccTrustedTokenProfileResource(t *testing.T) {
 
 			// Build update Terraform configuration
 			updateResourceConfig := fmt.Sprintf(`
-				resource "stytch_trusted_token_profile" "test_profile" {
+				resource "stytch_trusted_token_profiles" "test_profile" {
 					project_slug     = stytch_project.test.project_slug
 					environment_slug = stytch_environment.test.environment_slug
 					name             = "%s"
@@ -376,4 +376,44 @@ func TestAccTrustedTokenProfileResource(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestAccTrustedTokenProfileResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1ConsumerProjectConfig + `
+resource "stytch_trusted_token_profiles" "simple_example" {
+  project_id      = stytch_project.test.live_project_id
+  name            = "Simple Example"
+  audience        = "https://example.com"
+  issuer          = "https://auth.example.com"
+  public_key_type = "jwk"
+  jwks_url        = "https://auth.example.com/.well-known/jwks.json"
+
+  attribute_mapping_json = jsonencode({
+    "user_id" = "sub"
+    "email"   = "email"
+    "name"    = "display_name"
+  })
+}
+`
+
+	v3Config := testutil.ConsumerProjectConfig + `
+resource "stytch_trusted_token_profiles" "simple_example" {
+  project_slug         = stytch_project.test.project_slug
+  environment_slug     = stytch_project.test.live_environment.environment_slug
+  name            = "Simple Example"
+  audience        = "https://example.com"
+  issuer          = "https://auth.example.com"
+  public_key_type = "JWK"
+  jwks_url        = "https://auth.example.com/.well-known/jwks.json"
+
+  attribute_mapping_json = jsonencode({
+    "user_id" = "sub"
+    "email"   = "email"
+    "name"    = "display_name"
+  })
+}
+`
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
 }

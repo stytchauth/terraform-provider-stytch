@@ -57,3 +57,22 @@ func TestAccPublicTokenResource(t *testing.T) {
 		})
 	}
 }
+
+func TestAccPublicTokenResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1ConsumerProjectConfig + `
+resource "stytch_public_token" "test" {
+  project_id = stytch_project.test.live_project_id
+}
+`
+
+	v3Config := testutil.ConsumerProjectConfig + `
+resource "stytch_public_token" "test" {
+  project_slug     = stytch_project.test.project_slug
+  environment_slug = stytch_project.test.live_environment.environment_slug
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}

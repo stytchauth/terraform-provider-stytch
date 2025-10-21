@@ -17,13 +17,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/jwttemplates"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &jwtTemplateResource{}
-	_ resource.ResourceWithConfigure   = &jwtTemplateResource{}
-	_ resource.ResourceWithImportState = &jwtTemplateResource{}
+	_ resource.Resource                 = &jwtTemplateResource{}
+	_ resource.ResourceWithConfigure    = &jwtTemplateResource{}
+	_ resource.ResourceWithImportState  = &jwtTemplateResource{}
+	_ resource.ResourceWithUpgradeState = &jwtTemplateResource{}
 )
 
 func NewJWTTemplateResource() resource.Resource {
@@ -44,6 +46,32 @@ type jwtTemplateModel struct {
 	LastUpdated     types.String `tfsdk:"last_updated"`
 }
 
+type jwtTemplateResourceModelV0 struct {
+	ProjectID       types.String `tfsdk:"project_id"`
+	TemplateType    types.String `tfsdk:"template_type"`
+	TemplateContent types.String `tfsdk:"template_content"`
+	CustomAudience  types.String `tfsdk:"custom_audience"`
+}
+
+var jwtTemplateResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"template_type": schema.StringAttribute{
+			Required: true,
+		},
+		"template_content": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+		"custom_audience": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+		},
+	},
+}
+
 func (r *jwtTemplateResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -61,6 +89,66 @@ func (r *jwtTemplateResource) Configure(ctx context.Context, req resource.Config
 	r.client = client
 }
 
+func (r *jwtTemplateResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &jwtTemplateResourceLegacySchema,
+			StateUpgrader: r.upgradeJWTTemplateStateV0ToV1,
+		},
+	}
+}
+
+func (r *jwtTemplateResource) upgradeJWTTemplateStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy JWT template state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior jwtTemplateResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	getResp, err := r.client.JWTTemplates.Get(ctx, &jwttemplates.GetRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: environmentSlug,
+		JWTTemplateType: jwttemplates.JWTTemplateType(strings.ToUpper(prior.TemplateType.ValueString())),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to retrieve JWT template", err.Error())
+		return
+	}
+
+	templateType := strings.ToUpper(prior.TemplateType.ValueString())
+	newState := jwtTemplateModel{
+		ID:              types.StringValue(fmt.Sprintf("%s.%s.%s", projectSlug, environmentSlug, templateType)),
+		ProjectSlug:     types.StringValue(projectSlug),
+		EnvironmentSlug: types.StringValue(environmentSlug),
+		TemplateType:    types.StringValue(templateType),
+		LastUpdated:     types.StringValue(time.Now().Format(time.RFC850)),
+	}
+
+	r.updateModelFromAPI(&newState, &getResp.JWTTemplate)
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 // Metadata returns the resource type name.
 func (r *jwtTemplateResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_jwt_template"
@@ -69,6 +157,7 @@ func (r *jwtTemplateResource) Metadata(_ context.Context, req resource.MetadataR
 // Schema defines the schema for the resource.
 func (r *jwtTemplateResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "Resource for creating and managing JWT templates.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

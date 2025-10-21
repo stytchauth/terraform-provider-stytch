@@ -39,6 +39,21 @@ var B2BProjectConfig = ProjectResource(ProjectResourceArgs{
 	Vertical: projects.VerticalB2B,
 })
 
+// V1 provider project configs for state upgrade tests (uses live_project_id)
+const V1ConsumerProjectConfig = `
+resource "stytch_project" "test" {
+  name     = "test-consumer"
+  vertical = "CONSUMER"
+}
+`
+
+const V1B2BProjectConfig = `
+resource "stytch_project" "test" {
+  name     = "test-b2b"
+  vertical = "B2B"
+}
+`
+
 type ProjectResourceArgs struct {
 	Name                         string
 	Vertical                     projects.Vertical
@@ -223,5 +238,30 @@ func TestCheckResourceDeleted(resourceName string) resource.TestCheckFunc {
 		}
 
 		return nil
+	}
+}
+
+// StateUpgradeTestSteps returns test steps for v0 to v1 state upgrade testing.
+// v1Config: Terraform config using the v0 provider schema version (from provider v1)
+// v3Config: Terraform config using the current provider schema version (from provider v3)
+func StateUpgradeTestSteps(v1Config string, v3Config string) []resource.TestStep {
+	return []resource.TestStep{
+		{
+			// Step 1: Create with v1 provider
+			ExternalProviders: map[string]resource.ExternalProvider{
+				"stytch": {
+					VersionConstraint: "1.6.2",
+					Source:            "stytchauth/stytch",
+				},
+			},
+			Config: `provider "stytch" {}` + "\n" + v1Config,
+		},
+		{
+			// Step 2: Verify v3 provider can read v1 state without changes
+			ProtoV6ProviderFactories: TestAccProtoV6ProviderFactories,
+			Config:                   ProviderConfig + v3Config,
+			PlanOnly:                 true,
+			ExpectNonEmptyPlan:       false,
+		},
 	}
 }

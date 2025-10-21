@@ -25,13 +25,15 @@ import (
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/projects"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/sdk"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &b2bSDKConfigResource{}
-	_ resource.ResourceWithConfigure   = &b2bSDKConfigResource{}
-	_ resource.ResourceWithImportState = &b2bSDKConfigResource{}
+	_ resource.Resource                 = &b2bSDKConfigResource{}
+	_ resource.ResourceWithConfigure    = &b2bSDKConfigResource{}
+	_ resource.ResourceWithImportState  = &b2bSDKConfigResource{}
+	_ resource.ResourceWithUpgradeState = &b2bSDKConfigResource{}
 )
 
 func NewB2BSDKConfigResource() resource.Resource {
@@ -50,6 +52,18 @@ type b2bSDKConfigModel struct {
 	// A pointer is required here for ImportState to work since the initial import will set a nil
 	// value until Read is called.
 	Config *b2bSDKConfigInnerModel `tfsdk:"config"`
+}
+
+type b2bSDKConfigResourceModelV0 struct {
+	ProjectID types.String `tfsdk:"project_id"`
+}
+
+var b2bSDKConfigResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+	},
 }
 
 type b2bSDKConfigInnerModel struct {
@@ -543,6 +557,69 @@ func (r *b2bSDKConfigResource) Configure(
 	r.client = client
 }
 
+func (r *b2bSDKConfigResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &b2bSDKConfigResourceLegacySchema,
+			StateUpgrader: r.upgradeB2BSDKConfigStateV0ToV1,
+		},
+	}
+}
+
+func (r *b2bSDKConfigResource) upgradeB2BSDKConfigStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy SDK config state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior b2bSDKConfigResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	getResp, err := r.client.SDK.GetB2BConfig(ctx, sdk.GetB2BConfigRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: environmentSlug,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to retrieve B2B SDK config",
+			err.Error(),
+		)
+		return
+	}
+
+	newState := b2bSDKConfigModel{
+		ProjectSlug:     types.StringValue(projectSlug),
+		EnvironmentSlug: types.StringValue(environmentSlug),
+		LastUpdated:     types.StringValue(time.Now().Format(time.RFC850)),
+	}
+
+	diags = newState.reloadFromSDKConfig(ctx, getResp.Config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 // Metadata returns the resource type name.
 func (r *b2bSDKConfigResource) Metadata(
 	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
@@ -555,6 +632,7 @@ func (r *b2bSDKConfigResource) Schema(
 	_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		Version: 1,
 		Description: "Manages the configuration of your JavaScript, React Native, iOS, or Android " +
 			"SDKs for a B2B project",
 		Attributes: map[string]schema.Attribute{

@@ -15,13 +15,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/publictokens"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &publicTokenResource{}
-	_ resource.ResourceWithConfigure   = &publicTokenResource{}
-	_ resource.ResourceWithImportState = &publicTokenResource{}
+	_ resource.Resource                 = &publicTokenResource{}
+	_ resource.ResourceWithConfigure    = &publicTokenResource{}
+	_ resource.ResourceWithImportState  = &publicTokenResource{}
+	_ resource.ResourceWithUpgradeState = &publicTokenResource{}
 )
 
 func NewPublicTokenResource() resource.Resource {
@@ -38,6 +40,26 @@ type publicTokenModel struct {
 	EnvironmentSlug types.String `tfsdk:"environment_slug"`
 	PublicToken     types.String `tfsdk:"public_token"`
 	CreatedAt       types.String `tfsdk:"created_at"`
+}
+
+type publicTokenResourceModelV0 struct {
+	ProjectID   types.String `tfsdk:"project_id"`
+	PublicToken types.String `tfsdk:"public_token"`
+	CreatedAt   types.String `tfsdk:"created_at"`
+}
+
+var publicTokenResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"public_token": schema.StringAttribute{
+			Computed: true,
+		},
+		"created_at": schema.StringAttribute{
+			Computed: true,
+		},
+	},
 }
 
 func (r *publicTokenResource) Configure(
@@ -63,6 +85,82 @@ func (r *publicTokenResource) Configure(
 	r.client = client
 }
 
+func (r *publicTokenResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &publicTokenResourceLegacySchema,
+			StateUpgrader: r.upgradePublicTokenStateV0ToV1,
+		},
+	}
+}
+
+func (r *publicTokenResource) upgradePublicTokenStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy public token state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior publicTokenResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	publicTokenValue := prior.PublicToken.ValueString()
+	if publicTokenValue == "" {
+		resp.Diagnostics.AddError(
+			"Missing public token",
+			"The stored state did not contain a public token value, so it cannot be upgraded automatically.",
+		)
+		return
+	}
+
+	createdAt := prior.CreatedAt.ValueString()
+	tokenResp, err := r.client.PublicTokens.Get(ctx, publictokens.GetRequest{
+		ProjectSlug:     projectSlug,
+		EnvironmentSlug: environmentSlug,
+		PublicToken:     publicTokenValue,
+	})
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"Unable to verify public token",
+			fmt.Sprintf("The token lookup failed during migration: %s. Existing state values will be retained.", err.Error()),
+		)
+	} else if tokenResp != nil && !tokenResp.PublicToken.CreatedAt.IsZero() {
+		publicTokenValue = tokenResp.PublicToken.PublicToken
+		createdAt = tokenResp.PublicToken.CreatedAt.Format(time.RFC3339)
+	}
+
+	if createdAt == "" {
+		createdAt = time.Now().Format(time.RFC3339)
+	}
+
+	newState := publicTokenModel{
+		ID:              types.StringValue(fmt.Sprintf("%s.%s.%s", projectSlug, environmentSlug, publicTokenValue)),
+		ProjectSlug:     types.StringValue(projectSlug),
+		EnvironmentSlug: types.StringValue(environmentSlug),
+		PublicToken:     types.StringValue(publicTokenValue),
+		CreatedAt:       types.StringValue(createdAt),
+	}
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 // Metadata returns the resource type name.
 func (r *publicTokenResource) Metadata(
 	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
@@ -75,6 +173,7 @@ func (r *publicTokenResource) Schema(
 	_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "A public token for an environment within a Stytch project, used for SDK authentication and OAuth integrations.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

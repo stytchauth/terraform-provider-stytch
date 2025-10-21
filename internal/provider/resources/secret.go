@@ -13,12 +13,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/secrets"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &secretResource{}
-	_ resource.ResourceWithConfigure = &secretResource{}
+	_ resource.Resource                 = &secretResource{}
+	_ resource.ResourceWithConfigure    = &secretResource{}
+	_ resource.ResourceWithUpgradeState = &secretResource{}
 )
 
 func NewSecretResource() resource.Resource {
@@ -35,6 +37,31 @@ type secretModel struct {
 	SecretID        types.String `tfsdk:"secret_id"`
 	CreatedAt       types.String `tfsdk:"created_at"`
 	Secret          types.String `tfsdk:"secret"`
+}
+
+type secretResourceModelV0 struct {
+	ProjectID types.String `tfsdk:"project_id"`
+	SecretID  types.String `tfsdk:"secret_id"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	Secret    types.String `tfsdk:"secret"`
+}
+
+var secretResourceLegacySchema = schema.Schema{
+	Attributes: map[string]schema.Attribute{
+		"project_id": schema.StringAttribute{
+			Required: true,
+		},
+		"secret_id": schema.StringAttribute{
+			Computed: true,
+		},
+		"created_at": schema.StringAttribute{
+			Computed: true,
+		},
+		"secret": schema.StringAttribute{
+			Computed:  true,
+			Sensitive: true,
+		},
+	},
 }
 
 func (r *secretResource) Configure(
@@ -60,6 +87,53 @@ func (r *secretResource) Configure(
 	r.client = client
 }
 
+func (r *secretResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema:   &secretResourceLegacySchema,
+			StateUpgrader: r.upgradeSecretStateV0ToV1,
+		},
+	}
+}
+
+func (r *secretResource) upgradeSecretStateV0ToV1(
+	ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse,
+) {
+	if req.State == nil {
+		resp.Diagnostics.AddError(
+			"Missing prior state",
+			"Legacy secret state upgrade requires existing state data, but none was provided.",
+		)
+		return
+	}
+
+	var prior secretResourceModelV0
+	diags := req.State.Get(ctx, &prior)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectSlug, environmentSlug, diags := utils.ResolveLegacyProjectAndEnvironment(
+		ctx, r.client, prior.ProjectID.ValueString(),
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	newState := secretModel{
+		ProjectSlug:     types.StringValue(projectSlug),
+		EnvironmentSlug: types.StringValue(environmentSlug),
+		SecretID:        prior.SecretID,
+		CreatedAt:       prior.CreatedAt,
+		Secret:          prior.Secret,
+	}
+
+	diags = resp.State.Set(ctx, newState)
+	resp.Diagnostics.Append(diags...)
+}
+
 // Metadata returns the resource type name.
 func (r *secretResource) Metadata(
 	_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse,
@@ -72,6 +146,7 @@ func (r *secretResource) Schema(
 	_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "A secret for an environment within a Stytch project, used in the Stytch API.",
 		Attributes: map[string]schema.Attribute{
 			"secret_id": schema.StringAttribute{

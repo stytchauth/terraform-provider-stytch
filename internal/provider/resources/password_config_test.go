@@ -160,3 +160,30 @@ func TestAccPasswordConfigResourceValidation(t *testing.T) {
 		},
 	})
 }
+
+func TestAccPasswordConfigResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1ConsumerProjectConfig + `
+resource "stytch_password_config" "test" {
+  project_id                     = stytch_project.test.live_project_id
+  validation_policy              = "ZXCVBN"
+  check_breach_on_creation       = true
+  check_breach_on_authentication = true
+  validate_on_authentication     = true
+}
+`
+
+	v3Config := testutil.ConsumerProjectConfig + `
+resource "stytch_password_config" "test" {
+  project_slug                   = stytch_project.test.project_slug
+  environment_slug               = stytch_project.test.live_environment.environment_slug
+  validation_policy              = "ZXCVBN"
+  check_breach_on_creation       = true
+  check_breach_on_authentication = true
+  validate_on_authentication     = true
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}
