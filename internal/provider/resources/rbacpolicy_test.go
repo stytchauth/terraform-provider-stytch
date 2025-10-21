@@ -320,3 +320,35 @@ func TestAccRBACPolicyResource_Invalid(t *testing.T) {
 		errorCase.AssertAnyError(t)
 	}
 }
+
+func TestAccRBACPolicyResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1B2BProjectConfig + `
+resource "stytch_rbac_policy" "test" {
+  project_id = stytch_project.test.live_project_id
+  custom_resources = [
+    {
+      resource_id       = "documents"
+      description       = "Documents"
+      available_actions = ["read", "write"]
+    }
+  ]
+}
+`
+
+	v3Config := testutil.B2BProjectConfig + `
+resource "stytch_rbac_policy" "test" {
+  project_slug     = stytch_project.test.project_slug
+  environment_slug = stytch_project.test.live_environment.environment_slug
+  custom_resources = [
+    {
+      resource_id       = "documents"
+      description       = "Documents"
+      available_actions = ["read", "write"]
+    }
+  ]
+}
+`
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}

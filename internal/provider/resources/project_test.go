@@ -192,3 +192,28 @@ resource "stytch_project" "test" {
 		},
 	})
 }
+
+func TestAccProjectResourceStateUpgrade(t *testing.T) {
+	v1Config := `
+resource "stytch_project" "test" {
+  name     = "State Upgrade Test"
+  vertical = "CONSUMER"
+  live_user_impersonation_enabled = true
+}
+`
+
+	v3Config := `
+resource "stytch_project" "test" {
+  name     = "State Upgrade Test"
+  vertical = "CONSUMER"
+  live_environment = {
+    name = "Production"
+    user_impersonation_enabled = true
+  }
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}

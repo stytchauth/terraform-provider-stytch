@@ -334,7 +334,6 @@ func (r *eventLogStreamingResource) upgradeEventLogStreamingStateV0ToV1(
 	case eventlogstreaming.DestinationTypeGrafanaLoki:
 		if !prior.GrafanaLokiConfig.IsNull() && !prior.GrafanaLokiConfig.IsUnknown() {
 			newState.GrafanaLokiConfig = prior.GrafanaLokiConfig
-
 		}
 	}
 	diags = resp.State.Set(ctx, newState)

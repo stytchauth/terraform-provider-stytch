@@ -338,3 +338,39 @@ func TestAccEmailTemplateResource_Invalid(t *testing.T) {
 		errorCase.AssertAnyError(t)
 	}
 }
+
+func TestAccEmailTemplateResourceStateUpgrade(t *testing.T) {
+	v1Config := testutil.V1ConsumerProjectConfig + `
+resource "stytch_email_template" "test" {
+  live_project_id = stytch_project.test.live_project_id
+  template_id     = "my-template"
+  name            = "My Template"
+  prebuilt_customization = {
+  	button_border_radius = 3
+    button_color         = "#105ee9"
+    button_text_color    = "#ffffff"
+    font_family          = "GEORGIA"
+    text_alignment       = "CENTER"
+  }
+}
+`
+
+	v3Config := testutil.ConsumerProjectConfig + `
+resource "stytch_email_template" "test" {
+  project_slug = stytch_project.test.project_slug
+  template_id  = "my-template"
+  name         = "My Template"
+  prebuilt_customization = {
+  	button_border_radius = 3
+    button_color         = "#105ee9"
+    button_text_color    = "#ffffff"
+    font_family          = "GEORGIA"
+    text_alignment       = "CENTER"
+  }
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}
