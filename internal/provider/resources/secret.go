@@ -204,7 +204,7 @@ func (r *secretResource) Create(
 	ctx = tflog.SetField(ctx, "environment_slug", plan.EnvironmentSlug.ValueString())
 	tflog.Info(ctx, "Creating secret")
 
-	createResp, err := r.client.Secrets.Create(ctx, secrets.CreateSecretRequest{
+	createResp, err := r.client.Secrets.Create(ctx, secrets.CreateRequest{
 		ProjectSlug:     plan.ProjectSlug.ValueString(),
 		EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 	})
@@ -213,14 +213,14 @@ func (r *secretResource) Create(
 		return
 	}
 
-	ctx = tflog.SetField(ctx, "secret_id", createResp.CreatedSecret.SecretID)
-	ctx = tflog.SetField(ctx, "secret", createResp.CreatedSecret.Secret)
+	ctx = tflog.SetField(ctx, "secret_id", createResp.Secret.SecretID)
+	ctx = tflog.SetField(ctx, "secret", createResp.Secret.Secret)
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "secret")
 	tflog.Info(ctx, "Created secret")
 
-	plan.SecretID = types.StringValue(createResp.CreatedSecret.SecretID)
-	plan.CreatedAt = types.StringValue(createResp.CreatedSecret.CreatedAt.Format(time.RFC3339))
-	plan.Secret = types.StringValue(createResp.CreatedSecret.Secret)
+	plan.SecretID = types.StringValue(createResp.Secret.SecretID)
+	plan.CreatedAt = types.StringValue(createResp.Secret.CreatedAt.Format(time.RFC3339))
+	plan.Secret = types.StringValue(createResp.Secret.Secret)
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -245,7 +245,7 @@ func (r *secretResource) Read(
 	tflog.Info(ctx, "Reading secret")
 
 	// We call Get here just to verify the secret still exists, but there is no state to update.
-	_, err := r.client.Secrets.Get(ctx, secrets.GetSecretRequest{
+	_, err := r.client.Secrets.Get(ctx, secrets.GetRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 		SecretID:        state.SecretID.ValueString(),
@@ -291,7 +291,7 @@ func (r *secretResource) Delete(
 	ctx = tflog.SetField(ctx, "secret_id", state.SecretID.ValueString())
 	tflog.Info(ctx, "Deleting secret")
 
-	_, err := r.client.Secrets.Delete(ctx, secrets.DeleteSecretRequest{
+	_, err := r.client.Secrets.Delete(ctx, secrets.DeleteRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 		SecretID:        state.SecretID.ValueString(),

@@ -122,7 +122,7 @@ func (m b2bSDKConfigSessionsModel) AttributeTypes() map[string]attr.Type {
 
 func b2bSDKConfigSessionsModelFromSDKConfig(c sdk.B2BSessionsConfig) b2bSDKConfigSessionsModel {
 	return b2bSDKConfigSessionsModel{
-		MaxSessionDurationMinutes: types.Int32Value(c.MaxSessionDurationMinutes),
+		MaxSessionDurationMinutes: types.Int32Value(int32(c.MaxSessionDurationMinutes)),
 	}
 }
 
@@ -288,11 +288,11 @@ func (m b2bSDKConfigCookiesModel) AttributeTypes() map[string]attr.Type {
 
 func b2bSDKConfigCookiesModelFromSDKConfig(c sdk.B2BCookiesConfig) b2bSDKConfigCookiesModel {
 	return b2bSDKConfigCookiesModel{
-		HttpOnlyCookies: types.StringValue(string(c.HttpOnlyCookies)),
+		HttpOnlyCookies: types.StringValue(string(c.HTTPOnly)),
 	}
 }
 
-func (m *b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, diag.Diagnostics) {
+func (m *b2bSDKConfigModel) toSDKConfig(ctx context.Context) (*sdk.B2BConfig, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	c := sdk.B2BConfig{
 		Basic: &sdk.B2BBasicConfig{
@@ -326,7 +326,7 @@ func (m *b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, dia
 			UnhandledUnknownAsEmpty: true,
 		})...)
 		c.Sessions = &sdk.B2BSessionsConfig{
-			MaxSessionDurationMinutes: sessions.MaxSessionDurationMinutes.ValueInt32(),
+			MaxSessionDurationMinutes: int(sessions.MaxSessionDurationMinutes.ValueInt32()),
 		}
 	}
 
@@ -394,7 +394,7 @@ func (m *b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, dia
 		}
 		for i, m := range smsAutofillMetadata {
 			c.OTPs.SMSAutofillMetadata[i] = sdk.SMSAutofillMetadata{
-				MetadataType:  sdk.SMSAutofillMetadataType(m.MetadataType.ValueString()),
+				MetadataType:  sdk.SMSAutofillMetadataMetadataType(m.MetadataType.ValueString()),
 				MetadataValue: m.MetadataValue.ValueString(),
 				BundleID:      m.BundleID.ValueString(),
 			}
@@ -432,11 +432,11 @@ func (m *b2bSDKConfigModel) toSDKConfig(ctx context.Context) (sdk.B2BConfig, dia
 			UnhandledUnknownAsEmpty: true,
 		})...)
 		c.Cookies = &sdk.B2BCookiesConfig{
-			HttpOnlyCookies: sdk.HttpOnlyCookiesSetting(cookies.HttpOnlyCookies.ValueString()),
+			HTTPOnly: sdk.B2BCookiesConfigHttpOnly(cookies.HttpOnlyCookies.ValueString()),
 		}
 	}
 
-	return c, diags
+	return &c, diags
 }
 
 func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BConfig) diag.Diagnostics {
@@ -895,7 +895,7 @@ func (r *b2bSDKConfigResource) Schema(
 												stringplanmodifier.UseStateForUnknown(),
 											},
 											Validators: []validator.String{
-												stringvalidator.OneOf(toStrings(sdk.SMSAutofillMetadataTypes())...),
+												stringvalidator.OneOf(toStrings(sdk.SMSAutofillMetadataMetadataTypes())...),
 											},
 										},
 										"metadata_value": schema.StringAttribute{
@@ -1017,7 +1017,7 @@ func (r *b2bSDKConfigResource) Schema(
 									stringplanmodifier.UseStateForUnknown(),
 								},
 								Validators: []validator.String{
-									stringvalidator.OneOf(toStrings(sdk.HttpOnlyCookiesSettings())...),
+									stringvalidator.OneOf(toStrings(sdk.B2BCookiesConfigHttpOnlys())...),
 								},
 							},
 						},
@@ -1215,7 +1215,7 @@ func (r *b2bSDKConfigResource) Delete(
 	_, err := r.client.SDK.SetB2BConfig(ctx, sdk.SetB2BConfigRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
-		Config: sdk.B2BConfig{
+		Config: &sdk.B2BConfig{
 			Basic: &sdk.B2BBasicConfig{
 				Enabled: false,
 			},

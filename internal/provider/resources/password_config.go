@@ -232,7 +232,7 @@ func (r *passwordConfigResource) Schema(
 				Description: "The policy to use for password validation. Valid values: LUDS, ZXCVBN.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(
-						toStrings(passwordstrengthconfig.ValidationPolicies())...),
+						toStrings(passwordstrengthconfig.ValidationPolicys())...),
 				},
 			},
 			"luds_min_password_length": schema.Int64Attribute{
@@ -500,7 +500,7 @@ func (v *ludsFieldsValidator) ValidateResource(ctx context.Context, req resource
 	}
 }
 
-// updateModelFromAPI updates the model with values from the API response
+// updateModelFromAPI updates the model with values from the API response.
 func (r *passwordConfigResource) updateModelFromAPI(model *passwordConfigModel, config *passwordstrengthconfig.PasswordStrengthConfig) {
 	model.CheckBreachOnCreation = types.BoolValue(config.CheckBreachOnCreation)
 	model.CheckBreachOnAuthentication = types.BoolValue(config.CheckBreachOnAuthentication)

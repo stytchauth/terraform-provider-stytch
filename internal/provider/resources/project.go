@@ -71,7 +71,7 @@ var projectResourceLegacySchema = schema.Schema{
 type environmentModel struct {
 	EnvironmentSlug                                        types.String `tfsdk:"environment_slug"`
 	Name                                                   types.String `tfsdk:"name"`
-	OauthCallbackID                                        types.String `tfsdk:"oauth_callback_id"`
+	OAuthCallbackID                                        types.String `tfsdk:"oauth_callback_id"`
 	CrossOrgPasswordsEnabled                               types.Bool   `tfsdk:"cross_org_passwords_enabled"`
 	UserImpersonationEnabled                               types.Bool   `tfsdk:"user_impersonation_enabled"`
 	ZeroDowntimeSessionMigrationURL                        types.String `tfsdk:"zero_downtime_session_migration_url"`
@@ -700,10 +700,10 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 			updateEnvReq.UserLockSelfServeEnabled = ptr(liveEnvPlan.UserLockSelfServeEnabled.ValueBool())
 		}
 		if !liveEnvPlan.UserLockThreshold.IsNull() && !liveEnvPlan.UserLockThreshold.Equal(liveEnvState.UserLockThreshold) {
-			updateEnvReq.UserLockThreshold = ptr(liveEnvPlan.UserLockThreshold.ValueInt32())
+			updateEnvReq.UserLockThreshold = ptr(int(liveEnvPlan.UserLockThreshold.ValueInt32()))
 		}
 		if !liveEnvPlan.UserLockTTL.IsNull() && !liveEnvPlan.UserLockTTL.Equal(liveEnvState.UserLockTTL) {
-			updateEnvReq.UserLockTTL = ptr(liveEnvPlan.UserLockTTL.ValueInt32())
+			updateEnvReq.UserLockTTL = ptr(int(liveEnvPlan.UserLockTTL.ValueInt32()))
 		}
 		if !liveEnvPlan.IDPAuthorizationURL.IsNull() && !liveEnvPlan.IDPAuthorizationURL.Equal(liveEnvState.IDPAuthorizationURL) {
 			updateEnvReq.IDPAuthorizationURL = ptr(liveEnvPlan.IDPAuthorizationURL.ValueString())
@@ -772,13 +772,13 @@ func refreshFromLiveEnv(env environments.Environment) environmentModel {
 	return environmentModel{
 		EnvironmentSlug:                     types.StringValue(env.EnvironmentSlug),
 		Name:                                types.StringValue(env.Name),
-		OauthCallbackID:                     types.StringValue(env.OauthCallbackID),
+		OAuthCallbackID:                     types.StringValue(env.OAuthCallbackID),
 		CrossOrgPasswordsEnabled:            types.BoolValue(env.CrossOrgPasswordsEnabled),
 		UserImpersonationEnabled:            types.BoolValue(env.UserImpersonationEnabled),
 		ZeroDowntimeSessionMigrationURL:     types.StringValue(env.ZeroDowntimeSessionMigrationURL),
 		UserLockSelfServeEnabled:            types.BoolValue(env.UserLockSelfServeEnabled),
-		UserLockThreshold:                   types.Int32Value(env.UserLockThreshold),
-		UserLockTTL:                         types.Int32Value(env.UserLockTTL),
+		UserLockThreshold:                   types.Int32Value(int32(env.UserLockThreshold)),
+		UserLockTTL:                         types.Int32Value(int32(env.UserLockTTL)),
 		IDPAuthorizationURL:                 types.StringValue(env.IDPAuthorizationURL),
 		IDPDynamicClientRegistrationEnabled: types.BoolValue(env.IDPDynamicClientRegistrationEnabled),
 		IDPDynamicClientRegistrationAccessTokenTemplateContent: types.StringValue(env.IDPDynamicClientRegistrationAccessTokenTemplateContent),
@@ -809,10 +809,10 @@ func buildEnvironmentCreateRequest(projectSlug string, liveEnvPlan environmentMo
 		createEnvReq.UserLockSelfServeEnabled = ptr(liveEnvPlan.UserLockSelfServeEnabled.ValueBool())
 	}
 	if !liveEnvPlan.UserLockThreshold.IsNull() && !liveEnvPlan.UserLockThreshold.IsUnknown() {
-		createEnvReq.UserLockThreshold = ptr(liveEnvPlan.UserLockThreshold.ValueInt32())
+		createEnvReq.UserLockThreshold = ptr(int(liveEnvPlan.UserLockThreshold.ValueInt32()))
 	}
 	if !liveEnvPlan.UserLockTTL.IsNull() && !liveEnvPlan.UserLockTTL.IsUnknown() {
-		createEnvReq.UserLockTTL = ptr(liveEnvPlan.UserLockTTL.ValueInt32())
+		createEnvReq.UserLockTTL = ptr(int(liveEnvPlan.UserLockTTL.ValueInt32()))
 	}
 	if !liveEnvPlan.IDPAuthorizationURL.IsNull() && !liveEnvPlan.IDPAuthorizationURL.IsUnknown() {
 		createEnvReq.IDPAuthorizationURL = ptr(liveEnvPlan.IDPAuthorizationURL.ValueString())

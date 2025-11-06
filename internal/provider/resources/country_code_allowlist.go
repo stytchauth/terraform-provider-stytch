@@ -33,6 +33,22 @@ func NewCountryCodeAllowlistResource() resource.Resource {
 	return &countryCodeAllowlistResource{}
 }
 
+type DeliveryMethod string
+
+const (
+	DeliveryMethodSMS      DeliveryMethod = "sms"
+	DeliveryMethodWhatsApp DeliveryMethod = "whatsapp"
+)
+
+var DefaultCountryCodes []string = []string{"US", "CA"}
+
+func DeliveryMethods() []DeliveryMethod {
+	return []DeliveryMethod{
+		DeliveryMethodSMS,
+		DeliveryMethodWhatsApp,
+	}
+}
+
 type countryCodeAllowlistResource struct {
 	client *api.API
 }
@@ -143,12 +159,12 @@ func (r *countryCodeAllowlistResource) upgradeCountryCodeAllowlistStateV0ToV1(
 		return
 	}
 
-	deliveryMethod := prior.DeliveryMethod.ValueString()
+	deliveryMethod := DeliveryMethod(prior.DeliveryMethod.ValueString())
 	var countryCodes []string
 
-	switch countrycodeallowlist.DeliveryMethod(deliveryMethod) {
-	case countrycodeallowlist.DeliveryMethodSMS:
-		getResp, err := r.client.CountryCodeAllowlist.GetAllowedSMSCountryCodes(ctx, &countrycodeallowlist.GetAllowedSMSCountryCodesRequest{
+	switch deliveryMethod {
+	case DeliveryMethodSMS:
+		getResp, err := r.client.CountryCodeAllowlist.GetAllowedSMSCountryCodes(ctx, countrycodeallowlist.GetAllowedSMSCountryCodesRequest{
 			ProjectSlug:     projectSlug,
 			EnvironmentSlug: environmentSlug,
 		})
@@ -157,8 +173,8 @@ func (r *countryCodeAllowlistResource) upgradeCountryCodeAllowlistStateV0ToV1(
 			return
 		}
 		countryCodes = getResp.CountryCodes
-	case countrycodeallowlist.DeliveryMethodWhatsApp:
-		getResp, err := r.client.CountryCodeAllowlist.GetAllowedWhatsAppCountryCodes(ctx, &countrycodeallowlist.GetAllowedWhatsAppCountryCodesRequest{
+	case DeliveryMethodWhatsApp:
+		getResp, err := r.client.CountryCodeAllowlist.GetAllowedWhatsAppCountryCodes(ctx, countrycodeallowlist.GetAllowedWhatsAppCountryCodesRequest{
 			ProjectSlug:     projectSlug,
 			EnvironmentSlug: environmentSlug,
 		})
@@ -179,7 +195,7 @@ func (r *countryCodeAllowlistResource) upgradeCountryCodeAllowlistStateV0ToV1(
 		ID:              types.StringValue(fmt.Sprintf("%s.%s.%s", projectSlug, environmentSlug, deliveryMethod)),
 		ProjectSlug:     types.StringValue(projectSlug),
 		EnvironmentSlug: types.StringValue(environmentSlug),
-		DeliveryMethod:  types.StringValue(deliveryMethod),
+		DeliveryMethod:  types.StringValue(string(deliveryMethod)),
 		LastUpdated:     types.StringValue(time.Now().Format(time.RFC850)),
 	}
 
@@ -236,7 +252,7 @@ func (r *countryCodeAllowlistResource) Schema(
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf(toStrings(countrycodeallowlist.DeliveryMethods())...),
+					stringvalidator.OneOf(toStrings(DeliveryMethods())...),
 				},
 			},
 			"country_codes": schema.SetAttribute{
@@ -255,9 +271,9 @@ func (r *countryCodeAllowlistResource) Schema(
 func (r *countryCodeAllowlistResource) setCountryCodeAllowlist(
 	ctx context.Context, plan countryCodeAllowlistModel, countryCodes []string,
 ) error {
-	if plan.DeliveryMethod.ValueString() == string(countrycodeallowlist.DeliveryMethodSMS) {
+	if plan.DeliveryMethod.ValueString() == string(DeliveryMethodSMS) {
 		_, err := r.client.CountryCodeAllowlist.SetAllowedSMSCountryCodes(ctx,
-			&countrycodeallowlist.SetAllowedSMSCountryCodesRequest{
+			countrycodeallowlist.SetAllowedSMSCountryCodesRequest{
 				ProjectSlug:     plan.ProjectSlug.ValueString(),
 				EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 				CountryCodes:    countryCodes,
@@ -265,7 +281,7 @@ func (r *countryCodeAllowlistResource) setCountryCodeAllowlist(
 		return err
 	} else {
 		_, err := r.client.CountryCodeAllowlist.SetAllowedWhatsAppCountryCodes(ctx,
-			&countrycodeallowlist.SetAllowedWhatsAppCountryCodesRequest{
+			countrycodeallowlist.SetAllowedWhatsAppCountryCodesRequest{
 				ProjectSlug:     plan.ProjectSlug.ValueString(),
 				EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 				CountryCodes:    countryCodes,
@@ -329,9 +345,9 @@ func (r *countryCodeAllowlistResource) Read(ctx context.Context, req resource.Re
 
 	// Get the country code allowlist based on the delivery method.
 	var countryCodes []string
-	if state.DeliveryMethod.ValueString() == string(countrycodeallowlist.DeliveryMethodSMS) {
+	if state.DeliveryMethod.ValueString() == string(DeliveryMethodSMS) {
 		getResp, err := r.client.CountryCodeAllowlist.GetAllowedSMSCountryCodes(ctx,
-			&countrycodeallowlist.GetAllowedSMSCountryCodesRequest{
+			countrycodeallowlist.GetAllowedSMSCountryCodesRequest{
 				ProjectSlug:     state.ProjectSlug.ValueString(),
 				EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 			})
@@ -342,7 +358,7 @@ func (r *countryCodeAllowlistResource) Read(ctx context.Context, req resource.Re
 		countryCodes = getResp.CountryCodes
 	} else {
 		getResp, err := r.client.CountryCodeAllowlist.GetAllowedWhatsAppCountryCodes(ctx,
-			&countrycodeallowlist.GetAllowedWhatsAppCountryCodesRequest{
+			countrycodeallowlist.GetAllowedWhatsAppCountryCodesRequest{
 				ProjectSlug:     state.ProjectSlug.ValueString(),
 				EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 			})
@@ -420,7 +436,7 @@ func (r *countryCodeAllowlistResource) Delete(
 	tflog.Info(ctx, "Setting country code allowlist to default value")
 
 	// Reset the country code allowlist to the default allowed country codes.
-	err := r.setCountryCodeAllowlist(ctx, state, countrycodeallowlist.DefaultCountryCodes)
+	err := r.setCountryCodeAllowlist(ctx, state, DefaultCountryCodes)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to reset country code allowlist", err.Error())
 		return

@@ -48,7 +48,7 @@ type trustedTokenProfileModel struct {
 	Name                 types.String `tfsdk:"name"`
 	Audience             types.String `tfsdk:"audience"`
 	Issuer               types.String `tfsdk:"issuer"`
-	JwksURL              types.String `tfsdk:"jwks_url"`
+	JWKSURL              types.String `tfsdk:"jwks_url"`
 	AttributeMappingJSON types.String `tfsdk:"attribute_mapping_json"`
 	PEMFiles             types.Set    `tfsdk:"pem_files"`
 	PublicKeyType        types.String `tfsdk:"public_key_type"`
@@ -194,7 +194,7 @@ func (r *trustedTokenProfileResource) upgradeTrustedTokenProfileStateV0ToV1(
 		return
 	}
 
-	getResp, err := r.client.TrustedTokenProfiles.Get(ctx, &trustedtokenprofiles.GetTrustedTokenProfileRequest{
+	getResp, err := r.client.TrustedTokenProfiles.Get(ctx, trustedtokenprofiles.GetRequest{
 		ProjectSlug:     projectSlug,
 		EnvironmentSlug: environmentSlug,
 		ProfileID:       profileID,
@@ -207,7 +207,7 @@ func (r *trustedTokenProfileResource) upgradeTrustedTokenProfileStateV0ToV1(
 		return
 	}
 
-	profile := getResp.TrustedTokenProfile
+	profile := getResp.Profile
 	newState := trustedTokenProfileModel{
 		ID:              types.StringValue(fmt.Sprintf("%s.%s.%s", projectSlug, environmentSlug, profileID)),
 		ProjectSlug:     types.StringValue(projectSlug),
@@ -222,13 +222,13 @@ func (r *trustedTokenProfileResource) upgradeTrustedTokenProfileStateV0ToV1(
 		PEMFiles:        types.SetNull(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()}),
 	}
 
-	if profile.JwksURL != "" {
-		newState.JwksURL = types.StringValue(profile.JwksURL)
+	if profile.JWKSURL != nil && *profile.JWKSURL != "" {
+		newState.JWKSURL = types.StringValue(*profile.JWKSURL)
 	} else {
-		newState.JwksURL = types.StringNull()
+		newState.JWKSURL = types.StringNull()
 	}
 
-	if len(profile.AttributeMapping) > 0 {
+	if profile.AttributeMapping != nil && len(*profile.AttributeMapping) > 0 {
 		jsonBytes, err := json.Marshal(profile.AttributeMapping)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to marshal attribute mapping", err.Error())
@@ -243,7 +243,7 @@ func (r *trustedTokenProfileResource) upgradeTrustedTokenProfileStateV0ToV1(
 		pemFiles := make([]pemFileModel, 0, len(profile.PEMFiles))
 		for _, pemFile := range profile.PEMFiles {
 			pemFiles = append(pemFiles, pemFileModel{
-				PEMFileID: types.StringValue(pemFile.ID),
+				PEMFileID: types.StringValue(pemFile.PEMFileID),
 				PublicKey: types.StringValue(pemFile.PublicKey),
 			})
 		}
@@ -349,8 +349,8 @@ func (r *trustedTokenProfileResource) Schema(
 				Description: "The type of public key. Valid values: JWK, PEM.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(
-						string(trustedtokenprofiles.PublicKeyTypeJWK),
-						string(trustedtokenprofiles.PublicKeyTypePEM),
+						string(trustedtokenprofiles.PublicKeyTypeJwk),
+						string(trustedtokenprofiles.PublicKeyTypePem),
 					),
 				},
 				PlanModifiers: []planmodifier.String{
@@ -374,20 +374,20 @@ func (r *trustedTokenProfileResource) Schema(
 func (ttp *trustedTokenProfileModel) refreshFromTrustedTokenProfile(r trustedtokenprofiles.TrustedTokenProfile) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	ttp.ProfileID = types.StringValue(r.ID)
+	ttp.ProfileID = types.StringValue(r.ProfileID)
 	ttp.Name = types.StringValue(r.Name)
 	ttp.Audience = types.StringValue(r.Audience)
 	ttp.Issuer = types.StringValue(r.Issuer)
 	ttp.PublicKeyType = types.StringValue(string(r.PublicKeyType))
 	ttp.CanJITProvision = types.BoolValue(r.CanJITProvision)
 
-	if r.JwksURL != "" {
-		ttp.JwksURL = types.StringValue(r.JwksURL)
+	if r.JWKSURL != nil && *r.JWKSURL != "" {
+		ttp.JWKSURL = types.StringValue(*r.JWKSURL)
 	} else {
-		ttp.JwksURL = types.StringNull()
+		ttp.JWKSURL = types.StringNull()
 	}
 
-	if len(r.AttributeMapping) > 0 {
+	if r.AttributeMapping != nil && len(*r.AttributeMapping) > 0 {
 		// Convert the map to JSON string
 		jsonBytes, err := json.Marshal(r.AttributeMapping)
 		if err != nil {
@@ -405,7 +405,7 @@ func (ttp *trustedTokenProfileModel) refreshFromTrustedTokenProfile(r trustedtok
 				values := make([]attr.Value, len(r.PEMFiles))
 				for i, pemFile := range r.PEMFiles {
 					values[i] = types.ObjectValueMust(pemFileModel{}.AttributeTypes(), map[string]attr.Value{
-						"pem_file_id": types.StringValue(pemFile.ID),
+						"pem_file_id": types.StringValue(pemFile.PEMFileID),
 						"public_key":  types.StringValue(pemFile.PublicKey),
 					})
 				}
@@ -505,7 +505,7 @@ func (r *trustedTokenProfileResource) Create(
 	ctx = tflog.SetField(ctx, "environment_slug", plan.EnvironmentSlug.ValueString())
 	tflog.Info(ctx, "Creating trusted token profile")
 
-	var attributeMapping map[string]string
+	var attributeMapping map[string]any
 	if !plan.AttributeMappingJSON.IsNull() && !plan.AttributeMappingJSON.IsUnknown() {
 		jsonStr := plan.AttributeMappingJSON.ValueString()
 		err := json.Unmarshal([]byte(jsonStr), &attributeMapping)
@@ -522,28 +522,28 @@ func (r *trustedTokenProfileResource) Create(
 		return
 	}
 
-	createReq := &trustedtokenprofiles.CreateTrustedTokenProfileRequest{
+	createReq := trustedtokenprofiles.CreateRequest{
 		ProjectSlug:      plan.ProjectSlug.ValueString(),
 		EnvironmentSlug:  plan.EnvironmentSlug.ValueString(),
 		Name:             plan.Name.ValueString(),
 		Audience:         plan.Audience.ValueString(),
 		Issuer:           plan.Issuer.ValueString(),
-		AttributeMapping: attributeMapping,
+		AttributeMapping: &attributeMapping,
 		PublicKeyType:    trustedtokenprofiles.PublicKeyType(plan.PublicKeyType.ValueString()),
 		CanJITProvision:  plan.CanJITProvision.ValueBool(),
 	}
 
-	if plan.PublicKeyType.ValueString() == string(trustedtokenprofiles.PublicKeyTypeJWK) {
-		if !plan.JwksURL.IsNull() && !plan.JwksURL.IsUnknown() {
-			jwksUrl := plan.JwksURL.ValueString()
-			createReq.JwksURL = &jwksUrl
+	if plan.PublicKeyType.ValueString() == string(trustedtokenprofiles.PublicKeyTypeJwk) {
+		if !plan.JWKSURL.IsNull() && !plan.JWKSURL.IsUnknown() {
+			jwksUrl := plan.JWKSURL.ValueString()
+			createReq.JWKSURL = &jwksUrl
 		}
 		plan.PEMFiles = types.SetNull(types.ObjectType{AttrTypes: pemFileModel{}.AttributeTypes()})
-	} else if plan.PublicKeyType.ValueString() == string(trustedtokenprofiles.PublicKeyTypePEM) {
+	} else if plan.PublicKeyType.ValueString() == string(trustedtokenprofiles.PublicKeyTypePem) {
 		if !plan.PEMFiles.IsNull() && !plan.PEMFiles.IsUnknown() {
 			createReq.PEMFiles = pemFiles
 		}
-		plan.JwksURL = types.StringNull()
+		plan.JWKSURL = types.StringNull()
 	}
 
 	createResp, err := r.client.TrustedTokenProfiles.Create(ctx, createReq)
@@ -558,7 +558,7 @@ func (r *trustedTokenProfileResource) Create(
 	tflog.Info(ctx, "Created trusted token profile")
 
 	// Update the state with the response
-	diags = plan.refreshFromTrustedTokenProfile(createResp.TrustedTokenProfile)
+	diags = plan.refreshFromTrustedTokenProfile(createResp.Profile)
 	resp.Diagnostics.Append(diags...)
 	plan.ID = types.StringValue(fmt.Sprintf("%s.%s.%s", plan.ProjectSlug.ValueString(), plan.EnvironmentSlug.ValueString(), plan.ProfileID.ValueString()))
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
@@ -582,7 +582,7 @@ func (r *trustedTokenProfileResource) Read(
 	ctx = tflog.SetField(ctx, "profile_id", state.ProfileID.ValueString())
 	tflog.Info(ctx, "Reading trusted token profile")
 
-	getResp, err := r.client.TrustedTokenProfiles.Get(ctx, &trustedtokenprofiles.GetTrustedTokenProfileRequest{
+	getResp, err := r.client.TrustedTokenProfiles.Get(ctx, trustedtokenprofiles.GetRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 		ProfileID:       state.ProfileID.ValueString(),
@@ -598,22 +598,22 @@ func (r *trustedTokenProfileResource) Read(
 	tflog.Info(ctx, "Read trusted token profile")
 
 	// Update the state with the response data
-	state.Name = types.StringValue(getResp.TrustedTokenProfile.Name)
-	state.Audience = types.StringValue(getResp.TrustedTokenProfile.Audience)
-	state.Issuer = types.StringValue(getResp.TrustedTokenProfile.Issuer)
-	state.PublicKeyType = types.StringValue(string(getResp.TrustedTokenProfile.PublicKeyType))
-	state.CanJITProvision = types.BoolValue(getResp.TrustedTokenProfile.CanJITProvision)
+	state.Name = types.StringValue(getResp.Profile.Name)
+	state.Audience = types.StringValue(getResp.Profile.Audience)
+	state.Issuer = types.StringValue(getResp.Profile.Issuer)
+	state.PublicKeyType = types.StringValue(string(getResp.Profile.PublicKeyType))
+	state.CanJITProvision = types.BoolValue(getResp.Profile.CanJITProvision)
 
 	// Handle JWKS URL
-	if getResp.TrustedTokenProfile.JwksURL != "" {
-		state.JwksURL = types.StringValue(getResp.TrustedTokenProfile.JwksURL)
+	if getResp.Profile.JWKSURL != nil && *getResp.Profile.JWKSURL != "" {
+		state.JWKSURL = types.StringValue(*getResp.Profile.JWKSURL)
 	} else {
-		state.JwksURL = types.StringNull()
+		state.JWKSURL = types.StringNull()
 	}
 
 	// Handle attribute mapping
-	if len(getResp.TrustedTokenProfile.AttributeMapping) > 0 {
-		jsonBytes, err := json.Marshal(getResp.TrustedTokenProfile.AttributeMapping)
+	if getResp.Profile.AttributeMapping != nil && len(*getResp.Profile.AttributeMapping) > 0 {
+		jsonBytes, err := json.Marshal(getResp.Profile.AttributeMapping)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to marshal attribute mapping", err.Error())
 			return
@@ -624,11 +624,11 @@ func (r *trustedTokenProfileResource) Read(
 	}
 
 	// Handle PEM files
-	if len(getResp.TrustedTokenProfile.PEMFiles) > 0 {
-		pemFiles := make([]pemFileModel, 0, len(getResp.TrustedTokenProfile.PEMFiles))
-		for _, pemFile := range getResp.TrustedTokenProfile.PEMFiles {
+	if len(getResp.Profile.PEMFiles) > 0 {
+		pemFiles := make([]pemFileModel, 0, len(getResp.Profile.PEMFiles))
+		for _, pemFile := range getResp.Profile.PEMFiles {
 			pemFiles = append(pemFiles, pemFileModel{
-				PEMFileID: types.StringValue(pemFile.ID),
+				PEMFileID: types.StringValue(pemFile.PEMFileID),
 				PublicKey: types.StringValue(pemFile.PublicKey),
 			})
 		}
@@ -673,7 +673,7 @@ func (r *trustedTokenProfileResource) Update(
 	ctx = tflog.SetField(ctx, "profile_id", plan.ProfileID.ValueString())
 	tflog.Info(ctx, "Updating trusted token profile")
 
-	var attributeMapping map[string]string
+	var attributeMapping map[string]any
 	if !plan.AttributeMappingJSON.IsNull() && !plan.AttributeMappingJSON.IsUnknown() {
 		jsonStr := plan.AttributeMappingJSON.ValueString()
 		err := json.Unmarshal([]byte(jsonStr), &attributeMapping)
@@ -688,20 +688,20 @@ func (r *trustedTokenProfileResource) Update(
 	issuer := plan.Issuer.ValueString()
 	canJITProvision := plan.CanJITProvision.ValueBool()
 
-	updateReq := &trustedtokenprofiles.UpdateTrustedTokenProfileRequest{
+	updateReq := trustedtokenprofiles.UpdateRequest{
 		ProjectSlug:      plan.ProjectSlug.ValueString(),
 		EnvironmentSlug:  plan.EnvironmentSlug.ValueString(),
 		ProfileID:        plan.ProfileID.ValueString(),
 		Name:             &name,
 		Audience:         &audience,
 		Issuer:           &issuer,
-		AttributeMapping: attributeMapping,
+		AttributeMapping: &attributeMapping,
 		CanJITProvision:  &canJITProvision,
 	}
 
-	if !plan.JwksURL.IsNull() && !plan.JwksURL.IsUnknown() {
-		jwksUrl := plan.JwksURL.ValueString()
-		updateReq.JwksURL = &jwksUrl
+	if !plan.JWKSURL.IsNull() && !plan.JWKSURL.IsUnknown() {
+		jwksUrl := plan.JWKSURL.ValueString()
+		updateReq.JWKSURL = &jwksUrl
 	}
 
 	_, err := r.client.TrustedTokenProfiles.Update(ctx, updateReq)
@@ -747,7 +747,7 @@ func (r *trustedTokenProfileResource) Update(
 		tflog.Info(ctx, "Adding PEM file", map[string]interface{}{
 			"profile_id": plan.ProfileID.ValueString(),
 		})
-		_, err := r.client.TrustedTokenProfiles.CreatePEM(ctx, &trustedtokenprofiles.CreatePEMFileRequest{
+		_, err := r.client.TrustedTokenProfiles.CreatePEMFile(ctx, trustedtokenprofiles.CreatePEMFileRequest{
 			ProjectSlug:     plan.ProjectSlug.ValueString(),
 			EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 			ProfileID:       plan.ProfileID.ValueString(),
@@ -768,7 +768,7 @@ func (r *trustedTokenProfileResource) Update(
 			"profile_id":  plan.ProfileID.ValueString(),
 			"pem_file_id": pemFileID,
 		})
-		_, err := r.client.TrustedTokenProfiles.DeletePEM(ctx, &trustedtokenprofiles.DeletePEMFileRequest{
+		_, err := r.client.TrustedTokenProfiles.DeletePEMFile(ctx, trustedtokenprofiles.DeletePEMFileRequest{
 			ProjectSlug:     plan.ProjectSlug.ValueString(),
 			EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 			ProfileID:       plan.ProfileID.ValueString(),
@@ -786,7 +786,7 @@ func (r *trustedTokenProfileResource) Update(
 	tflog.Info(ctx, "Updated trusted token profile")
 
 	// Get the final state to ensure we have the correct PEM file IDs
-	getResp, err := r.client.TrustedTokenProfiles.Get(ctx, &trustedtokenprofiles.GetTrustedTokenProfileRequest{
+	getResp, err := r.client.TrustedTokenProfiles.Get(ctx, trustedtokenprofiles.GetRequest{
 		ProjectSlug:     plan.ProjectSlug.ValueString(),
 		EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 		ProfileID:       plan.ProfileID.ValueString(),
@@ -800,7 +800,7 @@ func (r *trustedTokenProfileResource) Update(
 	}
 
 	// Update the state with the final response
-	diags = plan.refreshFromTrustedTokenProfile(getResp.TrustedTokenProfile)
+	diags = plan.refreshFromTrustedTokenProfile(getResp.Profile)
 	resp.Diagnostics.Append(diags...)
 	plan.ID = types.StringValue(fmt.Sprintf("%s.%s.%s", plan.ProjectSlug.ValueString(), plan.EnvironmentSlug.ValueString(), plan.ProfileID.ValueString()))
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
@@ -825,7 +825,7 @@ func (r *trustedTokenProfileResource) Delete(
 	tflog.Info(ctx, "Deleting trusted token profile")
 
 	// Deleting a PEM-based trusted token profile also deletes all associated PEM files.
-	_, err := r.client.TrustedTokenProfiles.Delete(ctx, &trustedtokenprofiles.DeleteTrustedTokenProfileRequest{
+	_, err := r.client.TrustedTokenProfiles.Delete(ctx, trustedtokenprofiles.DeleteRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 		ProfileID:       state.ProfileID.ValueString(),
