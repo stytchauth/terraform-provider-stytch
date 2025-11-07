@@ -247,7 +247,7 @@ func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest
 							Required:    true,
 							Description: "The type of the redirect URL.",
 							Validators: []validator.String{
-								stringvalidator.OneOf(toStrings(redirecturls.RedirectTypes())...),
+								stringvalidator.OneOf(toStrings(redirecturls.RedirectURLTypes())...),
 							},
 						},
 						"is_default": schema.BoolAttribute{
@@ -261,8 +261,8 @@ func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
-func (m redirectURLModel) toValidTypes() []redirecturls.URLRedirectType {
-	var validTypes []redirecturls.URLRedirectType
+func (m redirectURLModel) toValidTypes() []redirecturls.URLType {
+	var validTypes []redirecturls.URLType
 
 	if m.ValidTypes.IsNull() || m.ValidTypes.IsUnknown() {
 		return validTypes
@@ -278,8 +278,8 @@ func (m redirectURLModel) toValidTypes() []redirecturls.URLRedirectType {
 				continue
 			}
 
-			validTypes = append(validTypes, redirecturls.URLRedirectType{
-				Type:      redirecturls.RedirectType(typeAttr.ValueString()),
+			validTypes = append(validTypes, redirecturls.URLType{
+				Type:      redirecturls.RedirectURLType(typeAttr.ValueString()),
 				IsDefault: isDefaultAttr.ValueBool(),
 			})
 		}
@@ -310,7 +310,7 @@ func (r *redirectURLResource) Create(ctx context.Context, req resource.CreateReq
 		// We explicitly disable default promotion logic because if the terraform provisioner specified that a redirect URL
 		// is *not* the default for a given type, if the API tries to override it to true, it will result in a provider
 		// inconsistency error.
-		DoNotPromoteDefaults: true,
+		DoNotPromoteDefaults: ptr(true),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create redirect URL", err.Error())
@@ -385,7 +385,7 @@ func (r *redirectURLResource) Update(ctx context.Context, req resource.UpdateReq
 		// We explicitly disable default promotion logic because if the terraform provisioner specified that a redirect URL
 		// is *not* the default for a given type, if the API tries to override it to true, it will result in a provider
 		// inconsistency error.
-		DoNotPromoteDefaults: true,
+		DoNotPromoteDefaults: ptr(true),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update redirect URL", err.Error())
@@ -424,7 +424,7 @@ func (r *redirectURLResource) Delete(ctx context.Context, req resource.DeleteReq
 		// We explicitly disable default promotion logic because if the terraform provisioner specified that a redirect URL
 		// is *not* the default for a given type, if the API tries to override it to true, it will result in a provider
 		// inconsistency error.
-		DoNotPromoteDefaults: true,
+		DoNotPromoteDefaults: ptr(true),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to delete redirect URL", err.Error())

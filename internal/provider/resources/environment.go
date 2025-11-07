@@ -40,7 +40,7 @@ type environmentResourceModel struct {
 	ProjectSlug                                            types.String `tfsdk:"project_slug"`
 	EnvironmentSlug                                        types.String `tfsdk:"environment_slug"`
 	Name                                                   types.String `tfsdk:"name"`
-	OauthCallbackID                                        types.String `tfsdk:"oauth_callback_id"`
+	OAuthCallbackID                                        types.String `tfsdk:"oauth_callback_id"`
 	CrossOrgPasswordsEnabled                               types.Bool   `tfsdk:"cross_org_passwords_enabled"`
 	UserImpersonationEnabled                               types.Bool   `tfsdk:"user_impersonation_enabled"`
 	ZeroDowntimeSessionMigrationURL                        types.String `tfsdk:"zero_downtime_session_migration_url"`
@@ -235,10 +235,10 @@ func (r *environmentResource) Create(ctx context.Context, req resource.CreateReq
 		createReq.UserLockSelfServeEnabled = ptr(plan.UserLockSelfServeEnabled.ValueBool())
 	}
 	if !plan.UserLockThreshold.IsNull() && !plan.UserLockThreshold.IsUnknown() {
-		createReq.UserLockThreshold = ptr(plan.UserLockThreshold.ValueInt32())
+		createReq.UserLockThreshold = ptr(int(plan.UserLockThreshold.ValueInt32()))
 	}
 	if !plan.UserLockTTL.IsNull() && !plan.UserLockTTL.IsUnknown() {
-		createReq.UserLockTTL = ptr(plan.UserLockTTL.ValueInt32())
+		createReq.UserLockTTL = ptr(int(plan.UserLockTTL.ValueInt32()))
 	}
 	if !plan.IDPAuthorizationURL.IsNull() && !plan.IDPAuthorizationURL.IsUnknown() {
 		createReq.IDPAuthorizationURL = ptr(plan.IDPAuthorizationURL.ValueString())
@@ -345,10 +345,10 @@ func (r *environmentResource) Update(ctx context.Context, req resource.UpdateReq
 		updateReq.UserLockSelfServeEnabled = ptr(plan.UserLockSelfServeEnabled.ValueBool())
 	}
 	if !plan.UserLockThreshold.IsNull() && !plan.UserLockThreshold.Equal(state.UserLockThreshold) {
-		updateReq.UserLockThreshold = ptr(plan.UserLockThreshold.ValueInt32())
+		updateReq.UserLockThreshold = ptr(int(plan.UserLockThreshold.ValueInt32()))
 	}
 	if !plan.UserLockTTL.IsNull() && !plan.UserLockTTL.Equal(state.UserLockTTL) {
-		updateReq.UserLockTTL = ptr(plan.UserLockTTL.ValueInt32())
+		updateReq.UserLockTTL = ptr(int(plan.UserLockTTL.ValueInt32()))
 	}
 	if !plan.IDPAuthorizationURL.IsNull() && !plan.IDPAuthorizationURL.Equal(state.IDPAuthorizationURL) {
 		updateReq.IDPAuthorizationURL = ptr(plan.IDPAuthorizationURL.ValueString())
@@ -426,13 +426,13 @@ func refreshFromEnvironment(env environments.Environment) environmentResourceMod
 		ProjectSlug:                         types.StringValue(env.ProjectSlug),
 		EnvironmentSlug:                     types.StringValue(env.EnvironmentSlug),
 		Name:                                types.StringValue(env.Name),
-		OauthCallbackID:                     types.StringValue(env.OauthCallbackID),
+		OAuthCallbackID:                     types.StringValue(env.OAuthCallbackID),
 		CrossOrgPasswordsEnabled:            types.BoolValue(env.CrossOrgPasswordsEnabled),
 		UserImpersonationEnabled:            types.BoolValue(env.UserImpersonationEnabled),
 		ZeroDowntimeSessionMigrationURL:     types.StringValue(env.ZeroDowntimeSessionMigrationURL),
 		UserLockSelfServeEnabled:            types.BoolValue(env.UserLockSelfServeEnabled),
-		UserLockThreshold:                   types.Int32Value(env.UserLockThreshold),
-		UserLockTTL:                         types.Int32Value(env.UserLockTTL),
+		UserLockThreshold:                   types.Int32Value(int32(env.UserLockThreshold)),
+		UserLockTTL:                         types.Int32Value(int32(env.UserLockTTL)),
 		IDPAuthorizationURL:                 types.StringValue(env.IDPAuthorizationURL),
 		IDPDynamicClientRegistrationEnabled: types.BoolValue(env.IDPDynamicClientRegistrationEnabled),
 		IDPDynamicClientRegistrationAccessTokenTemplateContent: types.StringValue(env.IDPDynamicClientRegistrationAccessTokenTemplateContent),

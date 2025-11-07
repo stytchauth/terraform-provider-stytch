@@ -124,7 +124,7 @@ func (r *jwtTemplateResource) upgradeJWTTemplateStateV0ToV1(
 		return
 	}
 
-	getResp, err := r.client.JWTTemplates.Get(ctx, &jwttemplates.GetRequest{
+	getResp, err := r.client.JWTTemplates.Get(ctx, jwttemplates.GetRequest{
 		ProjectSlug:     projectSlug,
 		EnvironmentSlug: environmentSlug,
 		JWTTemplateType: jwttemplates.JWTTemplateType(strings.ToUpper(prior.TemplateType.ValueString())),
@@ -208,7 +208,7 @@ func (r *jwtTemplateResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
-// updateModelFromAPI updates the model with values from the API response
+// updateModelFromAPI updates the model with values from the API response.
 func (r *jwtTemplateResource) updateModelFromAPI(model *jwtTemplateModel, template *jwttemplates.JWTTemplate) {
 	model.ID = types.StringValue(fmt.Sprintf("%s.%s.%s", model.ProjectSlug.ValueString(), model.EnvironmentSlug.ValueString(), model.TemplateType.ValueString()))
 	model.TemplateContent = types.StringValue(template.TemplateContent)
@@ -229,7 +229,7 @@ func (r *jwtTemplateResource) Create(ctx context.Context, req resource.CreateReq
 	ctx = tflog.SetField(ctx, "template_type", plan.TemplateType.ValueString())
 	tflog.Info(ctx, "Creating JWT template")
 
-	createResp, err := r.client.JWTTemplates.Set(ctx, &jwttemplates.SetRequest{
+	createResp, err := r.client.JWTTemplates.Set(ctx, jwttemplates.SetRequest{
 		ProjectSlug:     plan.ProjectSlug.ValueString(),
 		EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 		JWTTemplateType: jwttemplates.JWTTemplateType(plan.TemplateType.ValueString()),
@@ -264,7 +264,7 @@ func (r *jwtTemplateResource) Read(ctx context.Context, req resource.ReadRequest
 	ctx = tflog.SetField(ctx, "template_type", state.TemplateType.ValueString())
 	tflog.Info(ctx, "Reading JWT template")
 
-	getResp, err := r.client.JWTTemplates.Get(ctx, &jwttemplates.GetRequest{
+	getResp, err := r.client.JWTTemplates.Get(ctx, jwttemplates.GetRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 		JWTTemplateType: jwttemplates.JWTTemplateType(state.TemplateType.ValueString()),
@@ -296,7 +296,7 @@ func (r *jwtTemplateResource) Update(ctx context.Context, req resource.UpdateReq
 	ctx = tflog.SetField(ctx, "template_type", plan.TemplateType.ValueString())
 	tflog.Info(ctx, "Updating JWT template")
 
-	updateResp, err := r.client.JWTTemplates.Set(ctx, &jwttemplates.SetRequest{
+	updateResp, err := r.client.JWTTemplates.Set(ctx, jwttemplates.SetRequest{
 		ProjectSlug:     plan.ProjectSlug.ValueString(),
 		EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 		JWTTemplateType: jwttemplates.JWTTemplateType(plan.TemplateType.ValueString()),
@@ -333,7 +333,7 @@ func (r *jwtTemplateResource) Delete(ctx context.Context, req resource.DeleteReq
 	tflog.Info(ctx, "Deleting JWT template (resetting to default values)")
 
 	// JWT templates cannot be deleted via API, only reset to empty/default values
-	_, err := r.client.JWTTemplates.Set(ctx, &jwttemplates.SetRequest{
+	_, err := r.client.JWTTemplates.Set(ctx, jwttemplates.SetRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 		JWTTemplateType: jwttemplates.JWTTemplateType(state.TemplateType.ValueString()),
