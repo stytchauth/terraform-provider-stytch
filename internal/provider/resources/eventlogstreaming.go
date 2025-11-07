@@ -154,8 +154,8 @@ var grafanaLokiConfigModelAttrTypes = map[string]attr.Type{
 
 // refreshFromEventLogStreaming updates the model from a full API response (used in Create/Update)
 // Note: This does NOT update the Enabled field - that should be managed separately since
-// Enable/Disable are separate API calls that don't return the config
-func (m *eventLogStreamingModel) refreshFromEventLogStreaming(ctx context.Context, r eventlogstreaming.EventLogStreamingConfig) diag.Diagnostics {
+// Enable/Disable are separate API calls that don't return the config.
+func (m *eventLogStreamingModel) refreshFromEventLogStreaming(ctx context.Context, r eventlogstreaming.EventLogStreaming) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Don't update Enabled - it's managed separately via Enable/Disable calls
@@ -190,8 +190,8 @@ func (m *eventLogStreamingModel) refreshFromEventLogStreaming(ctx context.Contex
 	return diags
 }
 
-// refreshFromMaskedEventLogStreaming updates the model from a masked API response (used in Read/Import)
-func (m *eventLogStreamingModel) refreshFromMaskedEventLogStreaming(ctx context.Context, r eventlogstreaming.EventLogStreamingConfigMasked) diag.Diagnostics {
+// refreshFromMaskedEventLogStreaming updates the model from a masked API response (used in Read/Import).
+func (m *eventLogStreamingModel) refreshFromMaskedEventLogStreaming(ctx context.Context, r eventlogstreaming.EventLogStreamingMasked) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	m.Enabled = types.BoolValue(r.StreamingStatus == eventlogstreaming.StreamingStatusActive)
@@ -305,7 +305,7 @@ func (r *eventLogStreamingResource) upgradeEventLogStreamingStateV0ToV1(
 	destinationType := strings.ToUpper(prior.DestinationType.ValueString())
 	destinationTypeEnum := eventlogstreaming.DestinationType(destinationType)
 
-	getResp, err := r.client.EventLogStreaming.Get(ctx, eventlogstreaming.GetEventLogStreamingRequest{
+	getResp, err := r.client.EventLogStreaming.Get(ctx, eventlogstreaming.GetRequest{
 		ProjectSlug:     projectSlug,
 		EnvironmentSlug: environmentSlug,
 		DestinationType: destinationTypeEnum,
@@ -511,7 +511,7 @@ func (r *eventLogStreamingResource) Create(ctx context.Context, req resource.Cre
 	}
 
 	// Create the streaming config
-	createResp, err := r.client.EventLogStreaming.Create(ctx, eventlogstreaming.CreateEventLogStreamingRequest{
+	createResp, err := r.client.EventLogStreaming.Create(ctx, eventlogstreaming.CreateRequest{
 		ProjectSlug:       plan.ProjectSlug.ValueString(),
 		EnvironmentSlug:   plan.EnvironmentSlug.ValueString(),
 		DestinationType:   eventlogstreaming.DestinationType(plan.DestinationType.ValueString()),
@@ -526,7 +526,7 @@ func (r *eventLogStreamingResource) Create(ctx context.Context, req resource.Cre
 
 	// Handle enabled/disabled status - newly created configs are disabled by default
 	if !plan.Enabled.IsUnknown() && !plan.Enabled.IsNull() && plan.Enabled.ValueBool() {
-		_, err := r.client.EventLogStreaming.Enable(ctx, eventlogstreaming.EnableEventLogStreamingRequest{
+		_, err := r.client.EventLogStreaming.Enable(ctx, eventlogstreaming.EnableRequest{
 			ProjectSlug:     plan.ProjectSlug.ValueString(),
 			EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 			DestinationType: eventlogstreaming.DestinationType(plan.DestinationType.ValueString()),
@@ -565,7 +565,7 @@ func (r *eventLogStreamingResource) Read(ctx context.Context, req resource.ReadR
 	ctx = tflog.SetField(ctx, "destination_type", state.DestinationType.ValueString())
 	tflog.Info(ctx, "Reading event log streaming")
 
-	getResp, err := r.client.EventLogStreaming.Get(ctx, eventlogstreaming.GetEventLogStreamingRequest{
+	getResp, err := r.client.EventLogStreaming.Get(ctx, eventlogstreaming.GetRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 		DestinationType: eventlogstreaming.DestinationType(state.DestinationType.ValueString()),
@@ -613,7 +613,7 @@ func (r *eventLogStreamingResource) Update(ctx context.Context, req resource.Upd
 	}
 
 	// Update the streaming config
-	updateResp, err := r.client.EventLogStreaming.Update(ctx, eventlogstreaming.UpdateEventLogStreamingRequest{
+	updateResp, err := r.client.EventLogStreaming.Update(ctx, eventlogstreaming.UpdateRequest{
 		ProjectSlug:       plan.ProjectSlug.ValueString(),
 		EnvironmentSlug:   plan.EnvironmentSlug.ValueString(),
 		DestinationType:   eventlogstreaming.DestinationType(plan.DestinationType.ValueString()),
@@ -629,7 +629,7 @@ func (r *eventLogStreamingResource) Update(ctx context.Context, req resource.Upd
 	// Handle enabled/disabled status changes
 	if !plan.Enabled.IsUnknown() && !plan.Enabled.IsNull() && plan.Enabled.ValueBool() != state.Enabled.ValueBool() {
 		if plan.Enabled.ValueBool() {
-			_, err := r.client.EventLogStreaming.Enable(ctx, eventlogstreaming.EnableEventLogStreamingRequest{
+			_, err := r.client.EventLogStreaming.Enable(ctx, eventlogstreaming.EnableRequest{
 				ProjectSlug:     plan.ProjectSlug.ValueString(),
 				EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 				DestinationType: eventlogstreaming.DestinationType(plan.DestinationType.ValueString()),
@@ -639,7 +639,7 @@ func (r *eventLogStreamingResource) Update(ctx context.Context, req resource.Upd
 				return
 			}
 		} else {
-			_, err := r.client.EventLogStreaming.Disable(ctx, eventlogstreaming.DisableEventLogStreamingRequest{
+			_, err := r.client.EventLogStreaming.Disable(ctx, eventlogstreaming.DisableRequest{
 				ProjectSlug:     plan.ProjectSlug.ValueString(),
 				EnvironmentSlug: plan.EnvironmentSlug.ValueString(),
 				DestinationType: eventlogstreaming.DestinationType(plan.DestinationType.ValueString()),
@@ -677,7 +677,7 @@ func (r *eventLogStreamingResource) Delete(ctx context.Context, req resource.Del
 	ctx = tflog.SetField(ctx, "destination_type", state.DestinationType.ValueString())
 	tflog.Info(ctx, "Deleting event log streaming")
 
-	_, err := r.client.EventLogStreaming.Delete(ctx, eventlogstreaming.DeleteEventLogStreamingRequest{
+	_, err := r.client.EventLogStreaming.Delete(ctx, eventlogstreaming.DeleteRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
 		DestinationType: eventlogstreaming.DestinationType(state.DestinationType.ValueString()),
@@ -711,7 +711,7 @@ func (r *eventLogStreamingResource) ImportState(ctx context.Context, req resourc
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("destination_type"), destinationType)...)
 }
 
-func (r *eventLogStreamingResource) buildDestinationConfig(ctx context.Context, model *eventLogStreamingModel) (eventlogstreaming.DestinationConfig, diag.Diagnostics) {
+func (r *eventLogStreamingResource) buildDestinationConfig(ctx context.Context, model *eventLogStreamingModel) (*eventlogstreaming.DestinationConfig, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var destConfig eventlogstreaming.DestinationConfig
 
@@ -721,13 +721,13 @@ func (r *eventLogStreamingResource) buildDestinationConfig(ctx context.Context, 
 	case "DATADOG":
 		if model.DatadogConfig.IsNull() || model.DatadogConfig.IsUnknown() {
 			diags.AddError("Missing Datadog Configuration", "datadog_config configuration is required when destination_type is DATADOG")
-			return destConfig, diags
+			return &destConfig, diags
 		}
 
 		var datadog datadogConfigModel
 		diags.Append(model.DatadogConfig.As(ctx, &datadog, basetypes.ObjectAsOptions{})...)
 		if diags.HasError() {
-			return destConfig, diags
+			return &destConfig, diags
 		}
 
 		destConfig.Datadog = &eventlogstreaming.DatadogConfig{
@@ -738,13 +738,13 @@ func (r *eventLogStreamingResource) buildDestinationConfig(ctx context.Context, 
 	case "GRAFANA_LOKI":
 		if model.GrafanaLokiConfig.IsNull() || model.GrafanaLokiConfig.IsUnknown() {
 			diags.AddError("Missing Grafana Loki Configuration", "grafana_loki_config configuration is required when destination_type is GRAFANA_LOKI")
-			return destConfig, diags
+			return &destConfig, diags
 		}
 
 		var grafana grafanaLokiConfigModel
 		diags.Append(model.GrafanaLokiConfig.As(ctx, &grafana, basetypes.ObjectAsOptions{})...)
 		if diags.HasError() {
-			return destConfig, diags
+			return &destConfig, diags
 		}
 
 		destConfig.GrafanaLoki = &eventlogstreaming.GrafanaLokiConfig{
@@ -757,5 +757,5 @@ func (r *eventLogStreamingResource) buildDestinationConfig(ctx context.Context, 
 		diags.AddError("Invalid Destination Type", fmt.Sprintf("Unsupported destination_type: %s", destType))
 	}
 
-	return destConfig, diags
+	return &destConfig, diags
 }

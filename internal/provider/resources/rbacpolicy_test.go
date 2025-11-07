@@ -7,7 +7,7 @@ import (
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
 
-// TestAccRBACPolicyResource_B2B tests RBAC policy for B2B projects
+// TestAccRBACPolicyResource_B2B tests RBAC policy for B2B projects.
 func TestAccRBACPolicyResource_B2B(t *testing.T) {
 	for _, testCase := range []testutil.TestCase{
 		{
@@ -191,7 +191,7 @@ func TestAccRBACPolicyResource_B2B(t *testing.T) {
 	}
 }
 
-// TestAccRBACPolicyResource_Consumer tests RBAC policy for Consumer projects
+// TestAccRBACPolicyResource_Consumer tests RBAC policy for Consumer projects.
 func TestAccRBACPolicyResource_Consumer(t *testing.T) {
 	for _, testCase := range []testutil.TestCase{
 		{

@@ -101,7 +101,7 @@ func consumerSDKConfigSessionsModelFromSDKConfig(
 	c sdk.ConsumerSessionsConfig,
 ) consumerSDKConfigSessionsModel {
 	return consumerSDKConfigSessionsModel{
-		MaxSessionDurationMinutes: types.Int32Value(c.MaxSessionDurationMinutes),
+		MaxSessionDurationMinutes: types.Int32Value(int32(c.MaxSessionDurationMinutes)),
 	}
 }
 
@@ -341,13 +341,13 @@ func consumerSDKConfigCookiesModelFromSDKConfig(
 	c sdk.ConsumerCookiesConfig,
 ) consumerSDKConfigCookiesModel {
 	return consumerSDKConfigCookiesModel{
-		HttpOnlyCookies: types.StringValue(string(c.HttpOnlyCookies)),
+		HttpOnlyCookies: types.StringValue(string(c.HTTPOnly)),
 	}
 }
 
 func (m *consumerSDKConfigModel) toSDKConfig(
 	ctx context.Context,
-) (sdk.ConsumerConfig, diag.Diagnostics) {
+) (*sdk.ConsumerConfig, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	c := sdk.ConsumerConfig{
 		Basic: &sdk.ConsumerBasicConfig{
@@ -373,7 +373,7 @@ func (m *consumerSDKConfigModel) toSDKConfig(
 			UnhandledUnknownAsEmpty: true,
 		})...)
 		c.Sessions = &sdk.ConsumerSessionsConfig{
-			MaxSessionDurationMinutes: sessions.MaxSessionDurationMinutes.ValueInt32(),
+			MaxSessionDurationMinutes: int(sessions.MaxSessionDurationMinutes.ValueInt32()),
 		}
 	}
 
@@ -410,7 +410,7 @@ func (m *consumerSDKConfigModel) toSDKConfig(
 		}
 		for i, m := range smsAutofillMetadata {
 			c.OTPs.SMSAutofillMetadata[i] = sdk.SMSAutofillMetadata{
-				MetadataType:  sdk.SMSAutofillMetadataType(m.MetadataType.ValueString()),
+				MetadataType:  sdk.SMSAutofillMetadataMetadataType(m.MetadataType.ValueString()),
 				MetadataValue: m.MetadataValue.ValueString(),
 				BundleID:      m.BundleID.ValueString(),
 			}
@@ -508,11 +508,11 @@ func (m *consumerSDKConfigModel) toSDKConfig(
 			UnhandledUnknownAsEmpty: true,
 		})...)
 		c.Cookies = &sdk.ConsumerCookiesConfig{
-			HttpOnlyCookies: sdk.HttpOnlyCookiesSetting(cookies.HttpOnlyCookies.ValueString()),
+			HTTPOnly: sdk.ConsumerCookiesConfigHttpOnly(cookies.HttpOnlyCookies.ValueString()),
 		}
 	}
 
-	return c, diags
+	return &c, diags
 }
 
 func (m *consumerSDKConfigModel) reloadFromSDKConfig(
@@ -912,7 +912,7 @@ func (r *consumerSDKConfigResource) Schema(
 												stringplanmodifier.UseStateForUnknown(),
 											},
 											Validators: []validator.String{
-												stringvalidator.OneOf(toStrings(sdk.SMSAutofillMetadataTypes())...),
+												stringvalidator.OneOf(toStrings(sdk.SMSAutofillMetadataMetadataTypes())...),
 											},
 										},
 										"metadata_value": schema.StringAttribute{
@@ -1166,7 +1166,7 @@ func (r *consumerSDKConfigResource) Schema(
 									stringplanmodifier.UseStateForUnknown(),
 								},
 								Validators: []validator.String{
-									stringvalidator.OneOf(toStrings(sdk.HttpOnlyCookiesSettings())...),
+									stringvalidator.OneOf(toStrings(sdk.ConsumerCookiesConfigHttpOnlys())...),
 								},
 							},
 						},
@@ -1351,7 +1351,7 @@ func (r *consumerSDKConfigResource) Delete(ctx context.Context, req resource.Del
 	_, err := r.client.SDK.SetConsumerConfig(ctx, sdk.SetConsumerConfigRequest{
 		ProjectSlug:     state.ProjectSlug.ValueString(),
 		EnvironmentSlug: state.EnvironmentSlug.ValueString(),
-		Config: sdk.ConsumerConfig{
+		Config: &sdk.ConsumerConfig{
 			Basic: &sdk.ConsumerBasicConfig{
 				Enabled: false,
 			},

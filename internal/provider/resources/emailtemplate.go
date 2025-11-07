@@ -183,11 +183,11 @@ func emailTemplatePrebuiltCustomizationModelFromEmailTemplate(e emailtemplates.E
 		if e.PrebuiltCustomization.ButtonTextColor != nil {
 			prebuiltCustomization.ButtonTextColor = types.StringValue(*e.PrebuiltCustomization.ButtonTextColor)
 		}
-		if e.PrebuiltCustomization.FontFamily != nil {
-			prebuiltCustomization.FontFamily = types.StringValue(string(*e.PrebuiltCustomization.FontFamily))
+		if e.PrebuiltCustomization.FontFamily != emailtemplates.FontFamilyUnknown {
+			prebuiltCustomization.FontFamily = types.StringValue(string(e.PrebuiltCustomization.FontFamily))
 		}
-		if e.PrebuiltCustomization.TextAlignment != nil {
-			prebuiltCustomization.TextAlignment = types.StringValue(string(*e.PrebuiltCustomization.TextAlignment))
+		if e.PrebuiltCustomization.TextAlignment != emailtemplates.TextAlignmentUnknown {
+			prebuiltCustomization.TextAlignment = types.StringValue(string(e.PrebuiltCustomization.TextAlignment))
 		}
 	}
 	return prebuiltCustomization
@@ -275,10 +275,10 @@ func (m emailTemplateModel) toEmailTemplate(ctx context.Context) (emailtemplates
 			e.PrebuiltCustomization.ButtonTextColor = ptr(prebuiltCustomization.ButtonTextColor.ValueString())
 		}
 		if !prebuiltCustomization.FontFamily.IsUnknown() {
-			e.PrebuiltCustomization.FontFamily = ptr(emailtemplates.FontFamily(prebuiltCustomization.FontFamily.ValueString()))
+			e.PrebuiltCustomization.FontFamily = emailtemplates.FontFamily(prebuiltCustomization.FontFamily.ValueString())
 		}
 		if !prebuiltCustomization.TextAlignment.IsUnknown() {
-			e.PrebuiltCustomization.TextAlignment = ptr(emailtemplates.TextAlignment(prebuiltCustomization.TextAlignment.ValueString()))
+			e.PrebuiltCustomization.TextAlignment = emailtemplates.TextAlignment(prebuiltCustomization.TextAlignment.ValueString())
 		}
 	}
 

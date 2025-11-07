@@ -68,12 +68,12 @@ func TestAccEventLogStreamingResource(t *testing.T) {
 			TestName:        "datadog",
 			DestinationType: eventlogstreaming.DestinationTypeDatadog,
 			InitialDatadogConfig: eventlogstreaming.DatadogConfig{
-				Site:   eventlogstreaming.DatadogSiteUS,
+				Site:   eventlogstreaming.DatadogSiteUs,
 				APIKey: "0123456789abcdef0123456789abcdef",
 			},
 			InitialGrafanaLokiConfig: eventlogstreaming.GrafanaLokiConfig{},
 			UpdatedDatadogConfig: eventlogstreaming.DatadogConfig{
-				Site:   eventlogstreaming.DatadogSiteEU,
+				Site:   eventlogstreaming.DatadogSiteEu,
 				APIKey: "ffffffffffffffffffffffffffffffff",
 			},
 			UpdatedGrafanaLokiConfig: eventlogstreaming.GrafanaLokiConfig{},

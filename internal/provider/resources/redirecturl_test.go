@@ -11,7 +11,7 @@ import (
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
 
-func redirectType(typ redirecturls.RedirectType, isDefault bool) string {
+func redirectType(typ redirecturls.RedirectURLType, isDefault bool) string {
 	return fmt.Sprintf(`{type = "%s", is_default = %t}`, typ, isDefault)
 }
 
@@ -33,15 +33,15 @@ resource "stytch_redirect_url" "test" {
 func TestAccRedirectURLResource(t *testing.T) {
 	for _, testCase := range []struct {
 		name          string
-		redirectTypes []redirecturls.URLRedirectType
+		redirectTypes []redirecturls.URLType
 	}{
-		{name: "login-only", redirectTypes: []redirecturls.URLRedirectType{
-			{Type: redirecturls.RedirectTypeLogin, IsDefault: true},
+		{name: "login-only", redirectTypes: []redirecturls.URLType{
+			{Type: redirecturls.RedirectURLTypeLogin, IsDefault: true},
 		}},
-		{name: "multiple", redirectTypes: []redirecturls.URLRedirectType{
-			{Type: redirecturls.RedirectTypeLogin, IsDefault: true},
-			{Type: redirecturls.RedirectTypeSignup, IsDefault: true},
-			{Type: redirecturls.RedirectTypeResetPassword, IsDefault: true},
+		{name: "multiple", redirectTypes: []redirecturls.URLType{
+			{Type: redirecturls.RedirectURLTypeLogin, IsDefault: true},
+			{Type: redirecturls.RedirectURLTypeSignup, IsDefault: true},
+			{Type: redirecturls.RedirectURLTypeResetPassword, IsDefault: true},
 		}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -74,10 +74,10 @@ func TestAccRedirectURLResource(t *testing.T) {
 					},
 					{
 						// Update and Read testing - change to *only* signup redirect
-						Config: testutil.ProviderConfig + redirectURLResource(redirectType(redirecturls.RedirectTypeSignup, true)),
+						Config: testutil.ProviderConfig + redirectURLResource(redirectType(redirecturls.RedirectURLTypeSignup, true)),
 						Check: resource.ComposeAggregateTestCheckFunc(
 							resource.TestCheckResourceAttr("stytch_redirect_url.test", "url", "http://localhost:3000/consumer"),
-							resource.TestCheckResourceAttr("stytch_redirect_url.test", "valid_types.0.type", string(redirecturls.RedirectTypeSignup)),
+							resource.TestCheckResourceAttr("stytch_redirect_url.test", "valid_types.0.type", string(redirecturls.RedirectURLTypeSignup)),
 							resource.TestCheckResourceAttr("stytch_redirect_url.test", "valid_types.0.is_default", "true"),
 						),
 					},
