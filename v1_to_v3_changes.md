@@ -42,6 +42,10 @@ This guide details the breaking changes and migration steps required when upgrad
       - [v1 Schema](#v1-schema-2)
       - [v3 Schema](#v3-schema-4)
       - [Breaking Changes](#breaking-changes-3)
+    - [stytch\_event\_log\_streaming](#stytch_event_log_streaming)
+      - [v1 Schema](#v1-schema-3)
+      - [v3 Schema](#v3-schema-5)
+      - [Breaking Changes](#breaking-changes-4)
     - [Other Resources](#other-resources)
   - [Getting Help](#getting-help)
 
@@ -167,6 +171,7 @@ Most cases will require no fix beyond this. If for some reason you are stuck, yo
 - [stytch_email_template](#stytch_email_template)
 - [stytch_default_email_template (NEW)](#stytch_default_email_template-new)
 - [stytch_password_config](#stytch_password_config)
+- [stytch_event_log_streaming](#stytch_event_log_streaming)
 - [All Other Resources](#other-resources)
 
 ### stytch_project
@@ -535,6 +540,70 @@ resource "stytch_password_config" "example" {
 - **CHANGED:** `project_id` → `project_slug` + `environment_slug`
 - **CHANGED:** All boolean fields (`check_breach_on_creation`, `check_breach_on_authentication`, `validate_on_authentication`) now default to True. This is in line with the default password configuration for all newly created environments.
 
+### stytch_event_log_streaming
+
+#### v1 Schema
+
+```hcl
+resource "stytch_event_log_streaming" "datadog" {
+  project_id       = "project-test-xxxxxxxx"
+  destination_type = "DATADOG"
+
+  datadog = {
+    site    = "US"
+    api_key = var.datadog_api_key
+  }
+}
+
+resource "stytch_event_log_streaming" "grafana_loki" {
+  project_id       = "project-test-xxxxxxxx"
+  destination_type = "GRAFANA_LOKI"
+
+  grafana_loki = {
+    hostname = "logs.example.com"
+    username = "stytch-logs"
+    password = var.grafana_loki_password
+  }
+}
+```
+
+#### v3 Schema
+
+```hcl
+resource "stytch_event_log_streaming" "datadog" {
+  project_slug     = stytch_project.example.project_slug
+  environment_slug = stytch_environment.production.environment_slug
+  destination_type = "DATADOG"
+  enabled          = true
+
+  datadog_config = {
+    site    = "US"
+    api_key = var.datadog_api_key
+  }
+}
+
+resource "stytch_event_log_streaming" "grafana_loki" {
+  project_slug     = stytch_project.example.project_slug
+  environment_slug = stytch_environment.production.environment_slug
+  destination_type = "GRAFANA_LOKI"
+  enabled          = true
+
+  grafana_loki_config = {
+    hostname = "logs.example.com"
+    username = "stytch-logs"
+    password = var.grafana_loki_password
+  }
+}
+```
+
+#### Breaking Changes
+
+- **CHANGED:** `project_id` → `project_slug` + `environment_slug`
+- **CHANGED:** `datadog` → `datadog_config`
+- **CHANGED:** `grafana_loki` → `grafana_loki_config`
+- **REMOVED:** `streaming_status`. This was read-only. See `enabled`
+- **NEW:** `enabled`. Whether streaming should be enabled or not. Configurable, defaults to false.
+
 ---
 
 ### Other Resources
@@ -544,9 +613,7 @@ The following resources are functionally equivalent in both v1 and v3 and its on
 - `stytch_b2b_sdk_config`
 - `stytch_consumer_sdk_config`
 - `stytch_country_code_allowlist`
-- `stytch_event_log_streaming`
 - `stytch_jwt_template`
-- `stytch_password_config`
 - `stytch_public_token`
 - `stytch_redirect_url`
 - `stytch_secret`
