@@ -5,7 +5,7 @@ resource "stytch_event_log_streaming" "datadog" {
   destination_type = "DATADOG"
   enabled          = true
 
-  datadog = {
+  datadog_config = {
     site    = "US"
     api_key = var.datadog_api_key
   }
@@ -18,7 +18,7 @@ resource "stytch_event_log_streaming" "grafana" {
   destination_type = "GRAFANA_LOKI"
   enabled          = true
 
-  grafana_loki = {
+  grafana_loki_config = {
     hostname = "logs.example.com"
     username = "stytch-logs"
     password = var.grafana_loki_password
@@ -32,7 +32,7 @@ resource "stytch_event_log_streaming" "datadog_disabled" {
   destination_type = "DATADOG"
   enabled          = false
 
-  datadog = {
+  datadog_config = {
     site    = "EU"
     api_key = var.datadog_api_key
   }
