@@ -2,6 +2,7 @@ package resources_test
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -143,5 +144,30 @@ resource "stytch_redirect_url" "test" {
 
 	resource.Test(t, resource.TestCase{
 		Steps: testutil.StateUpgradeTestSteps(v1Config, v3Config),
+	})
+}
+
+func TestRedirectURLValidTypesValidation(t *testing.T) {
+	t.Run("valid_types must have at least one element", func(t *testing.T) {
+		resource.UnitTest(t, resource.TestCase{
+			ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					// Test that empty valid_types produces an error
+					Config: testutil.ProviderConfig + testutil.ConsumerProjectConfig + testutil.EnvironmentResource(testutil.EnvironmentResourceArgs{
+						ProjectSlug: "stytch_project.test.project_slug",
+						Name:        "Test Environment",
+					}) + `
+resource "stytch_redirect_url" "test" {
+  project_slug     = stytch_project.test.project_slug
+  environment_slug = stytch_environment.test.environment_slug
+  url              = "http://localhost:3000/consumer"
+  valid_types      = []
+}
+`,
+					ExpectError: regexp.MustCompile("Attribute valid_types set must contain at least 1"),
+				},
+			},
+		})
 	})
 }
