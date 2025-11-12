@@ -34,15 +34,30 @@ func TestAccRedirectURLResource(t *testing.T) {
 	for _, testCase := range []struct {
 		name          string
 		redirectTypes []redirecturls.URLType
+		updateTypes   []redirecturls.URLType
 	}{
-		{name: "login-only", redirectTypes: []redirecturls.URLType{
-			{Type: redirecturls.RedirectURLTypeLogin, IsDefault: true},
-		}},
-		{name: "multiple", redirectTypes: []redirecturls.URLType{
-			{Type: redirecturls.RedirectURLTypeLogin, IsDefault: true},
-			{Type: redirecturls.RedirectURLTypeSignup, IsDefault: true},
-			{Type: redirecturls.RedirectURLTypeResetPassword, IsDefault: true},
-		}},
+		{
+			name: "login-to-signup-default-true",
+			redirectTypes: []redirecturls.URLType{
+				{Type: redirecturls.RedirectURLTypeLogin, IsDefault: true},
+			},
+			updateTypes: []redirecturls.URLType{
+				{Type: redirecturls.RedirectURLTypeSignup, IsDefault: true},
+			},
+		},
+		{
+			name: "multiple",
+			redirectTypes: []redirecturls.URLType{
+				{Type: redirecturls.RedirectURLTypeLogin, IsDefault: true},
+				{Type: redirecturls.RedirectURLTypeSignup, IsDefault: true},
+				// Tests for initializing as false
+				{Type: redirecturls.RedirectURLTypeResetPassword, IsDefault: false},
+			},
+			updateTypes: []redirecturls.URLType{
+				// Tests for updating an isDefault true to false
+				{Type: redirecturls.RedirectURLTypeSignup, IsDefault: false},
+			},
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			checks := []resource.TestCheckFunc{
@@ -57,6 +72,20 @@ func TestAccRedirectURLResource(t *testing.T) {
 					}))
 				typeStrings = append(typeStrings, redirectType(typ.Type, typ.IsDefault))
 			}
+
+			updateChecks := []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("stytch_redirect_url.test", "url", "http://localhost:3000/consumer"),
+			}
+			var updateTypeStrings []string
+			for _, typ := range testCase.updateTypes {
+				updateChecks = append(updateChecks, resource.TestCheckTypeSetElemNestedAttrs(
+					"stytch_redirect_url.test", "valid_types.*", map[string]string{
+						"type":       string(typ.Type),
+						"is_default": strconv.FormatBool(typ.IsDefault),
+					}))
+				updateTypeStrings = append(updateTypeStrings, redirectType(typ.Type, typ.IsDefault))
+			}
+
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 				Steps: []resource.TestStep{
@@ -73,13 +102,9 @@ func TestAccRedirectURLResource(t *testing.T) {
 						ImportStateVerifyIgnore: []string{"last_updated"},
 					},
 					{
-						// Update and Read testing - change to *only* signup redirect
-						Config: testutil.ProviderConfig + redirectURLResource(redirectType(redirecturls.RedirectURLTypeSignup, true)),
-						Check: resource.ComposeAggregateTestCheckFunc(
-							resource.TestCheckResourceAttr("stytch_redirect_url.test", "url", "http://localhost:3000/consumer"),
-							resource.TestCheckResourceAttr("stytch_redirect_url.test", "valid_types.0.type", string(redirecturls.RedirectURLTypeSignup)),
-							resource.TestCheckResourceAttr("stytch_redirect_url.test", "valid_types.0.is_default", "true"),
-						),
+						// Update and Read testing
+						Config: testutil.ProviderConfig + redirectURLResource(updateTypeStrings...),
+						Check:  resource.ComposeAggregateTestCheckFunc(updateChecks...),
 					},
 					// Delete testing automatically occurs in resource.TestCase
 				},
