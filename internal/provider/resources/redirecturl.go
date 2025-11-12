@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -241,6 +242,9 @@ func (r *redirectURLResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"valid_types": schema.SetNestedAttribute{
 				Description: "The set of valid types for the redirect URL.",
 				Required:    true,
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"type": schema.StringAttribute{
