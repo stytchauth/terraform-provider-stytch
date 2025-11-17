@@ -49,7 +49,7 @@ func (p *StytchProvider) Schema(
 	_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		Description: "Interact with Stytch's [Programmatic Workspace Actions API](https://stytch.com/docs/workspace-management/pwa/overview) to configure your workspace, including projects, redirect URLs, email templates and more.",
+		Description: "Interact with Stytch's [Programmatic Workspace Actions API](https://stytch.com/docs/workspace-management/pwa/overview) to configure your workspace, including projects, redirect URLs, email templates and more. \n See migration instructions from v1 to v3 in the [migration guide](https://github.com/stytchauth/terraform-provider-stytch/blob/main/v1_to_v3_changes.md).",
 		Attributes: map[string]schema.Attribute{
 			"workspace_key_id": schema.StringAttribute{
 				Description: "The key ID for a workspace management key obtained from the Stytch workspace management page",
