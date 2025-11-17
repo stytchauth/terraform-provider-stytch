@@ -2,7 +2,8 @@
 
 The Stytch Terraform Provider is the official plugin for managing your Stytch workspace configuration via Terraform.
 
-This provider is currently in a _beta_ state. Please report any bugs.
+> [!IMPORTANT]
+> This is the v3 version of the terraform provider, which has various breaking changes from v1, as well as new functionality. It uses the new v3 version of the Stytch Management API and its respective Go SDK. If you are currently using v1, please read the [migration guide](./migrating_v1_to_v3.md).
 
 ## Documentation
 
@@ -26,7 +27,7 @@ terraform {
   required_providers {
     stytch = {
       source  = "stytchauth/stytch"
-      version = ">= 0.0.1" # Refer to docs for latest version
+      version = ">= 3.0.0" # Refer to docs for latest version
     }
   }
 }
@@ -37,6 +38,12 @@ provider "stytch" {}
 ```shell
 $ terraform init
 ```
+
+## Previous version support
+
+- The v1 version of the provider is still available in the Terraform registry and in the v1 branch of this repository.
+- As of November 17, 2025, the v1 version of the provider will not get any new features. Maintenance will be limited to major bug fixes and security upgrades. 
+- V1 will reach end of life **not before** June 30, 2026. A more detailed deprecation timeline will be published in our official docs.
 
 ## Support
 
