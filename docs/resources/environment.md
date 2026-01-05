@@ -80,6 +80,7 @@ resource "stytch_environment" "test_with_lock" {
 - `id` (String) A computed ID field used for Terraform resource management (format: project_slug.environment_slug).
 - `last_updated` (String) Timestamp of the last Terraform update.
 - `oauth_callback_id` (String) The callback ID used in OAuth requests for the environment.
+- `project_id` (String) The ID of the project this environment belongs to (used for API authentication).
 
 ## Import
 
