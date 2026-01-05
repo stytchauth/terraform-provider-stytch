@@ -38,6 +38,7 @@ type environmentResource struct {
 type environmentResourceModel struct {
 	ID                                                     types.String `tfsdk:"id"`
 	ProjectSlug                                            types.String `tfsdk:"project_slug"`
+	ProjectID                                              types.String `tfsdk:"project_id"`
 	EnvironmentSlug                                        types.String `tfsdk:"environment_slug"`
 	Name                                                   types.String `tfsdk:"name"`
 	OAuthCallbackID                                        types.String `tfsdk:"oauth_callback_id"`
@@ -91,6 +92,13 @@ func (r *environmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"project_id": schema.StringAttribute{
+				Description: "The ID of the project this environment belongs to (used for API authentication).",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"environment_slug": schema.StringAttribute{
@@ -209,6 +217,7 @@ func (r *environmentResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	ctx = tflog.SetField(ctx, "project_slug", plan.ProjectSlug.ValueString())
+	ctx = tflog.SetField(ctx, "project_id", plan.ProjectID.ValueString())
 	ctx = tflog.SetField(ctx, "environment_slug", plan.EnvironmentSlug.ValueString())
 	ctx = tflog.SetField(ctx, "environment_name", plan.Name.ValueString())
 	tflog.Info(ctx, "Creating test environment")
@@ -275,6 +284,7 @@ func (r *environmentResource) Read(ctx context.Context, req resource.ReadRequest
 	}
 
 	ctx = tflog.SetField(ctx, "project_slug", state.ProjectSlug.ValueString())
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
 	ctx = tflog.SetField(ctx, "environment_slug", state.EnvironmentSlug.ValueString())
 	tflog.Info(ctx, "Reading environment")
 
@@ -321,6 +331,7 @@ func (r *environmentResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 
 	ctx = tflog.SetField(ctx, "project_slug", state.ProjectSlug.ValueString())
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
 	ctx = tflog.SetField(ctx, "environment_slug", state.EnvironmentSlug.ValueString())
 	tflog.Info(ctx, "Updating environment")
 
@@ -385,6 +396,7 @@ func (r *environmentResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 
 	ctx = tflog.SetField(ctx, "project_slug", state.ProjectSlug.ValueString())
+	ctx = tflog.SetField(ctx, "project_id", state.ProjectID.ValueString())
 	ctx = tflog.SetField(ctx, "environment_slug", state.EnvironmentSlug.ValueString())
 	tflog.Info(ctx, "Deleting environment")
 
@@ -424,6 +436,7 @@ func refreshFromEnvironment(env environments.Environment) environmentResourceMod
 	return environmentResourceModel{
 		ID:                                  types.StringValue(fmt.Sprintf("%s.%s", env.ProjectSlug, env.EnvironmentSlug)),
 		ProjectSlug:                         types.StringValue(env.ProjectSlug),
+		ProjectID:                           types.StringValue(env.ProjectID),
 		EnvironmentSlug:                     types.StringValue(env.EnvironmentSlug),
 		Name:                                types.StringValue(env.Name),
 		OAuthCallbackID:                     types.StringValue(env.OAuthCallbackID),
