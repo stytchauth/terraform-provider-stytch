@@ -3,7 +3,7 @@
 The Stytch Terraform Provider is the official plugin for managing your Stytch workspace configuration via Terraform.
 
 > [!IMPORTANT]
-> This is the v3 version of the terraform provider, which has various breaking changes from v1, as well as new functionality. It uses the new v3 version of the Stytch Management API and its respective Go SDK. If you are currently using v1, please read the [migration guide](./migrating_v1_to_v3.md).
+> This is the v3 version of the terraform provider, which has various breaking changes from v1, as well as new functionality. It uses the new v3 version of the Stytch Management API and its respective Go SDK. If you are currently using v1, please read the [migration guide](./v1_to_v3_changes.md).
 
 ## Documentation
 
