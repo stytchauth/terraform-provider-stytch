@@ -70,6 +70,7 @@ var projectResourceLegacySchema = schema.Schema{
 // See internal/provider/resources/environment.go environmentResourceModel.
 type environmentModel struct {
 	EnvironmentSlug                                        types.String `tfsdk:"environment_slug"`
+	ProjectID                                              types.String `tfsdk:"project_id"`
 	Name                                                   types.String `tfsdk:"name"`
 	OAuthCallbackID                                        types.String `tfsdk:"oauth_callback_id"`
 	CrossOrgPasswordsEnabled                               types.Bool   `tfsdk:"cross_org_passwords_enabled"`
@@ -86,6 +87,7 @@ type environmentModel struct {
 
 var environmentAttributeTypes = map[string]attr.Type{
 	"environment_slug":                        types.StringType,
+	"project_id":                              types.StringType,
 	"name":                                    types.StringType,
 	"oauth_callback_id":                       types.StringType,
 	"cross_org_passwords_enabled":             types.BoolType,
@@ -304,6 +306,13 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						Default:     stringdefault.StaticString("production"),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.RequiresReplace(),
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"project_id": schema.StringAttribute{
+						Description: "The project ID for the live environment (used for API authentication).",
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
@@ -771,6 +780,7 @@ func (r *projectResource) ImportState(ctx context.Context, req resource.ImportSt
 func refreshFromLiveEnv(env environments.Environment) environmentModel {
 	return environmentModel{
 		EnvironmentSlug:                     types.StringValue(env.EnvironmentSlug),
+		ProjectID:                           types.StringValue(env.ProjectID),
 		Name:                                types.StringValue(env.Name),
 		OAuthCallbackID:                     types.StringValue(env.OAuthCallbackID),
 		CrossOrgPasswordsEnabled:            types.BoolValue(env.CrossOrgPasswordsEnabled),
