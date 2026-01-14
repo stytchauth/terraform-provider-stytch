@@ -139,6 +139,7 @@ Read-Only:
 
 - `created_at` (String) The ISO-8601 timestamp when the environment was created.
 - `oauth_callback_id` (String) The callback ID used in OAuth requests for the environment.
+- `project_id` (String) The project ID for the live environment (used for API authentication).
 
 ## Import
 
