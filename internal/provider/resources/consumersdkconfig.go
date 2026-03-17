@@ -1191,6 +1191,12 @@ func (r *consumerSDKConfigResource) ValidateConfig(ctx context.Context, req reso
 		return
 	}
 
+	// If the client has not been configured yet, skip validation. This can happen when
+	// ValidateConfig is called before the provider is fully configured.
+	if r.client == nil {
+		return
+	}
+
 	ctx = tflog.SetField(ctx, "project_slug", data.ProjectSlug.ValueString())
 	ctx = tflog.SetField(ctx, "environment_slug", data.EnvironmentSlug.ValueString())
 	tflog.Info(ctx, "Validating Consumer SDK config")
