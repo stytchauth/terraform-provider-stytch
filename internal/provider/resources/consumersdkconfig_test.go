@@ -95,6 +95,30 @@ func TestAccConsumerSDKConfigResource(t *testing.T) {
 				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.cookies.http_only", "DISABLED"),
 			},
 		},
+		{
+			Name: "user-impersonation-enabled",
+			Config: testutil.ConsumerProjectConfig +
+				testutil.EnvironmentResource(testutil.EnvironmentResourceArgs{
+					ProjectSlug: "stytch_project.test.project_slug",
+					Name:        "Test Environment",
+				}) + `
+      resource "stytch_consumer_sdk_config" "test" {
+        project_slug = stytch_project.test.project_slug
+				environment_slug = stytch_environment.test.environment_slug
+        config = {
+          basic = {
+            enabled = true
+          }
+          user_impersonation = {
+            enabled = true
+          }
+        }
+      }`,
+			Checks: []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.basic.enabled", "true"),
+				resource.TestCheckResourceAttr("stytch_consumer_sdk_config.test", "config.user_impersonation.enabled", "true"),
+			},
+		},
 	} {
 		t.Run(testCase.Name, func(t *testing.T) {
 			resource.Test(t, resource.TestCase{

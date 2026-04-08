@@ -75,6 +75,7 @@ Optional:
 - `sessions` (Attributes) The session configuration for the B2B project SDK. (see [below for nested schema](#nestedatt--config--sessions))
 - `sso` (Attributes) The SSO configuration for the B2B project SDK. (see [below for nested schema](#nestedatt--config--sso))
 - `totps` (Attributes) The TOTPs configuration for the B2B project SDK. (see [below for nested schema](#nestedatt--config--totps))
+- `user_impersonation` (Attributes) The user impersonation configuration for the B2B project SDK. (see [below for nested schema](#nestedatt--config--user_impersonation))
 
 <a id="nestedatt--config--basic"></a>
 ### Nested Schema for `config.basic`
@@ -188,6 +189,14 @@ Optional:
 
 - `create_totps` (Boolean) A boolean indicating whether TOTP creation is enabled in the SDK.
 - `enabled` (Boolean) A boolean indicating whether TOTP endpoints are enabled in the SDK.
+
+
+<a id="nestedatt--config--user_impersonation"></a>
+### Nested Schema for `config.user_impersonation`
+
+Optional:
+
+- `enabled` (Boolean) Enable authenticating member impersonation tokens. Allow the SDK to authenticate a member impersonation token for a full session as an impersonated member.
 
 ## Import
 
