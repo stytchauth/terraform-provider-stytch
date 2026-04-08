@@ -67,16 +67,17 @@ var b2bSDKConfigResourceLegacySchema = schema.Schema{
 }
 
 type b2bSDKConfigInnerModel struct {
-	Basic      b2bSDKConfigBasicModel `tfsdk:"basic"`
-	Sessions   types.Object           `tfsdk:"sessions"`
-	MagicLinks types.Object           `tfsdk:"magic_links"`
-	OAuth      types.Object           `tfsdk:"oauth"`
-	TOTPs      types.Object           `tfsdk:"totps"`
-	SSO        types.Object           `tfsdk:"sso"`
-	OTPs       types.Object           `tfsdk:"otps"`
-	DFPPA      types.Object           `tfsdk:"dfppa"`
-	Passwords  types.Object           `tfsdk:"passwords"`
-	Cookies    types.Object           `tfsdk:"cookies"`
+	Basic             b2bSDKConfigBasicModel `tfsdk:"basic"`
+	Sessions          types.Object           `tfsdk:"sessions"`
+	MagicLinks        types.Object           `tfsdk:"magic_links"`
+	OAuth             types.Object           `tfsdk:"oauth"`
+	TOTPs             types.Object           `tfsdk:"totps"`
+	SSO               types.Object           `tfsdk:"sso"`
+	OTPs              types.Object           `tfsdk:"otps"`
+	DFPPA             types.Object           `tfsdk:"dfppa"`
+	Passwords         types.Object           `tfsdk:"passwords"`
+	Cookies           types.Object           `tfsdk:"cookies"`
+	UserImpersonation types.Object           `tfsdk:"user_impersonation"`
 }
 
 type b2bSDKConfigBasicModel struct {
@@ -292,6 +293,22 @@ func b2bSDKConfigCookiesModelFromSDKConfig(c sdk.B2BCookiesConfig) b2bSDKConfigC
 	}
 }
 
+type b2bSDKConfigUserImpersonationModel struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+func (m b2bSDKConfigUserImpersonationModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
+	}
+}
+
+func b2bSDKConfigUserImpersonationModelFromSDKConfig(c sdk.B2BUserImpersonationConfig) b2bSDKConfigUserImpersonationModel {
+	return b2bSDKConfigUserImpersonationModel{
+		Enabled: types.BoolValue(c.Enabled),
+	}
+}
+
 func (m *b2bSDKConfigModel) toSDKConfig(ctx context.Context) (*sdk.B2BConfig, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	c := sdk.B2BConfig{
@@ -436,6 +453,17 @@ func (m *b2bSDKConfigModel) toSDKConfig(ctx context.Context) (*sdk.B2BConfig, di
 		}
 	}
 
+	if !m.Config.UserImpersonation.IsUnknown() {
+		var userImpersonation b2bSDKConfigUserImpersonationModel
+		diags.Append(m.Config.UserImpersonation.As(ctx, &userImpersonation, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
+		c.UserImpersonation = &sdk.B2BUserImpersonationConfig{
+			Enabled: userImpersonation.Enabled.ValueBool(),
+		}
+	}
+
 	return &c, diags
 }
 
@@ -468,6 +496,9 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 	}
 	if c.Cookies == nil {
 		diags.AddError("cookies is nil", nilSDKObject)
+	}
+	if c.UserImpersonation == nil {
+		diags.AddError("user_impersonation is nil", nilSDKObject)
 	}
 
 	if diags.HasError() {
@@ -509,6 +540,9 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 	cookies, diag := types.ObjectValueFrom(ctx, b2bSDKConfigCookiesModel{}.AttributeTypes(), b2bSDKConfigCookiesModelFromSDKConfig(*c.Cookies))
 	diags.Append(diag...)
 
+	userImpersonation, diag := types.ObjectValueFrom(ctx, b2bSDKConfigUserImpersonationModel{}.AttributeTypes(), b2bSDKConfigUserImpersonationModelFromSDKConfig(*c.UserImpersonation))
+	diags.Append(diag...)
+
 	cfg := b2bSDKConfigInnerModel{
 		Basic: b2bSDKConfigBasicModel{
 			Enabled:                 types.BoolValue(c.Basic.Enabled),
@@ -524,8 +558,9 @@ func (m *b2bSDKConfigModel) reloadFromSDKConfig(ctx context.Context, c sdk.B2BCo
 		SSO:        sso,
 		OTPs:       otps,
 		DFPPA:      dfppa,
-		Passwords:  passwords,
-		Cookies:    cookies,
+		Passwords:         passwords,
+		Cookies:           cookies,
+		UserImpersonation: userImpersonation,
 	}
 	m.ID = types.StringValue(
 		fmt.Sprintf("%s.%s", m.ProjectSlug.ValueString(), m.EnvironmentSlug.ValueString()))
@@ -1018,6 +1053,25 @@ func (r *b2bSDKConfigResource) Schema(
 								},
 								Validators: []validator.String{
 									stringvalidator.OneOf(toStrings(sdk.B2BCookiesConfigHttpOnlys())...),
+								},
+							},
+						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"user_impersonation": schema.SingleNestedAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "The user impersonation configuration for the B2B project SDK.",
+						Attributes: map[string]schema.Attribute{
+							"enabled": schema.BoolAttribute{
+								Optional: true,
+								Computed: true,
+								Description: "Enable authenticating member impersonation tokens. " +
+									"Allow the SDK to authenticate a member impersonation token for a full session as an impersonated member.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
 								},
 							},
 						},

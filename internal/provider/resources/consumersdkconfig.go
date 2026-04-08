@@ -67,18 +67,19 @@ var consumerSDKConfigResourceLegacySchema = schema.Schema{
 }
 
 type consumerSDKConfigInnerModel struct {
-	Basic         consumerSDKConfigBasicModel `tfsdk:"basic"`
-	Sessions      types.Object                `tfsdk:"sessions"`
-	MagicLinks    types.Object                `tfsdk:"magic_links"`
-	OTPs          types.Object                `tfsdk:"otps"`
-	OAuth         types.Object                `tfsdk:"oauth"`
-	TOTPs         types.Object                `tfsdk:"totps"`
-	WebAuthn      types.Object                `tfsdk:"webauthn"`
-	CryptoWallets types.Object                `tfsdk:"crypto_wallets"`
-	DFPPA         types.Object                `tfsdk:"dfppa"`
-	Biometrics    types.Object                `tfsdk:"biometrics"`
-	Passwords     types.Object                `tfsdk:"passwords"`
-	Cookies       types.Object                `tfsdk:"cookies"`
+	Basic             consumerSDKConfigBasicModel `tfsdk:"basic"`
+	Sessions          types.Object                `tfsdk:"sessions"`
+	MagicLinks        types.Object                `tfsdk:"magic_links"`
+	OTPs              types.Object                `tfsdk:"otps"`
+	OAuth             types.Object                `tfsdk:"oauth"`
+	TOTPs             types.Object                `tfsdk:"totps"`
+	WebAuthn          types.Object                `tfsdk:"webauthn"`
+	CryptoWallets     types.Object                `tfsdk:"crypto_wallets"`
+	DFPPA             types.Object                `tfsdk:"dfppa"`
+	Biometrics        types.Object                `tfsdk:"biometrics"`
+	Passwords         types.Object                `tfsdk:"passwords"`
+	Cookies           types.Object                `tfsdk:"cookies"`
+	UserImpersonation types.Object                `tfsdk:"user_impersonation"`
 }
 
 type consumerSDKConfigBasicModel struct {
@@ -345,6 +346,24 @@ func consumerSDKConfigCookiesModelFromSDKConfig(
 	}
 }
 
+type consumerSDKConfigUserImpersonationModel struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+func (m consumerSDKConfigUserImpersonationModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
+	}
+}
+
+func consumerSDKConfigUserImpersonationModelFromSDKConfig(
+	c sdk.ConsumerUserImpersonationConfig,
+) consumerSDKConfigUserImpersonationModel {
+	return consumerSDKConfigUserImpersonationModel{
+		Enabled: types.BoolValue(c.Enabled),
+	}
+}
+
 func (m *consumerSDKConfigModel) toSDKConfig(
 	ctx context.Context,
 ) (*sdk.ConsumerConfig, diag.Diagnostics) {
@@ -512,6 +531,17 @@ func (m *consumerSDKConfigModel) toSDKConfig(
 		}
 	}
 
+	if !m.Config.UserImpersonation.IsUnknown() {
+		var userImpersonation consumerSDKConfigUserImpersonationModel
+		diags.Append(m.Config.UserImpersonation.As(ctx, &userImpersonation, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    true,
+			UnhandledUnknownAsEmpty: true,
+		})...)
+		c.UserImpersonation = &sdk.ConsumerUserImpersonationConfig{
+			Enabled: userImpersonation.Enabled.ValueBool(),
+		}
+	}
+
 	return &c, diags
 }
 
@@ -552,6 +582,9 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(
 	}
 	if c.Cookies == nil {
 		diags.AddError("cookies is nil", nilSDKObject)
+	}
+	if c.UserImpersonation == nil {
+		diags.AddError("user_impersonation is nil", nilSDKObject)
 	}
 
 	if diags.HasError() {
@@ -599,6 +632,9 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(
 	cookies, diag := types.ObjectValueFrom(ctx, consumerSDKConfigCookiesModel{}.AttributeTypes(), consumerSDKConfigCookiesModelFromSDKConfig(*c.Cookies))
 	diags.Append(diag...)
 
+	userImpersonation, diag := types.ObjectValueFrom(ctx, consumerSDKConfigUserImpersonationModel{}.AttributeTypes(), consumerSDKConfigUserImpersonationModelFromSDKConfig(*c.UserImpersonation))
+	diags.Append(diag...)
+
 	cfg := consumerSDKConfigInnerModel{
 		Basic: consumerSDKConfigBasicModel{
 			Enabled:   types.BoolValue(c.Basic.Enabled),
@@ -614,8 +650,9 @@ func (m *consumerSDKConfigModel) reloadFromSDKConfig(
 		CryptoWallets: cryptoWallets,
 		DFPPA:         dfppa,
 		Biometrics:    biometrics,
-		Passwords:     passwords,
-		Cookies:       cookies,
+		Passwords:         passwords,
+		Cookies:           cookies,
+		UserImpersonation: userImpersonation,
 	}
 	m.ID = types.StringValue(
 		fmt.Sprintf("%s.%s", m.ProjectSlug.ValueString(), m.EnvironmentSlug.ValueString()))
@@ -1169,6 +1206,25 @@ func (r *consumerSDKConfigResource) Schema(
 									stringvalidator.OneOf(toStrings(sdk.ConsumerCookiesConfigHttpOnlys())...),
 								},
 							},
+						},
+					},
+					"user_impersonation": schema.SingleNestedAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "The user impersonation configuration for the consumer project SDK.",
+						Attributes: map[string]schema.Attribute{
+							"enabled": schema.BoolAttribute{
+								Optional: true,
+								Computed: true,
+								Description: "Enable authenticating member impersonation tokens. " +
+									"Allow the SDK to authenticate a member impersonation token for a full session as an impersonated member.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
+							},
+						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
 						},
 					},
 				},
