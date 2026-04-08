@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.28.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.2
-	github.com/stytchauth/stytch-management-go/v3 v3.1.0
+	github.com/stytchauth/stytch-management-go/v3 v3.2.0
 )
 
 require (
@@ -62,5 +62,3 @@ require (
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
-
-replace github.com/stytchauth/stytch-management-go/v3 => ../stytch-management-go
