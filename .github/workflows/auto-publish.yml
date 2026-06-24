@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   tag_release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-public
     outputs:
       diff: ${{ steps.diff.outputs.diff }}
     steps:
@@ -46,7 +46,7 @@ jobs:
 
   goreleaser:
     needs: tag_release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-public
     if: needs.tag_release.outputs.diff != 0
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
