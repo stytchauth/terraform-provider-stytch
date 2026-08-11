@@ -15,6 +15,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/clients"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/projectapi"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/resources"
 )
 
@@ -166,9 +168,12 @@ func (p *StytchProvider) Configure(
 	}
 	client := api.NewClient(workspaceKeyID, workspaceKeySecret, opts...)
 
-	// Make the client available to the provider.
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	providerClients := &clients.Clients{
+		Management: client,
+		ProjectAPI: projectapi.NewFactory(client),
+	}
+	resp.DataSourceData = providerClients
+	resp.ResourceData = providerClients
 
 	tflog.Info(ctx, "Stytch provider configured", map[string]any{"success": true})
 }

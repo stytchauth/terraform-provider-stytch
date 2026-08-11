@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/emailtemplates"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/clients"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -51,16 +52,16 @@ func (r *defaultEmailTemplateResource) Configure(_ context.Context, req resource
 		return
 	}
 
-	client, ok := req.ProviderData.(*api.API)
+	providerClients, ok := req.ProviderData.(*clients.Clients)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *api.API, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *clients.Clients, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
 
-	r.client = client
+	r.client = providerClients.Management
 }
 
 func (r *defaultEmailTemplateResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {

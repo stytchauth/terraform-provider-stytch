@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/redirecturls"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/clients"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/utils"
 )
 
@@ -121,18 +122,18 @@ func (r *redirectURLResource) Configure(ctx context.Context, req resource.Config
 		return
 	}
 
-	client, ok := req.ProviderData.(*api.API)
+	providerClients, ok := req.ProviderData.(*clients.Clients)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *api.API (stytch-management-go client), got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *clients.Clients, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 
 		return
 	}
 
-	r.client = client
+	r.client = providerClients.Management
 }
 
 func (r *redirectURLResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
