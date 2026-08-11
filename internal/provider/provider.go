@@ -181,6 +181,8 @@ func (p *StytchProvider) Configure(
 func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.NewB2BSDKConfigResource,
+		resources.NewConnectedAppResource,
+		resources.NewConnectedAppRedirectURLResource,
 		resources.NewConsumerSDKConfigResource,
 		resources.NewCountryCodeAllowlistResource,
 		resources.NewDefaultEmailTemplateResource,
