@@ -24,6 +24,7 @@ import (
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/environments"
 	migrationprojects "github.com/stytchauth/stytch-management-go/v3/pkg/models/migration/projects"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/projects"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/clients"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -117,16 +118,16 @@ func (r *projectResource) Configure(ctx context.Context, req resource.ConfigureR
 		return
 	}
 
-	client, ok := req.ProviderData.(*api.API)
+	providerClients, ok := req.ProviderData.(*clients.Clients)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *api.API (stytch-management-go client), got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *clients.Clients, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
 
-	r.client = client
+	r.client = providerClients.Management
 }
 
 func (r *projectResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {

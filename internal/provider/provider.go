@@ -15,6 +15,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/clients"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/projectapi"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/resources"
 )
 
@@ -36,6 +38,7 @@ type StytchProviderModel struct {
 	WorkspaceKeyID     types.String `tfsdk:"workspace_key_id"`
 	WorkspaceKeySecret types.String `tfsdk:"workspace_key_secret"`
 	BaseURI            types.String `tfsdk:"base_uri"`
+	ProjectAPIBaseURI  types.String `tfsdk:"project_api_base_uri"`
 }
 
 func (p *StytchProvider) Metadata(
@@ -63,6 +66,12 @@ func (p *StytchProvider) Schema(
 			"base_uri": schema.StringAttribute{
 				Description: "Base URI override to use instead of Stytch's API. This is used for internal testing only.",
 				Optional:    true,
+			},
+			"project_api_base_uri": schema.StringAttribute{
+				Description: "Base URI override for the project-level Stytch API, which serves the connected app resources. " +
+					"The project API host normally derives from the project ID rather than from base_uri, so setting base_uri " +
+					"alone leaves project-level resources pointed at the public API. This is used for internal testing only.",
+				Optional: true,
 			},
 		},
 	}
@@ -105,6 +114,15 @@ func (p *StytchProvider) Configure(
 		)
 	}
 
+	if config.ProjectAPIBaseURI.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("project_api_base_uri"),
+			"Unknown project API base URI",
+			"The provider cannot create the Stytch project API client as there is an unknown configuration value for the Stytch Project API Base URI. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the STYTCH_PROJECT_API_BASE_URI environment variable.",
+		)
+	}
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -115,6 +133,7 @@ func (p *StytchProvider) Configure(
 	workspaceKeyID := os.Getenv("STYTCH_WORKSPACE_KEY_ID")
 	workspaceKeySecret := os.Getenv("STYTCH_WORKSPACE_KEY_SECRET")
 	baseURI := os.Getenv("STYTCH_MANAGEMENT_BASE_URI")
+	projectAPIBaseURI := os.Getenv("STYTCH_PROJECT_API_BASE_URI")
 
 	if !config.WorkspaceKeyID.IsNull() {
 		workspaceKeyID = config.WorkspaceKeyID.ValueString()
@@ -124,6 +143,9 @@ func (p *StytchProvider) Configure(
 	}
 	if !config.BaseURI.IsNull() {
 		baseURI = config.BaseURI.ValueString()
+	}
+	if !config.ProjectAPIBaseURI.IsNull() {
+		projectAPIBaseURI = config.ProjectAPIBaseURI.ValueString()
 	}
 
 	// Now we make sure the keyID and secret are not empty strings
@@ -166,9 +188,19 @@ func (p *StytchProvider) Configure(
 	}
 	client := api.NewClient(workspaceKeyID, workspaceKeySecret, opts...)
 
-	// Make the client available to the provider.
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	var projectAPIOpts []projectapi.Option
+	if projectAPIBaseURI != "" {
+		projectAPIOpts = append(projectAPIOpts, projectapi.WithBaseURI(projectAPIBaseURI))
+	} else if baseURI != "" {
+		projectAPIOpts = append(projectAPIOpts, projectapi.WithManagementBaseURIOverridden())
+	}
+
+	providerClients := &clients.Clients{
+		Management: client,
+		ProjectAPI: projectapi.NewFactory(client, projectAPIOpts...),
+	}
+	resp.DataSourceData = providerClients
+	resp.ResourceData = providerClients
 
 	tflog.Info(ctx, "Stytch provider configured", map[string]any{"success": true})
 }
@@ -176,6 +208,8 @@ func (p *StytchProvider) Configure(
 func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.NewB2BSDKConfigResource,
+		resources.NewConnectedAppResource,
+		resources.NewConnectedAppRedirectURLResource,
 		resources.NewConsumerSDKConfigResource,
 		resources.NewCountryCodeAllowlistResource,
 		resources.NewDefaultEmailTemplateResource,
@@ -194,7 +228,9 @@ func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource
 }
 
 func (p *StytchProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		resources.NewConnectedAppDataSource,
+	}
 }
 
 func (p *StytchProvider) Functions(_ context.Context) []func() function.Function {
