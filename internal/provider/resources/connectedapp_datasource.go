@@ -127,6 +127,10 @@ func (d *connectedAppDataSource) Schema(_ context.Context, _ datasource.SchemaRe
 	}
 }
 
+// At the API's maximum page size of 1000, this allows a million clients in one
+// environment before giving up.
+const maxConnectedAppSearchPages = 1000
+
 func matchConnectedAppsByName(apps []connectedapps.ConnectedApp, name string) []connectedapps.ConnectedApp {
 	var matches []connectedapps.ConnectedApp
 	for _, app := range apps {
@@ -158,7 +162,17 @@ func (d *connectedAppDataSource) Read(ctx context.Context, req datasource.ReadRe
 	name := config.ClientName.ValueString()
 	var matches []connectedapps.ConnectedApp
 	cursor := ""
-	for {
+	// A page cap in addition to the repeated-cursor guard below: that guard only
+	// catches a cursor that repeats immediately, not a longer cycle.
+	for page := 0; ; page++ {
+		if page >= maxConnectedAppSearchPages {
+			resp.Diagnostics.AddError(
+				"Connected app search did not terminate",
+				fmt.Sprintf("The connected app search paged %d times without exhausting its results while looking up %q in %s/%s.",
+					maxConnectedAppSearchPages, name, config.ProjectSlug.ValueString(), config.EnvironmentSlug.ValueString()),
+			)
+			return
+		}
 		searchResp, err := client.ConnectedApp.Clients.Search(ctx, &capclients.SearchParams{Cursor: cursor, Limit: 1000})
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to search connected apps", err.Error())
@@ -201,8 +215,8 @@ func (d *connectedAppDataSource) Read(ctx context.Context, req datasource.ReadRe
 	config.ClientID = types.StringValue(app.ClientID)
 	config.ClientType = types.StringValue(app.ClientType)
 	config.ClientDescription = optionalString(app.ClientDescription)
-	config.RedirectURLs = setFromStrings(app.RedirectURLs)
-	config.PostLogoutRedirectURLs = setFromStrings(app.PostLogoutRedirectURLs)
+	config.RedirectURLs = setFromStrings(ctx, app.RedirectURLs)
+	config.PostLogoutRedirectURLs = setFromStrings(ctx, app.PostLogoutRedirectURLs)
 	config.FullAccessAllowed = types.BoolValue(app.FullAccessAllowed)
 	config.BypassConsentForOfflineAccess = types.BoolValue(app.BypassConsentForOfflineAccess)
 	config.AccessTokenExpiryMinutes = types.Int32Value(app.AccessTokenExpiryMinutes)

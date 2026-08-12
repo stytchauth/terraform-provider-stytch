@@ -5,10 +5,12 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stytchauth/stytch-go/v18/stytch/consumer/connectedapps"
+	capclients "github.com/stytchauth/stytch-go/v18/stytch/consumer/connectedapps/clients"
 	"github.com/stytchauth/stytch-go/v18/stytch/stytcherror"
 )
 
@@ -68,6 +70,29 @@ func TestConnectedAppBodyRoundTripsAllMutableFields(t *testing.T) {
 				t.Fatal("client_type is immutable and must not be sent on update")
 			}
 		})
+	}
+}
+
+// connectedAppBody enumerates the mutable fields by hand, so a field added to
+// the SDK's UpdateParams would silently be reset to its default on every write
+// until someone noticed. Fail here instead, on the next SDK bump.
+func TestConnectedAppBodyCoversEveryUpdateParam(t *testing.T) {
+	body := connectedAppBody(connectedapps.ConnectedApp{ClientType: "first_party"})
+
+	paramsType := reflect.TypeOf(capclients.UpdateParams{})
+	for i := range paramsType.NumField() {
+		key := strings.Split(paramsType.Field(i).Tag.Get("json"), ",")[0]
+		// client_id travels in the path, not the body.
+		if key == "" || key == "-" || key == "client_id" {
+			continue
+		}
+		if _, ok := body[key]; !ok {
+			t.Errorf("UpdateParams has %q but connectedAppBody never sends it: a write would reset it to the API default", key)
+		}
+		delete(body, key)
+	}
+	for key := range body {
+		t.Errorf("connectedAppBody sends %q, which is not an UpdateParams field", key)
 	}
 }
 
@@ -146,7 +171,7 @@ func TestSetFromStrings(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			set := setFromStrings(test.values)
+			set := setFromStrings(context.Background(), test.values)
 			if test.want == nil {
 				if !set.IsNull() {
 					t.Fatalf("expected a null set, got %#v", set)
@@ -184,9 +209,6 @@ func TestURLListHelpers(t *testing.T) {
 	}
 	if removeURL([]string{"https://a.example.com"}, "https://a.example.com") == nil {
 		t.Fatal("remove to empty must return an empty non-nil slice")
-	}
-	if !containsURL(urls, "https://b.example.com") || containsURL(urls, "https://z.example.com") {
-		t.Fatal("containsURL wrong")
 	}
 }
 

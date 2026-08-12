@@ -3,12 +3,12 @@
 page_title: "stytch_connected_app Resource - stytch"
 subcategory: ""
 description: |-
-  A Connected App (OAuth/OIDC client) in an environment. Managed through the project-level Stytch API: authentication uses a project secret for the environment - create one with the stytch_secret resource. Importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import. After importing a client whose URLs are managed by stytch_connected_app_redirect_url resources, either declare redirect_urls and post_logout_redirect_urls in configuration or remove them from state before the next apply; otherwise the first apply plans their removal.
+  A Connected App (OAuth/OIDC client) in an environment. Managed through the project-level Stytch API: authentication uses a project secret for the environment - create one with the stytch_secret resource. Importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import - and so does the first plan afterwards, which refreshes from a state that does not yet carry project_secret. After importing a client whose URLs are managed by stytch_connected_app_redirect_url resources, either declare redirect_urls and post_logout_redirect_urls in configuration or remove them from state before the next apply; otherwise the first apply plans their removal.
 ---
 
 # stytch_connected_app (Resource)
 
-A Connected App (OAuth/OIDC client) in an environment. Managed through the project-level Stytch API: authentication uses a project secret for the environment - create one with the stytch_secret resource. Importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import. After importing a client whose URLs are managed by stytch_connected_app_redirect_url resources, either declare redirect_urls and post_logout_redirect_urls in configuration or remove them from state before the next apply; otherwise the first apply plans their removal.
+A Connected App (OAuth/OIDC client) in an environment. Managed through the project-level Stytch API: authentication uses a project secret for the environment - create one with the stytch_secret resource. Importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import - and so does the first plan afterwards, which refreshes from a state that does not yet carry project_secret. After importing a client whose URLs are managed by stytch_connected_app_redirect_url resources, either declare redirect_urls and post_logout_redirect_urls in configuration or remove them from state before the next apply; otherwise the first apply plans their removal.
 
 ## Example Usage
 

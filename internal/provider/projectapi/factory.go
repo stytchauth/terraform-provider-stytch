@@ -39,29 +39,59 @@ func (a managementAdapter) GetProjectID(ctx context.Context, projectSlug, enviro
 
 type Factory struct {
 	mgmt         ManagementAPI
-	newClient    func(projectID, secret string) (*stytchapi.API, error)
+	newClient    func(projectID, secret, baseURI string) (*stytchapi.API, error)
+	baseURI      string
+	mgmtOverride bool
 	mu           sync.Mutex
 	projectIDs   map[string]string
 	lockByClient map[string]*sync.Mutex
 }
 
-func NewFactory(mgmt *api.API) *Factory {
-	return newFactory(managementAdapter{api: mgmt}, defaultNewClient)
+type Option func(*Factory)
+
+// WithBaseURI overrides the project API host, which otherwise derives from the
+// project ID prefix.
+func WithBaseURI(baseURI string) Option {
+	return func(f *Factory) {
+		f.baseURI = baseURI
+	}
 }
 
-func newFactory(mgmt ManagementAPI, newClient func(string, string) (*stytchapi.API, error)) *Factory {
-	return &Factory{
+// WithManagementBaseURIOverridden records that the provider's base_uri points
+// somewhere other than the public management API. Without a matching project
+// API override, every project-level call would silently reach production, so
+// ForEnvironment refuses to build a client instead.
+func WithManagementBaseURIOverridden() Option {
+	return func(f *Factory) {
+		f.mgmtOverride = true
+	}
+}
+
+func NewFactory(mgmt *api.API, opts ...Option) *Factory {
+	return newFactory(managementAdapter{api: mgmt}, defaultNewClient, opts...)
+}
+
+func newFactory(mgmt ManagementAPI, newClient func(projectID, secret, baseURI string) (*stytchapi.API, error), opts ...Option) *Factory {
+	f := &Factory{
 		mgmt:         mgmt,
 		newClient:    newClient,
 		projectIDs:   map[string]string{},
 		lockByClient: map[string]*sync.Mutex{},
 	}
+	for _, opt := range opts {
+		opt(f)
+	}
+	return f
 }
 
 // JWKS initialization is skipped because it performs a network fetch that
 // connected app management never needs.
-func defaultNewClient(projectID, secret string) (*stytchapi.API, error) {
-	return stytchapi.NewClient(projectID, secret, stytchapi.WithSkipJWKSInitialization())
+func defaultNewClient(projectID, secret, baseURI string) (*stytchapi.API, error) {
+	opts := []stytchapi.Option{stytchapi.WithSkipJWKSInitialization()}
+	if baseURI != "" {
+		opts = append(opts, stytchapi.WithBaseURI(baseURI))
+	}
+	return stytchapi.NewClient(projectID, secret, opts...)
 }
 
 func (f *Factory) projectID(ctx context.Context, projectSlug, environmentSlug string) (string, error) {
@@ -83,6 +113,12 @@ func (f *Factory) projectID(ctx context.Context, projectSlug, environmentSlug st
 }
 
 func (f *Factory) ForEnvironment(ctx context.Context, projectSlug, environmentSlug, secret string) (*stytchapi.API, error) {
+	if f.mgmtOverride && f.baseURI == "" {
+		return nil, fmt.Errorf("the provider sets base_uri but not project_api_base_uri: the project API host derives from the " +
+			"project ID rather than from base_uri, so this resource would reach the public Stytch API instead of the " +
+			"configured one. Set project_api_base_uri (or the STYTCH_PROJECT_API_BASE_URI environment variable)")
+	}
+
 	if secret == "" {
 		secret = os.Getenv(ImportSecretEnvVar)
 	}
@@ -95,7 +131,7 @@ func (f *Factory) ForEnvironment(ctx context.Context, projectSlug, environmentSl
 		return nil, fmt.Errorf("resolving project ID for %s/%s: %w", projectSlug, environmentSlug, err)
 	}
 
-	return f.newClient(resolvedProjectID, secret)
+	return f.newClient(resolvedProjectID, secret, f.baseURI)
 }
 
 func (f *Factory) LockClient(clientID string) func() {

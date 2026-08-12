@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/projectapi"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/testutil"
 )
 
@@ -97,6 +99,26 @@ func TestAccConnectedAppRedirectURLResource(t *testing.T) {
 					resource.TestCheckResourceAttr("stytch_connected_app_redirect_url.c", "url", "http://localhost:3000/logout"),
 					parentSurvivedChildWrites(),
 				),
+			},
+			{
+				ResourceName: "stytch_connected_app_redirect_url.c",
+				ImportState:  true,
+				ImportStateIdFunc: func(s *terraform.State) (string, error) {
+					rs, ok := s.RootModule().Resources["stytch_connected_app_redirect_url.c"]
+					if !ok {
+						return "", fmt.Errorf("resource not found in state")
+					}
+					secret, ok := s.RootModule().Resources["stytch_secret.test"]
+					if !ok {
+						return "", fmt.Errorf("secret not found in state")
+					}
+					// The env var is the provider's only route to the project secret during
+					// an import, and this func is the last hook that runs before the read.
+					t.Setenv(projectapi.ImportSecretEnvVar, secret.Primary.Attributes["secret"])
+					return rs.Primary.ID, nil
+				},
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated", "project_secret"},
 			},
 		},
 	})

@@ -25,14 +25,15 @@ func (f *fakeManagement) GetProjectID(_ context.Context, projectSlug, environmen
 type capturedClient struct {
 	projectID string
 	secret    string
+	baseURI   string
 }
 
-func newTestFactory(mgmt ManagementAPI) (*Factory, *[]capturedClient) {
+func newTestFactory(mgmt ManagementAPI, opts ...Option) (*Factory, *[]capturedClient) {
 	var captured []capturedClient
-	f := newFactory(mgmt, func(projectID, secret string) (*stytchapi.API, error) {
-		captured = append(captured, capturedClient{projectID: projectID, secret: secret})
+	f := newFactory(mgmt, func(projectID, secret, baseURI string) (*stytchapi.API, error) {
+		captured = append(captured, capturedClient{projectID: projectID, secret: secret, baseURI: baseURI})
 		return &stytchapi.API{}, nil
-	})
+	}, opts...)
 	return f, &captured
 }
 
@@ -136,5 +137,60 @@ func TestLockClientSerializesSameKey(t *testing.T) {
 	case <-acquired:
 	case <-time.After(5 * time.Second):
 		t.Fatal("second acquisition of client-a stayed blocked after unlock")
+	}
+}
+
+func TestForEnvironmentPassesBaseURIOverride(t *testing.T) {
+	f, captured := newTestFactory(&fakeManagement{}, WithBaseURI("https://project.test.example.com"))
+
+	if _, err := f.ForEnvironment(context.Background(), "proj", "env", "s"); err != nil {
+		t.Fatal(err)
+	}
+	if (*captured)[0].baseURI != "https://project.test.example.com" {
+		t.Fatalf("expected the override to reach the client, got %q", (*captured)[0].baseURI)
+	}
+}
+
+func TestForEnvironmentDefaultsToNoBaseURIOverride(t *testing.T) {
+	f, captured := newTestFactory(&fakeManagement{})
+
+	if _, err := f.ForEnvironment(context.Background(), "proj", "env", "s"); err != nil {
+		t.Fatal(err)
+	}
+	if (*captured)[0].baseURI != "" {
+		t.Fatalf("expected no override, got %q", (*captured)[0].baseURI)
+	}
+}
+
+// A management base_uri override with no project API override would silently
+// send project-level writes to production, so building a client must fail.
+func TestForEnvironmentRefusesManagementOverrideWithoutProjectOverride(t *testing.T) {
+	mgmt := &fakeManagement{}
+	f, captured := newTestFactory(mgmt, WithManagementBaseURIOverridden())
+
+	_, err := f.ForEnvironment(context.Background(), "proj", "env", "s")
+	if err == nil {
+		t.Fatal("expected an error when only base_uri is overridden")
+	}
+	if !strings.Contains(err.Error(), "project_api_base_uri") {
+		t.Fatalf("error must name the attribute to set, got %q", err)
+	}
+	if len(*captured) != 0 {
+		t.Fatalf("expected no client to be built, got %+v", *captured)
+	}
+	if mgmt.getCalls != 0 {
+		t.Fatalf("expected no environment lookup, got %d", mgmt.getCalls)
+	}
+}
+
+func TestForEnvironmentAllowsBothOverrides(t *testing.T) {
+	f, captured := newTestFactory(&fakeManagement{},
+		WithManagementBaseURIOverridden(), WithBaseURI("https://project.test.example.com"))
+
+	if _, err := f.ForEnvironment(context.Background(), "proj", "env", "s"); err != nil {
+		t.Fatal(err)
+	}
+	if (*captured)[0].baseURI != "https://project.test.example.com" {
+		t.Fatalf("expected the override to reach the client, got %q", (*captured)[0].baseURI)
 	}
 }

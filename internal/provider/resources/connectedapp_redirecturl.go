@@ -77,7 +77,8 @@ func (r *connectedAppRedirectURLResource) Schema(_ context.Context, _ resource.S
 		Description: "A single redirect URL on a Connected App, managed additively: the provider reads the client, adds or " +
 			"removes this one URL, and writes the client back. Authentication uses a project secret for the environment - " +
 			"create one with the stytch_secret resource; importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET " +
-			"environment variable, because Terraform provides no configuration values during import. " +
+			"environment variable, because Terraform provides no configuration values during import - and so does the first " +
+			"plan afterwards, which refreshes from a state that does not yet carry project_secret. " +
 			"Concurrent applies within one run are serialized per client. " +
 			"Do not also manage the same client's URL arrays via the stytch_connected_app attributes, and avoid concurrent " +
 			"out-of-band edits (the API offers no compare-and-swap).",
@@ -150,12 +151,8 @@ func (r *connectedAppRedirectURLResource) Schema(_ context.Context, _ resource.S
 	}
 }
 
-func containsURL(urls []string, u string) bool {
-	return slices.Contains(urls, u)
-}
-
 func appendURL(urls []string, u string) []string {
-	if containsURL(urls, u) {
+	if slices.Contains(urls, u) {
 		return urls
 	}
 	return append(slices.Clone(urls), u)
@@ -275,7 +272,7 @@ func (r *connectedAppRedirectURLResource) Read(ctx context.Context, req resource
 		return
 	}
 
-	if !containsURL(urlsForType(getResp.ConnectedApp, state.Type.ValueString()), state.URL.ValueString()) {
+	if !slices.Contains(urlsForType(getResp.ConnectedApp, state.Type.ValueString()), state.URL.ValueString()) {
 		resp.State.RemoveResource(ctx)
 		return
 	}

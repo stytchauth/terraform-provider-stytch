@@ -3,12 +3,12 @@
 page_title: "stytch_connected_app_redirect_url Resource - stytch"
 subcategory: ""
 description: |-
-  A single redirect URL on a Connected App, managed additively: the provider reads the client, adds or removes this one URL, and writes the client back. Authentication uses a project secret for the environment - create one with the stytch_secret resource; importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import. Concurrent applies within one run are serialized per client. Do not also manage the same client's URL arrays via the stytch_connected_app attributes, and avoid concurrent out-of-band edits (the API offers no compare-and-swap).
+  A single redirect URL on a Connected App, managed additively: the provider reads the client, adds or removes this one URL, and writes the client back. Authentication uses a project secret for the environment - create one with the stytch_secret resource; importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import - and so does the first plan afterwards, which refreshes from a state that does not yet carry project_secret. Concurrent applies within one run are serialized per client. Do not also manage the same client's URL arrays via the stytch_connected_app attributes, and avoid concurrent out-of-band edits (the API offers no compare-and-swap).
 ---
 
 # stytch_connected_app_redirect_url (Resource)
 
-A single redirect URL on a Connected App, managed additively: the provider reads the client, adds or removes this one URL, and writes the client back. Authentication uses a project secret for the environment - create one with the stytch_secret resource; importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import. Concurrent applies within one run are serialized per client. Do not also manage the same client's URL arrays via the stytch_connected_app attributes, and avoid concurrent out-of-band edits (the API offers no compare-and-swap).
+A single redirect URL on a Connected App, managed additively: the provider reads the client, adds or removes this one URL, and writes the client back. Authentication uses a project secret for the environment - create one with the stytch_secret resource; importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import - and so does the first plan afterwards, which refreshes from a state that does not yet carry project_secret. Concurrent applies within one run are serialized per client. Do not also manage the same client's URL arrays via the stytch_connected_app attributes, and avoid concurrent out-of-band edits (the API offers no compare-and-swap).
 
 ## Example Usage
 

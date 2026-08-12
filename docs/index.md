@@ -42,5 +42,6 @@ provider "stytch" {}
 ### Optional
 
 - `base_uri` (String) Base URI override to use instead of Stytch's API. This is used for internal testing only.
+- `project_api_base_uri` (String) Base URI override for the project-level Stytch API, which serves the connected app resources. The project API host normally derives from the project ID rather than from base_uri, so setting base_uri alone leaves project-level resources pointed at the public API. This is used for internal testing only.
 - `workspace_key_id` (String) The key ID for a workspace management key obtained from the Stytch workspace management page
 - `workspace_key_secret` (String, Sensitive) The key secret corresponding for the workspace key obtained from the Stytch workspace management page

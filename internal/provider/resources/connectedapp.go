@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -94,7 +95,8 @@ func (r *connectedAppResource) Schema(_ context.Context, _ resource.SchemaReques
 		Description: "A Connected App (OAuth/OIDC client) in an environment. Managed through the project-level Stytch API: " +
 			"authentication uses a project secret for the environment - create one with the stytch_secret resource. " +
 			"Importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform " +
-			"provides no configuration values during import. " +
+			"provides no configuration values during import - and so does the first plan afterwards, which refreshes from " +
+			"a state that does not yet carry project_secret. " +
 			"After importing a client whose URLs are managed by stytch_connected_app_redirect_url resources, either declare " +
 			"redirect_urls and post_logout_redirect_urls in configuration or remove them from state before the next apply; " +
 			"otherwise the first apply plans their removal.",
@@ -335,13 +337,13 @@ func putConnectedApp(ctx context.Context, c stytch.Client, clientID string, body
 	return &retVal, nil
 }
 
-func setFromStrings(values []string) types.Set {
+// The conversion cannot fail for a []string into a set of strings, so the
+// diagnostics are dropped rather than threaded through every caller.
+func setFromStrings(ctx context.Context, values []string) types.Set {
 	if len(values) == 0 {
 		return types.SetNull(types.StringType)
 	}
-	elements := make([]string, len(values))
-	copy(elements, values)
-	set, _ := types.SetValueFrom(context.Background(), types.StringType, elements)
+	set, _ := types.SetValueFrom(ctx, types.StringType, slices.Clone(values))
 	return set
 }
 
@@ -365,7 +367,7 @@ func optionalString(value string) types.String {
 	return types.StringValue(value)
 }
 
-func (m *connectedAppModel) updateFromAPI(app connectedapps.ConnectedApp) {
+func (m *connectedAppModel) updateFromAPI(ctx context.Context, app connectedapps.ConnectedApp) {
 	m.ID = types.StringValue(fmt.Sprintf("%s.%s.%s", m.ProjectSlug.ValueString(), m.EnvironmentSlug.ValueString(), app.ClientID))
 	m.ClientID = types.StringValue(app.ClientID)
 	m.ClientType = types.StringValue(app.ClientType)
@@ -383,16 +385,16 @@ func (m *connectedAppModel) updateFromAPI(app connectedapps.ConnectedApp) {
 	m.CreationMethod = optionalString(app.CreationMethod)
 	m.ClientIDMetadataURL = optionalString(app.ClientIDMetadataURL)
 	if !m.RedirectURLs.IsNull() {
-		m.RedirectURLs = setFromStrings(app.RedirectURLs)
+		m.RedirectURLs = setFromStrings(ctx, app.RedirectURLs)
 	}
 	if !m.PostLogoutRedirectURLs.IsNull() {
-		m.PostLogoutRedirectURLs = setFromStrings(app.PostLogoutRedirectURLs)
+		m.PostLogoutRedirectURLs = setFromStrings(ctx, app.PostLogoutRedirectURLs)
 	}
 }
 
-func (m *connectedAppModel) refreshArraysFromAPI(app connectedapps.ConnectedApp) {
-	m.RedirectURLs = setFromStrings(app.RedirectURLs)
-	m.PostLogoutRedirectURLs = setFromStrings(app.PostLogoutRedirectURLs)
+func (m *connectedAppModel) refreshArraysFromAPI(ctx context.Context, app connectedapps.ConnectedApp) {
+	m.RedirectURLs = setFromStrings(ctx, app.RedirectURLs)
+	m.PostLogoutRedirectURLs = setFromStrings(ctx, app.PostLogoutRedirectURLs)
 }
 
 func (r *connectedAppResource) apiClient(ctx context.Context, m connectedAppModel) (*stytchapi.API, error) {
@@ -476,7 +478,7 @@ func (r *connectedAppResource) Create(ctx context.Context, req resource.CreateRe
 	tflog.Info(ctx, "Created connected app")
 
 	app := createResp.ConnectedApp
-	plan.updateFromAPI(connectedapps.ConnectedApp{
+	plan.updateFromAPI(ctx, connectedapps.ConnectedApp{
 		ClientID:                      app.ClientID,
 		ClientType:                    app.ClientType,
 		ClientName:                    app.ClientName,
@@ -527,9 +529,9 @@ func (r *connectedAppResource) Read(ctx context.Context, req resource.ReadReques
 
 	imported, diags := req.Private.GetKey(ctx, "imported")
 	resp.Diagnostics.Append(diags...)
-	state.updateFromAPI(getResp.ConnectedApp)
+	state.updateFromAPI(ctx, getResp.ConnectedApp)
 	if len(imported) > 0 {
-		state.refreshArraysFromAPI(getResp.ConnectedApp)
+		state.refreshArraysFromAPI(ctx, getResp.ConnectedApp)
 		resp.Diagnostics.Append(resp.Private.SetKey(ctx, "imported", nil)...)
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
@@ -559,6 +561,14 @@ func (r *connectedAppResource) Update(ctx context.Context, req resource.UpdateRe
 
 	getResp, err := client.ConnectedApp.Clients.Get(ctx, &capclients.GetParams{ClientID: clientID})
 	if err != nil {
+		if isNotFound(err) {
+			resp.Diagnostics.AddError(
+				"Connected app no longer exists",
+				fmt.Sprintf("Connected app %s was deleted outside of Terraform, so there is nothing to update. "+
+					"Run terraform refresh (or terraform apply -refresh-only) to drop it from state, then apply again to recreate it.", clientID),
+			)
+			return
+		}
 		resp.Diagnostics.AddError("Failed to get connected app before update", err.Error())
 		return
 	}
@@ -600,7 +610,7 @@ func (r *connectedAppResource) Update(ctx context.Context, req resource.UpdateRe
 
 	tflog.Info(ctx, "Updated connected app")
 
-	plan.updateFromAPI(updateResp.ConnectedApp)
+	plan.updateFromAPI(ctx, updateResp.ConnectedApp)
 	plan.ClientSecret = state.ClientSecret
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
