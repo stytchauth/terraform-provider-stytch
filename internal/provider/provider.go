@@ -217,6 +217,7 @@ func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource
 		resources.NewEnvironmentResource,
 		resources.NewEventLogStreamingResource,
 		resources.NewJWTTemplateResource,
+		resources.NewOrganizationTrustedMetadataResource,
 		resources.NewPasswordConfigResource,
 		resources.NewProjectResource,
 		resources.NewPublicTokenResource,
@@ -230,6 +231,7 @@ func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource
 func (p *StytchProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		resources.NewConnectedAppDataSource,
+		resources.NewOrganizationDataSource,
 	}
 }
 
