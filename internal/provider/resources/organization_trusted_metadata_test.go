@@ -142,10 +142,9 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
 	var fixture orgFixture
 	const orgSlug = "tf-acc-trusted-metadata"
 
-	// jsonencode renders object keys alphabetically and compactly, matching the
-	// canonical form Read stores, so ImportStateVerify can compare strings.
-	// This holds only for values without <, >, or & (cty HTML-escapes them,
-	// canonicalJSON does not); plan-time comparison is semantic either way.
+	// jsonencode output byte-matches the canonical form Read stores (so
+	// ImportStateVerify can string-compare) only for values without <, >, or &:
+	// cty HTML-escapes those, canonicalJSON does not.
 	initialConfig := orgTrustedMetadataConfig(orgSlug, `
   trusted_metadata = {
     grants = jsonencode({ tier = "internal", version = 1 })
@@ -158,9 +157,8 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
     support = jsonencode("gold")
   }
 `)
-	// The harness runs a refresh plan after every apply and fails the step
-	// unless it is empty, so each apply below already proves the remote object
-	// converged to the configuration - removed keys included.
+	// Every apply step ends in a refresh plan that must be empty, so each apply
+	// also proves the remote object converged - removed keys included.
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -180,7 +178,6 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
 				),
 			},
 			{
-				// Update changes one value, adds a key, and removes a key.
 				Config: testutil.ProviderConfig + updatedConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_organization_trusted_metadata.test", "trusted_metadata.%", "2"),
@@ -210,7 +207,7 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
 				},
 			},
 			{
-				// An out-of-band write to the managed object must surface as drift.
+				// Out-of-band writes must surface as drift.
 				PreConfig: func() {
 					writeFixtureMetadata(t, &fixture, fixture.organizationID, map[string]any{
 						"app_added": "out-of-band",
@@ -221,8 +218,7 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				// Re-applying reconciles: the out-of-band key is deleted remotely
-				// (the post-apply refresh plan fails the step otherwise).
+				// Re-applying deletes the out-of-band key remotely.
 				Config: testutil.ProviderConfig + updatedConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("stytch_organization_trusted_metadata.test", "trusted_metadata.%", "2"),
@@ -230,11 +226,10 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
 				),
 			},
 			{
-				// Removing the resource destroys it, null-punching every owned key.
 				Config: testutil.ProviderConfig + orgTrustedMetadataBaseConfig(),
 			},
 			{
-				// A fresh data source read proves destroy emptied the remote object.
+				// A fresh read proves the destroy above emptied the remote object.
 				Config: testutil.ProviderConfig + orgTrustedMetadataBaseConfig() + orgDataSourceConfig("verify", orgSlug),
 				Check:  resource.TestCheckResourceAttr("data.stytch_organization.verify", "trusted_metadata", "{}"),
 			},
@@ -260,8 +255,7 @@ func TestAccOrganizationTrustedMetadataForce(t *testing.T) {
 				Check:  captureOrgFixture(&fixture),
 			},
 			{
-				// The fixture organization already has app-written metadata, so
-				// creation without force must refuse.
+				// The fixture org already has metadata, so creation must refuse.
 				PreConfig: func() {
 					createFixtureOrganization(t, &fixture, orgSlug, map[string]any{
 						"app_owned": map[string]any{"source": "application"},
@@ -275,9 +269,7 @@ func TestAccOrganizationTrustedMetadataForce(t *testing.T) {
 				ExpectError: regexp.MustCompile(`already has trusted_metadata`),
 			},
 			{
-				// force takes ownership: the configured object replaces everything,
-				// including the app-written key (the post-apply refresh plan fails
-				// this step if the app-written key survived remotely).
+				// force takes ownership, replacing the app-written key.
 				Config: config(`
   force = true
 

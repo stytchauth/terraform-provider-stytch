@@ -123,9 +123,6 @@ func (f *Factory) projectID(ctx context.Context, projectSlug, environmentSlug st
 	return resolved, nil
 }
 
-// resolveCredentials applies the guard rails and lookups shared by every
-// project API client: the base-URI safety check, the import-time secret
-// fallback, and slug-to-project-ID resolution.
 func (f *Factory) resolveCredentials(ctx context.Context, projectSlug, environmentSlug, secret string) (string, string, error) {
 	if f.mgmtOverride && f.baseURI == "" {
 		return "", "", fmt.Errorf("the provider sets base_uri but not project_api_base_uri: the project API host derives from the " +
@@ -156,9 +153,8 @@ func (f *Factory) ForEnvironment(ctx context.Context, projectSlug, environmentSl
 	return f.newClient(resolvedProjectID, resolvedSecret, f.baseURI)
 }
 
-// ForB2BEnvironment builds a B2B-vertical project API client. B2B-only
-// resources (organizations) live on a different client type in stytch-go than
-// the consumer surface ForEnvironment serves.
+// ForB2BEnvironment builds a B2B-vertical client: B2B-only resources live on
+// a different stytch-go client type than the consumer surface.
 func (f *Factory) ForB2BEnvironment(ctx context.Context, projectSlug, environmentSlug, secret string) (*b2bstytchapi.API, error) {
 	resolvedProjectID, resolvedSecret, err := f.resolveCredentials(ctx, projectSlug, environmentSlug, secret)
 	if err != nil {

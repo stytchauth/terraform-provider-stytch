@@ -169,8 +169,8 @@ func (r *organizationTrustedMetadataResource) ValidateConfig(ctx context.Context
 	if config.TrustedMetadata.IsNull() || config.TrustedMetadata.IsUnknown() {
 		return
 	}
-	// JSON validity is enforced by the element type; a literal null needs its
-	// own rejection because the API interprets null as key deletion.
+	// The element type enforces JSON validity; null needs its own rejection
+	// because the API treats null as key deletion.
 	for key, value := range config.TrustedMetadata.Elements() {
 		normalized, ok := value.(jsontypes.Normalized)
 		if !ok || normalized.IsUnknown() {
@@ -194,10 +194,9 @@ func (r *organizationTrustedMetadataResource) ValidateConfig(ctx context.Context
 	}
 }
 
-// trustedMetadataBody builds the update payload: the configured JSON verbatim
-// (json.RawMessage, so numbers survive without a float64 round-trip) for every
-// declared key, and an explicit null for each removed key - the API's only way
-// to delete a top-level key.
+// trustedMetadataBody sends configured JSON verbatim (json.RawMessage, so
+// number literals survive) and an explicit null per removed key - the API's
+// only deletion mechanism.
 func trustedMetadataBody(set map[string]string, removed []string) (map[string]any, error) {
 	body := make(map[string]any, len(set)+len(removed))
 	for key, value := range set {
@@ -220,10 +219,9 @@ func trustedMetadataBody(set map[string]string, removed []string) (map[string]an
 	return body, nil
 }
 
-// canonicalJSON re-encodes a raw API value deterministically: decoding with
-// UseNumber keeps every number literal verbatim (a float64 round-trip would
-// corrupt 1.0, 1e2, and integers above 2^53), and HTML escaping is disabled
-// so values containing <, >, or & match the configuration text.
+// canonicalJSON re-encodes deterministically: UseNumber keeps number literals
+// verbatim (a float64 round-trip corrupts 1.0, 1e2, and integers above 2^53),
+// and HTML escaping is disabled so <, >, & match the configuration text.
 func canonicalJSON(raw json.RawMessage) (string, error) {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
@@ -240,10 +238,8 @@ func canonicalJSON(raw json.RawMessage) (string, error) {
 	return strings.TrimSuffix(buf.String(), "\n"), nil
 }
 
-// rawOrganization carries trusted_metadata as raw JSON. The typed SDK decodes
-// the object into map[string]any, turning every number into a float64 and
-// corrupting literals the float64 round-trip cannot represent - before
-// Terraform ever sees them.
+// rawOrganization keeps trusted_metadata as raw JSON: the typed SDK decodes
+// it into map[string]any, corrupting number literals via float64.
 type rawOrganization struct {
 	OrganizationID         string                     `json:"organization_id"`
 	OrganizationName       string                     `json:"organization_name"`
@@ -253,9 +249,7 @@ type rawOrganization struct {
 }
 
 // The identifier may be an organization ID, slug, or external ID - the API
-// accepts all three in the path. Errors from the management API (project-ID
-// resolution) are intentionally distinct types from stytch-go's, so isNotFound
-// matches only a missing organization, never a missing environment.
+// accepts all three in the path.
 func getOrganizationRaw(ctx context.Context, c stytch.Client, identifier string) (*rawOrganization, error) {
 	var resp struct {
 		Organization rawOrganization `json:"organization"`
@@ -375,9 +369,6 @@ func (r *organizationTrustedMetadataResource) Create(ctx context.Context, req re
 		return
 	}
 
-	// Creation means introducing trusted_metadata, not adopting it: existing
-	// content is refused so a first apply can never silently destroy data
-	// written by another party. Import adopts; force overwrites.
 	var existing []string
 	for key := range org.TrustedMetadata {
 		existing = append(existing, key)
@@ -432,9 +423,6 @@ func (r *organizationTrustedMetadataResource) Read(ctx context.Context, req reso
 		return
 	}
 
-	// The resource owns the whole object, so every remote top-level key is
-	// reflected into state: out-of-band additions and changes become plan
-	// diffs. The Normalized element type suppresses formatting-only drift.
 	refreshed := make(map[string]string, len(org.TrustedMetadata))
 	for key, remote := range org.TrustedMetadata {
 		canonical, err := canonicalJSON(remote)
@@ -552,8 +540,7 @@ func (r *organizationTrustedMetadataResource) ImportState(ctx context.Context, r
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_slug"), projectSlug)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("environment_slug"), environmentSlug)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("organization_id"), organizationID)...)
-	// The Read that follows import populates trusted_metadata with the
-	// organization's current content.
+	// The Read following import replaces this with the organization's content.
 	seed, err := metadataMapValue(ctx, nil)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to build trusted_metadata state", err.Error())

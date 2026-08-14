@@ -46,8 +46,6 @@ data "stytch_organization" "by_id" {
 					resource.TestCheckResourceAttrSet("data.stytch_organization.by_slug", "organization_id"),
 					resource.TestCheckResourceAttr("data.stytch_organization.by_slug", "trusted_metadata", `{"grants":{"tier":"internal"}}`),
 					resource.TestCheckResourceAttr("data.stytch_organization.by_id", "organization_slug", orgSlug),
-					// An organization without trusted_metadata reads as an empty
-					// object, never null.
 					resource.TestCheckResourceAttr("data.stytch_organization.empty", "trusted_metadata", "{}"),
 				),
 			},
@@ -56,7 +54,6 @@ data "stytch_organization" "by_id" {
 				ExpectError: regexp.MustCompile(`Failed to get organization`),
 			},
 			{
-				// Exactly one lookup attribute must be set.
 				Config: testutil.ProviderConfig + orgTrustedMetadataBaseConfig() + `
 data "stytch_organization" "ambiguous" {
   project_slug      = stytch_project.test.project_slug

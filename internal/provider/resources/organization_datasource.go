@@ -141,9 +141,8 @@ func (d *organizationDataSource) Schema(_ context.Context, _ datasource.SchemaRe
 	}
 }
 
-// metadataJSON renders the whole trusted_metadata object as one JSON document,
-// raw values verbatim (no float64 round-trip) and without HTML escaping. An
-// organization without trusted_metadata yields {} rather than null so
+// metadataJSON renders trusted_metadata as one JSON document, values verbatim;
+// an organization without trusted_metadata yields {} rather than null so
 // jsondecode() output is always an object.
 func metadataJSON(values map[string]json.RawMessage) (string, error) {
 	if len(values) == 0 {
