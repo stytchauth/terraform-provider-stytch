@@ -54,7 +54,7 @@ func TestExperimentalGateAllowsConfigureWhenEnabled(t *testing.T) {
 func TestTrustedMetadataBody(t *testing.T) {
 	body, err := trustedMetadataBody(
 		map[string]string{
-			"grants": `{"version":1,"feat":{"digital_twin":{"tier":"internal"}}}`,
+			"grants": `{"plan":"enterprise","limits":{"seats":50}}`,
 			"note":   `"hello"`,
 		},
 		[]string{"legacy", "grants"},

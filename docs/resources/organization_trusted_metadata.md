@@ -22,11 +22,9 @@ resource "stytch_organization_trusted_metadata" "internal" {
   organization_id  = data.stytch_organization.internal.organization_id
 
   trusted_metadata = {
-    grants = jsonencode({
-      version = 1
-      feat = {
-        digital_twin = { tier = "internal" }
-      }
+    billing = jsonencode({
+      plan  = "enterprise"
+      seats = 50
     })
     support_tier = jsonencode("gold")
   }
