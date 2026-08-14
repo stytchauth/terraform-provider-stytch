@@ -1,9 +1,11 @@
 package resources
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/datasourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -13,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/stytchauth/stytch-go/v18/stytch/b2b/organizations"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/clients"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/projectapi"
 )
@@ -140,6 +141,23 @@ func (d *organizationDataSource) Schema(_ context.Context, _ datasource.SchemaRe
 	}
 }
 
+// metadataJSON renders the whole trusted_metadata object as one JSON document,
+// raw values verbatim (no float64 round-trip) and without HTML escaping. An
+// organization without trusted_metadata yields {} rather than null so
+// jsondecode() output is always an object.
+func metadataJSON(values map[string]json.RawMessage) (string, error) {
+	if len(values) == 0 {
+		return "{}", nil
+	}
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(values); err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(buf.String(), "\n"), nil
+}
+
 func (d *organizationDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var config organizationDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
@@ -168,14 +186,13 @@ func (d *organizationDataSource) Read(ctx context.Context, req datasource.ReadRe
 		return
 	}
 
-	getResp, err := client.Organizations.Get(ctx, &organizations.GetParams{OrganizationID: identifier})
+	org, err := getOrganizationRaw(ctx, client.Organizations.C, identifier)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get organization", err.Error())
 		return
 	}
-	org := getResp.Organization
 
-	metadata, err := json.Marshal(org.TrustedMetadata)
+	metadata, err := metadataJSON(org.TrustedMetadata)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to encode trusted_metadata", err.Error())
 		return
@@ -186,7 +203,7 @@ func (d *organizationDataSource) Read(ctx context.Context, req datasource.ReadRe
 	config.OrganizationSlug = types.StringValue(org.OrganizationSlug)
 	config.OrganizationExternalID = optionalString(org.OrganizationExternalID)
 	config.OrganizationName = types.StringValue(org.OrganizationName)
-	config.TrustedMetadata = types.StringValue(string(metadata))
+	config.TrustedMetadata = types.StringValue(metadata)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, config)...)
 }

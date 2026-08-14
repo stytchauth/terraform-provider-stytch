@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/stytchauth/stytch-go/v18/stytch"
 	"github.com/stytchauth/stytch-go/v18/stytch/b2b/organizations"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/clients"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/projectapi"
@@ -81,10 +83,13 @@ func (r *organizationTrustedMetadataResource) Schema(_ context.Context, _ resour
 			"The entire trusted_metadata object of a B2B organization, managed authoritatively: the object holds exactly " +
 			"the top-level keys declared here, out-of-band writes surface as plan diffs, keys removed from the " +
 			"configuration (or present remotely but not declared) are deleted on apply by writing an explicit null, and " +
-			"destroy deletes every key. Trusted metadata must therefore have a single writer - do not combine this " +
-			"resource with application code writing to the same organization's trusted_metadata. Creation refuses an " +
-			"organization that already has trusted_metadata unless force is set; import instead to adopt existing " +
-			"content. The organization itself is never created or deleted. Authentication uses a project secret for the " +
+			"destroy deletes every key in state. Trusted metadata must therefore have a single writer - do not combine " +
+			"this resource with application code writing to the same organization's trusted_metadata, and never declare " +
+			"two of these resources for one organization. Creation refuses an organization that already has " +
+			"trusted_metadata unless force is set; import instead to adopt existing content (the first plan after import " +
+			"may show a formatting-only diff as the configuration's JSON formatting replaces the imported canonical form " +
+			"- one harmless apply, then it never recurs). The organization itself is never created or deleted. " +
+			"Authentication uses a project secret for the " +
 			"environment - create one with the stytch_secret resource; importing requires that secret in the " +
 			"STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values " +
 			"during import - and so does the first plan afterwards, which refreshes from a state that does not yet " +
@@ -168,7 +173,15 @@ func (r *organizationTrustedMetadataResource) ValidateConfig(ctx context.Context
 	// own rejection because the API interprets null as key deletion.
 	for key, value := range config.TrustedMetadata.Elements() {
 		normalized, ok := value.(jsontypes.Normalized)
-		if !ok || normalized.IsNull() || normalized.IsUnknown() {
+		if !ok || normalized.IsUnknown() {
+			continue
+		}
+		if normalized.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("trusted_metadata").AtMapKey(key),
+				"Null value",
+				fmt.Sprintf("The value for key %q is null. Remove the key from the map instead of setting it to null.", key),
+			)
 			continue
 		}
 		if strings.TrimSpace(normalized.ValueString()) == "null" {
@@ -188,6 +201,9 @@ func (r *organizationTrustedMetadataResource) ValidateConfig(ctx context.Context
 func trustedMetadataBody(set map[string]string, removed []string) (map[string]any, error) {
 	body := make(map[string]any, len(set)+len(removed))
 	for key, value := range set {
+		if strings.TrimSpace(value) == "" {
+			return nil, fmt.Errorf("the value for key %q is empty; every key needs a JSON document (a null map element is not allowed)", key)
+		}
 		if !json.Valid([]byte(value)) {
 			return nil, fmt.Errorf("the value for key %q is not valid JSON", key)
 		}
@@ -204,9 +220,17 @@ func trustedMetadataBody(set map[string]string, removed []string) (map[string]an
 	return body, nil
 }
 
-// canonicalJSON re-encodes a decoded API value without HTML escaping, so
-// values containing <, >, or & match the configuration text.
-func canonicalJSON(value any) (string, error) {
+// canonicalJSON re-encodes a raw API value deterministically: decoding with
+// UseNumber keeps every number literal verbatim (a float64 round-trip would
+// corrupt 1.0, 1e2, and integers above 2^53), and HTML escaping is disabled
+// so values containing <, >, or & match the configuration text.
+func canonicalJSON(raw json.RawMessage) (string, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return "", err
+	}
 	var buf bytes.Buffer
 	encoder := json.NewEncoder(&buf)
 	encoder.SetEscapeHTML(false)
@@ -214,6 +238,38 @@ func canonicalJSON(value any) (string, error) {
 		return "", err
 	}
 	return strings.TrimSuffix(buf.String(), "\n"), nil
+}
+
+// rawOrganization carries trusted_metadata as raw JSON. The typed SDK decodes
+// the object into map[string]any, turning every number into a float64 and
+// corrupting literals the float64 round-trip cannot represent - before
+// Terraform ever sees them.
+type rawOrganization struct {
+	OrganizationID         string                     `json:"organization_id"`
+	OrganizationName       string                     `json:"organization_name"`
+	OrganizationSlug       string                     `json:"organization_slug"`
+	OrganizationExternalID string                     `json:"organization_external_id"`
+	TrustedMetadata        map[string]json.RawMessage `json:"trusted_metadata"`
+}
+
+// The identifier may be an organization ID, slug, or external ID - the API
+// accepts all three in the path. Errors from the management API (project-ID
+// resolution) are intentionally distinct types from stytch-go's, so isNotFound
+// matches only a missing organization, never a missing environment.
+func getOrganizationRaw(ctx context.Context, c stytch.Client, identifier string) (*rawOrganization, error) {
+	var resp struct {
+		Organization rawOrganization `json:"organization"`
+	}
+	err := c.NewRequest(ctx, stytch.RequestParams{
+		Method:  "GET",
+		Path:    fmt.Sprintf("/v1/b2b/organizations/%s", url.PathEscape(identifier)),
+		V:       &resp,
+		Headers: map[string][]string{},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &resp.Organization, nil
 }
 
 func removedKeys(previous map[string]string, current map[string]string) []string {
@@ -267,16 +323,12 @@ func metadataMapValue(ctx context.Context, values map[string]string) (types.Map,
 	return mapValue, nil
 }
 
-func (r *organizationTrustedMetadataResource) getOrganization(ctx context.Context, m organizationTrustedMetadataModel) (*organizations.Organization, error) {
+func (r *organizationTrustedMetadataResource) getOrganization(ctx context.Context, m organizationTrustedMetadataModel) (*rawOrganization, error) {
 	client, err := r.projectAPI.ForB2BEnvironment(ctx, m.ProjectSlug.ValueString(), m.EnvironmentSlug.ValueString(), m.ProjectSecret.ValueString())
 	if err != nil {
 		return nil, err
 	}
-	getResp, err := client.Organizations.Get(ctx, &organizations.GetParams{OrganizationID: m.OrganizationID.ValueString()})
-	if err != nil {
-		return nil, err
-	}
-	return &getResp.Organization, nil
+	return getOrganizationRaw(ctx, client.Organizations.C, m.OrganizationID.ValueString())
 }
 
 func (r *organizationTrustedMetadataResource) write(ctx context.Context, m organizationTrustedMetadataModel, removed []string) error {

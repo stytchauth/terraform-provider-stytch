@@ -3,5 +3,7 @@
 # Importing is the sanctioned way to take over an organization that already has trusted_metadata (creation refuses
 # such organizations unless force = true).
 # Format: project_slug.environment_slug.organization_id
+# The first plan after import may show a formatting-only diff as the configuration's JSON formatting replaces the
+# imported canonical form - one harmless apply, then it never recurs.
 # Terraform passes no configuration values during import, so the project secret must come from the environment
 STYTCH_IMPORT_PROJECT_SECRET=<project secret> terraform import stytch_organization_trusted_metadata.example my-project.live.organization-live-11111111-1111-1111-1111-111111111111

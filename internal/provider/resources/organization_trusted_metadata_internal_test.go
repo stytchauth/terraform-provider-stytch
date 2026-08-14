@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/stytchauth/terraform-provider-stytch/internal/provider/clients"
@@ -96,22 +97,76 @@ func TestTrustedMetadataBodyPreservesLargeNumbers(t *testing.T) {
 	}
 }
 
-func TestTrustedMetadataBodyRejectsInvalidAndNullJSON(t *testing.T) {
+func TestTrustedMetadataBodyRejectsInvalidNullAndEmptyJSON(t *testing.T) {
 	if _, err := trustedMetadataBody(map[string]string{"grants": "{not json"}, nil); err == nil {
 		t.Fatal("expected an error for invalid JSON")
 	}
 	if _, err := trustedMetadataBody(map[string]string{"grants": " null "}, nil); err == nil {
 		t.Fatal("expected an error for a JSON null value")
 	}
+	if _, err := trustedMetadataBody(map[string]string{"grants": ""}, nil); err == nil {
+		t.Fatal("expected an error for an empty value")
+	}
 }
 
 func TestCanonicalJSONDoesNotEscapeHTML(t *testing.T) {
-	canonical, err := canonicalJSON("<a&b>")
+	canonical, err := canonicalJSON(json.RawMessage(`"<a&b>"`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if canonical != `"<a&b>"` {
 		t.Fatalf("got %q", canonical)
+	}
+}
+
+// The API returns trusted_metadata verbatim as written; canonicalJSON must
+// stay semantically equal to the original literal for every value the
+// configuration could contain - a float64 round-trip would corrupt several of
+// these and produce a permanent diff loop.
+func TestCanonicalJSONPreservesSemanticEquality(t *testing.T) {
+	literals := []string{
+		`1.0`,
+		`1e2`,
+		`0.1`,
+		`12345678901234567890`,
+		`{"version": 1.0, "big": 12345678901234567890, "nested": {"exp": 2.5e3}}`,
+		`"<a&b>"`,
+		`{"b": 1, "a": [1.0, 2]}`,
+	}
+	for _, literal := range literals {
+		canonical, err := canonicalJSON(json.RawMessage(literal))
+		if err != nil {
+			t.Fatalf("%s: %v", literal, err)
+		}
+		equal, diags := jsontypes.NewNormalizedValue(literal).StringSemanticEquals(
+			context.Background(), jsontypes.NewNormalizedValue(canonical))
+		if diags.HasError() {
+			t.Fatalf("%s: %v", literal, diags.Errors())
+		}
+		if !equal {
+			t.Fatalf("canonicalJSON(%s) = %s is not semantically equal to its input", literal, canonical)
+		}
+	}
+}
+
+func TestMetadataJSON(t *testing.T) {
+	rendered, err := metadataJSON(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rendered != "{}" {
+		t.Fatalf("nil metadata must render as an empty object, got %q", rendered)
+	}
+
+	rendered, err = metadataJSON(map[string]json.RawMessage{
+		"big":  json.RawMessage(`12345678901234567890`),
+		"html": json.RawMessage(`"<a&b>"`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rendered, "12345678901234567890") || !strings.Contains(rendered, `"<a&b>"`) {
+		t.Fatalf("values must pass through verbatim, got %s", rendered)
 	}
 }
 
