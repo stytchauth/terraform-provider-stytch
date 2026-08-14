@@ -2,7 +2,7 @@ package resources
 
 import (
 	"context"
-	"reflect"
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -62,83 +62,97 @@ func TestTrustedMetadataBody(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := map[string]any{
-		"grants": map[string]any{
-			"version": float64(1),
-			"feat":    map[string]any{"digital_twin": map[string]any{"tier": "internal"}},
-		},
-		"note":   "hello",
-		"legacy": nil,
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(body, want) {
-		t.Fatalf("got %#v, want %#v", body, want)
+	var decoded map[string]any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["note"] != "hello" {
+		t.Fatalf("note round-tripped to %#v", decoded["note"])
+	}
+	if decoded["legacy"] != nil {
+		t.Fatalf("removed key must be null, got %#v", decoded["legacy"])
 	}
 	// A key both set and removed must be written, not nulled.
-	if body["grants"] == nil {
+	if decoded["grants"] == nil {
 		t.Fatal("a key present in the set must never be nulled")
 	}
 }
 
-func TestTrustedMetadataBodyRejectsInvalidJSON(t *testing.T) {
-	_, err := trustedMetadataBody(map[string]string{"grants": "{not json"}, nil)
-	if err == nil {
-		t.Fatal("expected an error for invalid JSON")
+func TestTrustedMetadataBodyPreservesLargeNumbers(t *testing.T) {
+	body, err := trustedMetadataBody(map[string]string{"external_id": "12345678901234567890"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), "12345678901234567890") {
+		t.Fatalf("large integer must survive verbatim, got %s", encoded)
 	}
 }
 
-func TestJSONSemanticallyEqual(t *testing.T) {
-	cases := []struct {
-		name string
-		a, b string
-		want bool
-	}{
-		{"key order", `{"a":1,"b":2}`, `{"b":2,"a":1}`, true},
-		{"whitespace", `{"a": 1}`, `{"a":1}`, true},
-		{"different values", `{"a":1}`, `{"a":2}`, false},
-		{"invalid left", ``, `{"a":1}`, false},
-		{"array order matters", `[1,2]`, `[2,1]`, false},
+func TestTrustedMetadataBodyRejectsInvalidAndNullJSON(t *testing.T) {
+	if _, err := trustedMetadataBody(map[string]string{"grants": "{not json"}, nil); err == nil {
+		t.Fatal("expected an error for invalid JSON")
 	}
-	for _, tc := range cases {
-		if got := jsonSemanticallyEqual(tc.a, tc.b); got != tc.want {
-			t.Errorf("%s: jsonSemanticallyEqual(%q, %q) = %v, want %v", tc.name, tc.a, tc.b, got, tc.want)
-		}
+	if _, err := trustedMetadataBody(map[string]string{"grants": " null "}, nil); err == nil {
+		t.Fatal("expected an error for a JSON null value")
+	}
+}
+
+func TestCanonicalJSONDoesNotEscapeHTML(t *testing.T) {
+	canonical, err := canonicalJSON("<a&b>")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if canonical != `"<a&b>"` {
+		t.Fatalf("got %q", canonical)
 	}
 }
 
 func TestRemovedKeys(t *testing.T) {
 	removed := removedKeys(
-		map[string]string{"grants": "{}", "legacy": "{}"},
+		map[string]string{"legacy": "{}", "grants": "{}", "old": "{}"},
 		map[string]string{"grants": "{}"},
 	)
-	if !slices.Equal(removed, []string{"legacy"}) {
-		t.Fatalf("got %v, want [legacy]", removed)
+	if !slices.Equal(removed, []string{"legacy", "old"}) {
+		t.Fatalf("got %v, want sorted [legacy old]", removed)
 	}
 }
 
 func TestParseOrganizationTrustedMetadataImportID(t *testing.T) {
-	projectSlug, environmentSlug, organizationID, keys, err := parseOrganizationTrustedMetadataImportID(
-		"proj.live.organization-live-1234.grants,flags")
+	projectSlug, environmentSlug, organizationID, err := parseOrganizationTrustedMetadataImportID(
+		"proj.live.organization-live-1234")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if projectSlug != "proj" || environmentSlug != "live" || organizationID != "organization-live-1234" {
 		t.Fatalf("got %s/%s/%s", projectSlug, environmentSlug, organizationID)
 	}
-	if !slices.Equal(keys, []string{"grants", "flags"}) {
-		t.Fatalf("got keys %v", keys)
-	}
 
-	_, _, _, keys, err = parseOrganizationTrustedMetadataImportID("proj.live.organization-live-1234")
+	for _, invalid := range []string{"proj.live", "proj..org", "..", ""} {
+		if _, _, _, err := parseOrganizationTrustedMetadataImportID(invalid); err == nil {
+			t.Fatalf("expected an error for %q", invalid)
+		}
+	}
+}
+
+func TestMetadataMapValueRoundTrip(t *testing.T) {
+	mapValue, err := metadataMapValue(context.Background(), map[string]string{"grants": `{"a":1}`})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(keys) != 0 {
-		t.Fatalf("expected no keys, got %v", keys)
+	model := organizationTrustedMetadataModel{TrustedMetadata: mapValue}
+	values, err := model.metadataValues()
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	for _, invalid := range []string{"proj.live", "proj..org", "proj.live.org.a,,b"} {
-		if _, _, _, _, err := parseOrganizationTrustedMetadataImportID(invalid); err == nil {
-			t.Fatalf("expected an error for %q", invalid)
-		}
+	if values["grants"] != `{"a":1}` {
+		t.Fatalf("round trip lost the value, got %#v", values)
 	}
 }

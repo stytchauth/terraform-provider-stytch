@@ -3,25 +3,25 @@
 page_title: "stytch_organization_trusted_metadata Resource - stytch"
 subcategory: ""
 description: |-
-  Experimental: this resource is available only when the STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES environment variable is set to 1, and its schema may change in a future release without a major version bump. A declared set of top-level trusted_metadata keys on a B2B organization, managed additively: the provider writes only the keys listed here and leaves every other key (typically application-written data) untouched, matching the metadata API's top-level merge semantics. Removing a key from the map, or destroying the resource, deletes that key from the organization by writing an explicit null. The organization itself is never created or deleted. Authentication uses a project secret for the environment - create one with the stytch_secret resource; importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import - and so does the first plan afterwards, which refreshes from a state that does not yet carry project_secret. Concurrent applies within one run are serialized per organization. Avoid concurrent out-of-band writes to the same keys (the API offers no compare-and-swap).
+  Experimental: this resource is available only when the STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES environment variable is set to 1, and its schema may change in a future release without a major version bump. The entire trusted_metadata object of a B2B organization, managed authoritatively: the object holds exactly the top-level keys declared here, out-of-band writes surface as plan diffs, keys removed from the configuration (or present remotely but not declared) are deleted on apply by writing an explicit null, and destroy deletes every key. Trusted metadata must therefore have a single writer - do not combine this resource with application code writing to the same organization's trusted_metadata. Creation refuses an organization that already has trusted_metadata unless force is set; import instead to adopt existing content. The organization itself is never created or deleted. Authentication uses a project secret for the environment - create one with the stytch_secret resource; importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import - and so does the first plan afterwards, which refreshes from a state that does not yet carry project_secret. Concurrent applies within one run are serialized per organization (the API offers no compare-and-swap).
 ---
 
 # stytch_organization_trusted_metadata (Resource)
 
-**Experimental**: this resource is available only when the STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES environment variable is set to 1, and its schema may change in a future release without a major version bump. A declared set of top-level trusted_metadata keys on a B2B organization, managed additively: the provider writes only the keys listed here and leaves every other key (typically application-written data) untouched, matching the metadata API's top-level merge semantics. Removing a key from the map, or destroying the resource, deletes that key from the organization by writing an explicit null. The organization itself is never created or deleted. Authentication uses a project secret for the environment - create one with the stytch_secret resource; importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import - and so does the first plan afterwards, which refreshes from a state that does not yet carry project_secret. Concurrent applies within one run are serialized per organization. Avoid concurrent out-of-band writes to the same keys (the API offers no compare-and-swap).
+**Experimental**: this resource is available only when the STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES environment variable is set to 1, and its schema may change in a future release without a major version bump. The entire trusted_metadata object of a B2B organization, managed authoritatively: the object holds exactly the top-level keys declared here, out-of-band writes surface as plan diffs, keys removed from the configuration (or present remotely but not declared) are deleted on apply by writing an explicit null, and destroy deletes every key. Trusted metadata must therefore have a single writer - do not combine this resource with application code writing to the same organization's trusted_metadata. Creation refuses an organization that already has trusted_metadata unless force is set; import instead to adopt existing content. The organization itself is never created or deleted. Authentication uses a project secret for the environment - create one with the stytch_secret resource; importing requires that secret in the STYTCH_IMPORT_PROJECT_SECRET environment variable, because Terraform provides no configuration values during import - and so does the first plan afterwards, which refreshes from a state that does not yet carry project_secret. Concurrent applies within one run are serialized per organization (the API offers no compare-and-swap).
 
 ## Example Usage
 
 ```terraform
-# Example: manage two trusted_metadata keys on a long-lived organization,
-# leaving every other key (application-written data) untouched
+# Example: authoritatively manage an organization's trusted_metadata - the
+# object holds exactly these keys, and out-of-band writes surface as plan diffs
 resource "stytch_organization_trusted_metadata" "internal" {
   project_slug     = stytch_project.example.project_slug
   environment_slug = "live"
   project_secret   = stytch_secret.example.secret
   organization_id  = data.stytch_organization.internal.organization_id
 
-  keys = {
+  trusted_metadata = {
     grants = jsonencode({
       version = 1
       feat = {
@@ -51,10 +51,14 @@ resource "stytch_secret" "example" {
 ### Required
 
 - `environment_slug` (String) The slug of the environment to which the organization belongs.
-- `keys` (Map of String) The top-level trusted_metadata keys this resource owns. Each value is the key's content as a JSON document (use jsonencode). Keys not listed here are never touched. A key name containing a comma cannot be listed in an import ID.
-- `organization_id` (String) The ID of the organization whose trusted_metadata keys are managed.
+- `organization_id` (String) The ID of the organization whose trusted_metadata is managed.
 - `project_secret` (String, Sensitive) A project secret for the environment, used to authenticate against the project-level Stytch API.
 - `project_slug` (String) The slug of the project to which the organization belongs.
+- `trusted_metadata` (Map of String) The organization's complete trusted_metadata object: one entry per top-level key, each value the key's content as a JSON document (use jsonencode). The organization's trusted_metadata is made to hold exactly these keys.
+
+### Optional
+
+- `force` (Boolean) Allow creation to take ownership of an organization that already has trusted_metadata, overwriting it with the configured object (keys not declared here are deleted). Defaults to false, which makes creation refuse such organizations - importing is the sanctioned way to adopt existing content.
 
 ### Read-Only
 
@@ -67,9 +71,10 @@ Import is supported using the following syntax:
 
 ```shell
 # A Stytch organization trusted_metadata resource can be imported by specifying the project slug, environment slug,
-# organization ID, and optionally the comma-separated top-level keys it should own (omitting the keys segment imports
-# ownership of no keys; the next apply adopts the keys declared in configuration)
-# Format: project_slug.environment_slug.organization_id[.key1,key2] - a key name containing a comma cannot be imported
+# and organization ID; the organization's current trusted_metadata content is adopted into state on the first refresh.
+# Importing is the sanctioned way to take over an organization that already has trusted_metadata (creation refuses
+# such organizations unless force = true).
+# Format: project_slug.environment_slug.organization_id
 # Terraform passes no configuration values during import, so the project secret must come from the environment
-STYTCH_IMPORT_PROJECT_SECRET=<project secret> terraform import stytch_organization_trusted_metadata.example my-project.live.organization-live-11111111-1111-1111-1111-111111111111.grants,support_tier
+STYTCH_IMPORT_PROJECT_SECRET=<project secret> terraform import stytch_organization_trusted_metadata.example my-project.live.organization-live-11111111-1111-1111-1111-111111111111
 ```
