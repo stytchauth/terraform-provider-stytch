@@ -69,6 +69,7 @@ func (r *organizationTrustedMetadataResource) Configure(ctx context.Context, req
 		resp.Diagnostics.AddError(experimentalGateError("stytch_organization_trusted_metadata"))
 		return
 	}
+	logExperimentalUse(ctx, "stytch_organization_trusted_metadata")
 	r.projectAPI = providerClients.ProjectAPI
 }
 
@@ -360,7 +361,7 @@ func (r *organizationTrustedMetadataResource) Create(ctx context.Context, req re
 	ctx = tflog.SetField(ctx, "organization_id", plan.OrganizationID.ValueString())
 	tflog.Info(ctx, "Writing organization trusted_metadata")
 
-	unlock := r.projectAPI.LockClient(plan.OrganizationID.ValueString())
+	unlock := r.projectAPI.Lock(projectapi.LockKeyOrganization(plan.OrganizationID.ValueString()))
 	defer unlock()
 
 	org, err := r.getOrganization(ctx, plan)
@@ -468,7 +469,7 @@ func (r *organizationTrustedMetadataResource) Update(ctx context.Context, req re
 	ctx = tflog.SetField(ctx, "organization_id", plan.OrganizationID.ValueString())
 	tflog.Info(ctx, "Updating organization trusted_metadata")
 
-	unlock := r.projectAPI.LockClient(plan.OrganizationID.ValueString())
+	unlock := r.projectAPI.Lock(projectapi.LockKeyOrganization(plan.OrganizationID.ValueString()))
 	defer unlock()
 
 	if err := r.write(ctx, plan, removedKeys(previous, planned)); err != nil {
@@ -506,7 +507,7 @@ func (r *organizationTrustedMetadataResource) Delete(ctx context.Context, req re
 	ctx = tflog.SetField(ctx, "organization_id", state.OrganizationID.ValueString())
 	tflog.Info(ctx, "Deleting organization trusted_metadata")
 
-	unlock := r.projectAPI.LockClient(state.OrganizationID.ValueString())
+	unlock := r.projectAPI.Lock(projectapi.LockKeyOrganization(state.OrganizationID.ValueString()))
 	defer unlock()
 
 	client, err := r.projectAPI.ForB2BEnvironment(ctx, state.ProjectSlug.ValueString(), state.EnvironmentSlug.ValueString(), state.ProjectSecret.ValueString())

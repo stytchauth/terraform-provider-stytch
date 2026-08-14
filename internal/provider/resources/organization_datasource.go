@@ -61,6 +61,7 @@ func (d *organizationDataSource) Configure(ctx context.Context, req datasource.C
 		resp.Diagnostics.AddError(experimentalGateError("data.stytch_organization"))
 		return
 	}
+	logExperimentalUse(ctx, "data.stytch_organization")
 	d.projectAPI = providerClients.ProjectAPI
 }
 

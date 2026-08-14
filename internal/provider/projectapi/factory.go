@@ -46,7 +46,17 @@ type Factory struct {
 	mgmtOverride bool
 	mu           sync.Mutex
 	projectIDs   map[string]string
-	lockByClient map[string]*sync.Mutex
+	locks        map[string]*sync.Mutex
+}
+
+// LockKeyConnectedApp and LockKeyOrganization namespace Lock keys so IDs from
+// different resource types cannot collide in the shared map.
+func LockKeyConnectedApp(clientID string) string {
+	return "connected_app/" + clientID
+}
+
+func LockKeyOrganization(organizationID string) string {
+	return "organization/" + organizationID
 }
 
 type Option func(*Factory)
@@ -79,7 +89,7 @@ func newFactory(mgmt ManagementAPI, newClient func(projectID, secret, baseURI st
 		newClient:    newClient,
 		newB2BClient: defaultNewB2BClient,
 		projectIDs:   map[string]string{},
-		lockByClient: map[string]*sync.Mutex{},
+		locks:        map[string]*sync.Mutex{},
 	}
 	for _, opt := range opts {
 		opt(f)
@@ -163,12 +173,15 @@ func (f *Factory) ForB2BEnvironment(ctx context.Context, projectSlug, environmen
 	return f.newB2BClient(resolvedProjectID, resolvedSecret, f.baseURI)
 }
 
-func (f *Factory) LockClient(clientID string) func() {
+// Lock serializes writes that share a target the API cannot compare-and-swap.
+// Keys from different resource types share one keyspace; callers namespace them
+// with the LockKey* helpers.
+func (f *Factory) Lock(key string) func() {
 	f.mu.Lock()
-	lock, ok := f.lockByClient[clientID]
+	lock, ok := f.locks[key]
 	if !ok {
 		lock = &sync.Mutex{}
-		f.lockByClient[clientID] = lock
+		f.locks[key] = lock
 	}
 	f.mu.Unlock()
 	lock.Lock()
