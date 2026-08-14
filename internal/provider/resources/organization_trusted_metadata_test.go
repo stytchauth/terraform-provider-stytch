@@ -19,45 +19,41 @@ import (
 )
 
 // Organizations cannot be created by Terraform configuration (the resource
-// deliberately has no org lifecycle), so the fixture organization is created
+// deliberately has no org lifecycle), so fixture organizations are created
 // through the API in a step's PreConfig - which only runs under TF_ACC - with
 // a known slug that the configuration resolves via the stytch_organization
-// data source. The project created by the configuration owns the organization,
-// so the harness's destroy cleans everything up.
+// data source. Cleanup relies on destroying the configuration's project
+// cascading to its organizations.
 type orgFixture struct {
 	projectSlug     string
 	environmentSlug string
 	secret          string
+	organizationID  string
 }
 
-func captureOrgFixture(fixture *orgFixture) resource.TestCheckFunc {
+func captureAttr(name, attr string, target *string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		for name, target := range map[string]*string{
-			"stytch_project.test":     &fixture.projectSlug,
-			"stytch_environment.test": &fixture.environmentSlug,
-			"stytch_secret.test":      &fixture.secret,
-		} {
-			rs, ok := s.RootModule().Resources[name]
-			if !ok {
-				return fmt.Errorf("%s not found in state", name)
-			}
-			switch name {
-			case "stytch_project.test":
-				*target = rs.Primary.Attributes["project_slug"]
-			case "stytch_environment.test":
-				*target = rs.Primary.Attributes["environment_slug"]
-			case "stytch_secret.test":
-				*target = rs.Primary.Attributes["secret"]
-			}
-			if *target == "" {
-				return fmt.Errorf("%s captured an empty value", name)
-			}
+		rs, ok := s.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("%s not found in state", name)
+		}
+		*target = rs.Primary.Attributes[attr]
+		if *target == "" {
+			return fmt.Errorf("%s.%s is empty", name, attr)
 		}
 		return nil
 	}
 }
 
-func createFixtureOrganization(t *testing.T, fixture *orgFixture, slug string, trustedMetadata map[string]any) {
+func captureOrgFixture(fixture *orgFixture) resource.TestCheckFunc {
+	return resource.ComposeAggregateTestCheckFunc(
+		captureAttr("stytch_project.test", "project_slug", &fixture.projectSlug),
+		captureAttr("stytch_environment.test", "environment_slug", &fixture.environmentSlug),
+		captureAttr("stytch_secret.test", "secret", &fixture.secret),
+	)
+}
+
+func fixtureB2BClient(t *testing.T, fixture *orgFixture) *b2bstytchapi.API {
 	t.Helper()
 	ctx := context.Background()
 
@@ -82,14 +78,31 @@ func createFixtureOrganization(t *testing.T, fixture *orgFixture, slug string, t
 	if err != nil {
 		t.Fatalf("building fixture project API client: %v", err)
 	}
+	return client
+}
 
-	_, err = client.Organizations.Create(ctx, &organizations.CreateParams{
+func createFixtureOrganization(t *testing.T, fixture *orgFixture, slug string, trustedMetadata map[string]any) {
+	t.Helper()
+	client := fixtureB2BClient(t, fixture)
+	_, err := client.Organizations.Create(context.Background(), &organizations.CreateParams{
 		OrganizationName: "tf-acc " + slug,
 		OrganizationSlug: slug,
 		TrustedMetadata:  trustedMetadata,
 	})
 	if err != nil {
 		t.Fatalf("creating fixture organization %q: %v", slug, err)
+	}
+}
+
+func writeFixtureMetadata(t *testing.T, fixture *orgFixture, organizationID string, trustedMetadata map[string]any) {
+	t.Helper()
+	client := fixtureB2BClient(t, fixture)
+	_, err := client.Organizations.Update(context.Background(), &organizations.UpdateParams{
+		OrganizationID:  organizationID,
+		TrustedMetadata: trustedMetadata,
+	})
+	if err != nil {
+		t.Fatalf("writing fixture metadata to %s: %v", organizationID, err)
 	}
 }
 
@@ -100,15 +113,19 @@ func orgTrustedMetadataBaseConfig() string {
 	}) + projectSecretResource
 }
 
-func orgTrustedMetadataConfig(orgSlug string, fields string) string {
-	return orgTrustedMetadataBaseConfig() + fmt.Sprintf(`
-data "stytch_organization" "test" {
+func orgDataSourceConfig(name, orgSlug string) string {
+	return fmt.Sprintf(`
+data "stytch_organization" "%s" {
   project_slug      = stytch_project.test.project_slug
   environment_slug  = stytch_environment.test.environment_slug
   project_secret    = stytch_secret.test.secret
   organization_slug = "%s"
 }
+`, name, orgSlug)
+}
 
+func orgTrustedMetadataConfig(orgSlug string, fields string) string {
+	return orgTrustedMetadataBaseConfig() + orgDataSourceConfig("test", orgSlug) + fmt.Sprintf(`
 resource "stytch_organization_trusted_metadata" "test" {
   project_slug     = stytch_project.test.project_slug
   environment_slug = stytch_environment.test.environment_slug
@@ -116,7 +133,7 @@ resource "stytch_organization_trusted_metadata" "test" {
   organization_id  = data.stytch_organization.test.organization_id
 %s
 }
-`, orgSlug, fields)
+`, fields)
 }
 
 func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
@@ -127,6 +144,8 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
 
 	// jsonencode renders object keys alphabetically and compactly, matching the
 	// canonical form Read stores, so ImportStateVerify can compare strings.
+	// This holds only for values without <, >, or & (cty HTML-escapes them,
+	// canonicalJSON does not); plan-time comparison is semantic either way.
 	initialConfig := orgTrustedMetadataConfig(orgSlug, `
   trusted_metadata = {
     grants = jsonencode({ tier = "internal", version = 1 })
@@ -139,7 +158,9 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
     support = jsonencode("gold")
   }
 `)
-
+	// The harness runs a refresh plan after every apply and fails the step
+	// unless it is empty, so each apply below already proves the remote object
+	// converged to the configuration - removed keys included.
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -155,16 +176,8 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
 					resource.TestCheckResourceAttr("stytch_organization_trusted_metadata.test", "trusted_metadata.grants", `{"tier":"internal","version":1}`),
 					resource.TestCheckResourceAttr("stytch_organization_trusted_metadata.test", "trusted_metadata.note", `"managed-by-terraform"`),
 					resource.TestCheckResourceAttrSet("stytch_organization_trusted_metadata.test", "id"),
-					resource.TestCheckResourceAttr("data.stytch_organization.test", "organization_slug", orgSlug),
-					resource.TestCheckResourceAttr("data.stytch_organization.test", "organization_name", "tf-acc "+orgSlug),
-					resource.TestCheckResourceAttrSet("data.stytch_organization.test", "organization_id"),
+					captureAttr("stytch_organization_trusted_metadata.test", "organization_id", &fixture.organizationID),
 				),
-			},
-			{
-				// Convergence: refresh must retain the applied values exactly.
-				Config:             testutil.ProviderConfig + initialConfig,
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: false,
 			},
 			{
 				// Update changes one value, adds a key, and removes a key.
@@ -177,12 +190,6 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
 				),
 			},
 			{
-				// The removed key must be gone remotely, not just from state.
-				Config:             testutil.ProviderConfig + updatedConfig,
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: false,
-			},
-			{
 				ResourceName:      "stytch_organization_trusted_metadata.test",
 				ImportState:       true,
 				ImportStateVerify: true,
@@ -190,13 +197,46 @@ func TestAccOrganizationTrustedMetadataResource(t *testing.T) {
 				// force is configuration-only.
 				ImportStateVerifyIgnore: []string{"project_secret", "last_updated", "force"},
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
-					t.Setenv(projectapi.ImportSecretEnvVar, fixture.secret)
+					secretResource, ok := s.RootModule().Resources["stytch_secret.test"]
+					if !ok {
+						return "", fmt.Errorf("stytch_secret.test not found in state")
+					}
+					t.Setenv(projectapi.ImportSecretEnvVar, secretResource.Primary.Attributes["secret"])
 					rs, ok := s.RootModule().Resources["stytch_organization_trusted_metadata.test"]
 					if !ok {
-						return "", fmt.Errorf("resource not found in state")
+						return "", fmt.Errorf("stytch_organization_trusted_metadata.test not found in state")
 					}
 					return rs.Primary.ID, nil
 				},
+			},
+			{
+				// An out-of-band write to the managed object must surface as drift.
+				PreConfig: func() {
+					writeFixtureMetadata(t, &fixture, fixture.organizationID, map[string]any{
+						"app_added": "out-of-band",
+					})
+				},
+				Config:             testutil.ProviderConfig + updatedConfig,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				// Re-applying reconciles: the out-of-band key is deleted remotely
+				// (the post-apply refresh plan fails the step otherwise).
+				Config: testutil.ProviderConfig + updatedConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("stytch_organization_trusted_metadata.test", "trusted_metadata.%", "2"),
+					resource.TestCheckNoResourceAttr("stytch_organization_trusted_metadata.test", "trusted_metadata.app_added"),
+				),
+			},
+			{
+				// Removing the resource destroys it, null-punching every owned key.
+				Config: testutil.ProviderConfig + orgTrustedMetadataBaseConfig(),
+			},
+			{
+				// A fresh data source read proves destroy emptied the remote object.
+				Config: testutil.ProviderConfig + orgTrustedMetadataBaseConfig() + orgDataSourceConfig("verify", orgSlug),
+				Check:  resource.TestCheckResourceAttr("data.stytch_organization.verify", "trusted_metadata", "{}"),
 			},
 		},
 	})
@@ -236,7 +276,8 @@ func TestAccOrganizationTrustedMetadataForce(t *testing.T) {
 			},
 			{
 				// force takes ownership: the configured object replaces everything,
-				// including the app-written key.
+				// including the app-written key (the post-apply refresh plan fails
+				// this step if the app-written key survived remotely).
 				Config: config(`
   force = true
 
@@ -248,19 +289,6 @@ func TestAccOrganizationTrustedMetadataForce(t *testing.T) {
 					resource.TestCheckResourceAttr("stytch_organization_trusted_metadata.test", "trusted_metadata.%", "1"),
 					resource.TestCheckResourceAttr("stytch_organization_trusted_metadata.test", "trusted_metadata.grants", `{"tier":"internal"}`),
 				),
-			},
-			{
-				// app_owned must be deleted remotely: if the null-punch failed, the
-				// refresh here would adopt it into state and produce a diff.
-				Config: config(`
-  force = true
-
-  trusted_metadata = {
-    grants = jsonencode({ tier = "internal" })
-  }
-`),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: false,
 			},
 		},
 	})
