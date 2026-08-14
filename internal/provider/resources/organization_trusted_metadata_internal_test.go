@@ -1,10 +1,54 @@
 package resources
 
 import (
+	"context"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/stytchauth/terraform-provider-stytch/internal/provider/clients"
 )
+
+func TestExperimentalGateBlocksConfigure(t *testing.T) {
+	r := &organizationTrustedMetadataResource{}
+	var resourceResp resource.ConfigureResponse
+	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: &clients.Clients{}}, &resourceResp)
+	if !resourceResp.Diagnostics.HasError() {
+		t.Fatal("expected the resource to refuse configuration without the experimental flag")
+	}
+	if detail := resourceResp.Diagnostics.Errors()[0].Detail(); !strings.Contains(detail, ExperimentalEnvVar) {
+		t.Fatalf("the diagnostic must name the environment variable, got %q", detail)
+	}
+
+	d := &organizationDataSource{}
+	var dataSourceResp datasource.ConfigureResponse
+	d.Configure(context.Background(), datasource.ConfigureRequest{ProviderData: &clients.Clients{}}, &dataSourceResp)
+	if !dataSourceResp.Diagnostics.HasError() {
+		t.Fatal("expected the data source to refuse configuration without the experimental flag")
+	}
+	if detail := dataSourceResp.Diagnostics.Errors()[0].Detail(); !strings.Contains(detail, ExperimentalEnvVar) {
+		t.Fatalf("the diagnostic must name the environment variable, got %q", detail)
+	}
+}
+
+func TestExperimentalGateAllowsConfigureWhenEnabled(t *testing.T) {
+	r := &organizationTrustedMetadataResource{}
+	var resourceResp resource.ConfigureResponse
+	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: &clients.Clients{ExperimentalEnabled: true}}, &resourceResp)
+	if resourceResp.Diagnostics.HasError() {
+		t.Fatalf("expected configuration to succeed, got %v", resourceResp.Diagnostics.Errors())
+	}
+
+	d := &organizationDataSource{}
+	var dataSourceResp datasource.ConfigureResponse
+	d.Configure(context.Background(), datasource.ConfigureRequest{ProviderData: &clients.Clients{ExperimentalEnabled: true}}, &dataSourceResp)
+	if dataSourceResp.Diagnostics.HasError() {
+		t.Fatalf("expected configuration to succeed, got %v", dataSourceResp.Diagnostics.Errors())
+	}
+}
 
 func TestTrustedMetadataBody(t *testing.T) {
 	body, err := trustedMetadataBody(

@@ -60,6 +60,10 @@ func (r *organizationTrustedMetadataResource) Configure(ctx context.Context, req
 		)
 		return
 	}
+	if !providerClients.ExperimentalEnabled {
+		resp.Diagnostics.AddError(experimentalGateError("stytch_organization_trusted_metadata"))
+		return
+	}
 	r.projectAPI = providerClients.ProjectAPI
 }
 

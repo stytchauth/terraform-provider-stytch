@@ -56,6 +56,10 @@ func (d *organizationDataSource) Configure(ctx context.Context, req datasource.C
 		)
 		return
 	}
+	if !providerClients.ExperimentalEnabled {
+		resp.Diagnostics.AddError(experimentalGateError("data.stytch_organization"))
+		return
+	}
 	d.projectAPI = providerClients.ProjectAPI
 }
 

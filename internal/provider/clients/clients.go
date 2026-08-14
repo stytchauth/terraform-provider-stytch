@@ -8,4 +8,7 @@ import (
 type Clients struct {
 	Management *api.API
 	ProjectAPI *projectapi.Factory
+	// ExperimentalEnabled reports whether experimental resources and data
+	// sources may be used; they refuse to operate when it is false.
+	ExperimentalEnabled bool
 }

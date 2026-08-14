@@ -196,8 +196,9 @@ func (p *StytchProvider) Configure(
 	}
 
 	providerClients := &clients.Clients{
-		Management: client,
-		ProjectAPI: projectapi.NewFactory(client, projectAPIOpts...),
+		Management:          client,
+		ProjectAPI:          projectapi.NewFactory(client, projectAPIOpts...),
+		ExperimentalEnabled: os.Getenv(resources.ExperimentalEnvVar) == "1",
 	}
 	resp.DataSourceData = providerClients
 	resp.ResourceData = providerClients
@@ -205,19 +206,8 @@ func (p *StytchProvider) Configure(
 	tflog.Info(ctx, "Stytch provider configured", map[string]any{"success": true})
 }
 
-// ExperimentalEnvVar gates resources and data sources whose place in the
-// provider is still being evaluated. Their schemas may change without a major
-// version bump; when the variable is not set to 1 they are not registered at
-// all, so Terraform rejects any configuration (or state operation) that uses
-// them.
-const ExperimentalEnvVar = "STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES"
-
-func experimentalEnabled() bool {
-	return os.Getenv(ExperimentalEnvVar) == "1"
-}
-
 func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource {
-	all := []func() resource.Resource{
+	return []func() resource.Resource{
 		resources.NewB2BSDKConfigResource,
 		resources.NewConnectedAppResource,
 		resources.NewConnectedAppRedirectURLResource,
@@ -228,6 +218,7 @@ func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource
 		resources.NewEnvironmentResource,
 		resources.NewEventLogStreamingResource,
 		resources.NewJWTTemplateResource,
+		resources.NewOrganizationTrustedMetadataResource,
 		resources.NewPasswordConfigResource,
 		resources.NewProjectResource,
 		resources.NewPublicTokenResource,
@@ -236,24 +227,13 @@ func (p *StytchProvider) Resources(_ context.Context) []func() resource.Resource
 		resources.NewSecretResource,
 		resources.NewTrustedTokenProfileResource,
 	}
-	if experimentalEnabled() {
-		all = append(all,
-			resources.NewOrganizationTrustedMetadataResource,
-		)
-	}
-	return all
 }
 
 func (p *StytchProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	all := []func() datasource.DataSource{
+	return []func() datasource.DataSource{
 		resources.NewConnectedAppDataSource,
+		resources.NewOrganizationDataSource,
 	}
-	if experimentalEnabled() {
-		all = append(all,
-			resources.NewOrganizationDataSource,
-		)
-	}
-	return all
 }
 
 func (p *StytchProvider) Functions(_ context.Context) []func() function.Function {
