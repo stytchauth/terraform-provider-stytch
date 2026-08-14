@@ -5,12 +5,15 @@ subcategory: ""
 description: |-
   Interact with Stytch's Programmatic Workspace Actions API https://stytch.com/docs/workspace-management/pwa/overview to configure your workspace, including projects, redirect URLs, email templates and more.
   See migration instructions from v1 to v3 in the migration guide https://github.com/stytchauth/terraform-provider-stytch/blob/main/v1_to_v3_changes.md.
+  Experimental features: some resources and data sources (marked Experimental on their documentation pages) are gated behind the STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES environment variable. Set it to 1 in the environment where Terraform runs (including CI) to opt in; without it, every operation on an experimental type - plan, apply, refresh, import, and destroy - fails with a diagnostic naming the variable. Experimental schemas may change in a future release without a major version bump.
 ---
 
 # stytch Provider
 
 Interact with Stytch's [Programmatic Workspace Actions API](https://stytch.com/docs/workspace-management/pwa/overview) to configure your workspace, including projects, redirect URLs, email templates and more. 
- See migration instructions from v1 to v3 in the [migration guide](https://github.com/stytchauth/terraform-provider-stytch/blob/main/v1_to_v3_changes.md).
+ See migration instructions from v1 to v3 in the [migration guide](https://github.com/stytchauth/terraform-provider-stytch/blob/main/v1_to_v3_changes.md). 
+
+ **Experimental features**: some resources and data sources (marked **Experimental** on their documentation pages) are gated behind the STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES environment variable. Set it to 1 in the environment where Terraform runs (including CI) to opt in; without it, every operation on an experimental type - plan, apply, refresh, import, and destroy - fails with a diagnostic naming the variable. Experimental schemas may change in a future release without a major version bump.
 
 ## Example Usage
 
