@@ -547,7 +547,7 @@ func (r *connectedAppResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	clientID := state.ClientID.ValueString()
-	unlock := r.projectAPI.LockClient(clientID)
+	unlock := r.projectAPI.Lock(projectapi.LockKeyConnectedApp(clientID))
 	defer unlock()
 
 	ctx = tflog.SetField(ctx, "client_id", clientID)

@@ -199,7 +199,7 @@ func (m *connectedAppRedirectURLModel) setID() {
 }
 
 func (r *connectedAppRedirectURLResource) mutate(ctx context.Context, m connectedAppRedirectURLModel, change func([]string) []string) error {
-	unlock := r.projectAPI.LockClient(m.ClientID.ValueString())
+	unlock := r.projectAPI.Lock(projectapi.LockKeyConnectedApp(m.ClientID.ValueString()))
 	defer unlock()
 
 	client, err := r.projectAPI.ForEnvironment(ctx, m.ProjectSlug.ValueString(), m.EnvironmentSlug.ValueString(), m.ProjectSecret.ValueString())

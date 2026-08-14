@@ -107,20 +107,20 @@ func TestForEnvironmentCachesProjectID(t *testing.T) {
 	}
 }
 
-func TestLockClientSerializesSameKey(t *testing.T) {
+func TestLockSerializesSameKey(t *testing.T) {
 	f, _ := newTestFactory(&fakeManagement{})
 
-	unlock := f.LockClient("client-a")
-	otherUnlock := f.LockClient("client-b")
+	unlock := f.Lock("client-a")
+	otherUnlock := f.Lock("client-b")
 	otherUnlock()
 	unlock()
 
-	held := f.LockClient("client-a")
+	held := f.Lock("client-a")
 	started := make(chan struct{})
 	acquired := make(chan struct{})
 	go func() {
 		close(started)
-		u := f.LockClient("client-a")
+		u := f.Lock("client-a")
 		close(acquired)
 		u()
 	}()
@@ -137,6 +137,30 @@ func TestLockClientSerializesSameKey(t *testing.T) {
 	case <-acquired:
 	case <-time.After(5 * time.Second):
 		t.Fatal("second acquisition of client-a stayed blocked after unlock")
+	}
+}
+
+func TestLockKeysAreNamespacedByType(t *testing.T) {
+	const id = "shared-id"
+	if LockKeyConnectedApp(id) == LockKeyOrganization(id) {
+		t.Fatalf("a connected app and an organization with the same ID share a lock key: %q", LockKeyConnectedApp(id))
+	}
+
+	f, _ := newTestFactory(&fakeManagement{})
+	unlock := f.Lock(LockKeyConnectedApp(id))
+	defer unlock()
+
+	acquired := make(chan struct{})
+	go func() {
+		u := f.Lock(LockKeyOrganization(id))
+		close(acquired)
+		u()
+	}()
+
+	select {
+	case <-acquired:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the organization key blocked on the connected app key")
 	}
 }
 

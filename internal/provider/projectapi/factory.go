@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/stytchauth/stytch-go/v18/stytch/b2b/b2bstytchapi"
 	"github.com/stytchauth/stytch-go/v18/stytch/consumer/stytchapi"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/api"
 	"github.com/stytchauth/stytch-management-go/v3/pkg/models/environments"
@@ -40,11 +41,22 @@ func (a managementAdapter) GetProjectID(ctx context.Context, projectSlug, enviro
 type Factory struct {
 	mgmt         ManagementAPI
 	newClient    func(projectID, secret, baseURI string) (*stytchapi.API, error)
+	newB2BClient func(projectID, secret, baseURI string) (*b2bstytchapi.API, error)
 	baseURI      string
 	mgmtOverride bool
 	mu           sync.Mutex
 	projectIDs   map[string]string
-	lockByClient map[string]*sync.Mutex
+	locks        map[string]*sync.Mutex
+}
+
+// LockKeyConnectedApp and LockKeyOrganization namespace Lock keys so IDs from
+// different resource types cannot collide in the shared map.
+func LockKeyConnectedApp(clientID string) string {
+	return "connected_app/" + clientID
+}
+
+func LockKeyOrganization(organizationID string) string {
+	return "organization/" + organizationID
 }
 
 type Option func(*Factory)
@@ -75,8 +87,9 @@ func newFactory(mgmt ManagementAPI, newClient func(projectID, secret, baseURI st
 	f := &Factory{
 		mgmt:         mgmt,
 		newClient:    newClient,
+		newB2BClient: defaultNewB2BClient,
 		projectIDs:   map[string]string{},
-		lockByClient: map[string]*sync.Mutex{},
+		locks:        map[string]*sync.Mutex{},
 	}
 	for _, opt := range opts {
 		opt(f)
@@ -92,6 +105,14 @@ func defaultNewClient(projectID, secret, baseURI string) (*stytchapi.API, error)
 		opts = append(opts, stytchapi.WithBaseURI(baseURI))
 	}
 	return stytchapi.NewClient(projectID, secret, opts...)
+}
+
+func defaultNewB2BClient(projectID, secret, baseURI string) (*b2bstytchapi.API, error) {
+	opts := []b2bstytchapi.Option{b2bstytchapi.WithSkipJWKSInitialization()}
+	if baseURI != "" {
+		opts = append(opts, b2bstytchapi.WithBaseURI(baseURI))
+	}
+	return b2bstytchapi.NewClient(projectID, secret, opts...)
 }
 
 func (f *Factory) projectID(ctx context.Context, projectSlug, environmentSlug string) (string, error) {
@@ -112,9 +133,9 @@ func (f *Factory) projectID(ctx context.Context, projectSlug, environmentSlug st
 	return resolved, nil
 }
 
-func (f *Factory) ForEnvironment(ctx context.Context, projectSlug, environmentSlug, secret string) (*stytchapi.API, error) {
+func (f *Factory) resolveCredentials(ctx context.Context, projectSlug, environmentSlug, secret string) (string, string, error) {
 	if f.mgmtOverride && f.baseURI == "" {
-		return nil, fmt.Errorf("the provider sets base_uri but not project_api_base_uri: the project API host derives from the " +
+		return "", "", fmt.Errorf("the provider sets base_uri but not project_api_base_uri: the project API host derives from the " +
 			"project ID rather than from base_uri, so this resource would reach the public Stytch API instead of the " +
 			"configured one. Set project_api_base_uri (or the STYTCH_PROJECT_API_BASE_URI environment variable)")
 	}
@@ -123,23 +144,44 @@ func (f *Factory) ForEnvironment(ctx context.Context, projectSlug, environmentSl
 		secret = os.Getenv(ImportSecretEnvVar)
 	}
 	if secret == "" {
-		return nil, fmt.Errorf("no project secret available for %s/%s: set the project_secret attribute, or the %s environment variable when importing", projectSlug, environmentSlug, ImportSecretEnvVar)
+		return "", "", fmt.Errorf("no project secret available for %s/%s: set the project_secret attribute, or the %s environment variable when importing", projectSlug, environmentSlug, ImportSecretEnvVar)
 	}
 
 	resolvedProjectID, err := f.projectID(ctx, projectSlug, environmentSlug)
 	if err != nil {
-		return nil, fmt.Errorf("resolving project ID for %s/%s: %w", projectSlug, environmentSlug, err)
+		return "", "", fmt.Errorf("resolving project ID for %s/%s: %w", projectSlug, environmentSlug, err)
 	}
 
-	return f.newClient(resolvedProjectID, secret, f.baseURI)
+	return resolvedProjectID, secret, nil
 }
 
-func (f *Factory) LockClient(clientID string) func() {
+func (f *Factory) ForEnvironment(ctx context.Context, projectSlug, environmentSlug, secret string) (*stytchapi.API, error) {
+	resolvedProjectID, resolvedSecret, err := f.resolveCredentials(ctx, projectSlug, environmentSlug, secret)
+	if err != nil {
+		return nil, err
+	}
+	return f.newClient(resolvedProjectID, resolvedSecret, f.baseURI)
+}
+
+// ForB2BEnvironment builds a B2B-vertical client: B2B-only resources live on
+// a different stytch-go client type than the consumer surface.
+func (f *Factory) ForB2BEnvironment(ctx context.Context, projectSlug, environmentSlug, secret string) (*b2bstytchapi.API, error) {
+	resolvedProjectID, resolvedSecret, err := f.resolveCredentials(ctx, projectSlug, environmentSlug, secret)
+	if err != nil {
+		return nil, err
+	}
+	return f.newB2BClient(resolvedProjectID, resolvedSecret, f.baseURI)
+}
+
+// Lock serializes writes that share a target the API cannot compare-and-swap.
+// Keys from different resource types share one keyspace; callers namespace them
+// with the LockKey* helpers.
+func (f *Factory) Lock(key string) func() {
 	f.mu.Lock()
-	lock, ok := f.lockByClient[clientID]
+	lock, ok := f.locks[key]
 	if !ok {
 		lock = &sync.Mutex{}
-		f.lockByClient[clientID] = lock
+		f.locks[key] = lock
 	}
 	f.mu.Unlock()
 	lock.Lock()
