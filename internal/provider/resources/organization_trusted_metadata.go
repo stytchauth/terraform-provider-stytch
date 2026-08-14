@@ -69,7 +69,9 @@ func (r *organizationTrustedMetadataResource) Metadata(_ context.Context, req re
 
 func (r *organizationTrustedMetadataResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "A declared set of top-level trusted_metadata keys on a B2B organization, managed additively: the " +
+		Description: "**Experimental**: this resource is available only when the STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES " +
+			"environment variable is set to 1, and its schema may change in a future release without a major version bump. " +
+			"A declared set of top-level trusted_metadata keys on a B2B organization, managed additively: the " +
 			"provider writes only the keys listed here and leaves every other key (typically application-written data) " +
 			"untouched, matching the metadata API's top-level merge semantics. Removing a key from the map, or destroying " +
 			"the resource, deletes that key from the organization by writing an explicit null. The organization itself is " +

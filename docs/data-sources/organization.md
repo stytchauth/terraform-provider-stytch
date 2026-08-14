@@ -3,12 +3,12 @@
 page_title: "stytch_organization Data Source - stytch"
 subcategory: ""
 description: |-
-  Looks up a B2B organization by ID, slug, or external ID (exactly one must be set). Authentication uses a project secret for the environment - create one with the stytch_secret resource.
+  Experimental: this data source is available only when the STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES environment variable is set to 1, and its schema may change in a future release without a major version bump. Looks up a B2B organization by ID, slug, or external ID (exactly one must be set). Authentication uses a project secret for the environment - create one with the stytch_secret resource.
 ---
 
 # stytch_organization (Data Source)
 
-Looks up a B2B organization by ID, slug, or external ID (exactly one must be set). Authentication uses a project secret for the environment - create one with the stytch_secret resource.
+**Experimental**: this data source is available only when the STYTCH_PROVIDER_USE_EXPERIMENTAL_RESOURCES environment variable is set to 1, and its schema may change in a future release without a major version bump. Looks up a B2B organization by ID, slug, or external ID (exactly one must be set). Authentication uses a project secret for the environment - create one with the stytch_secret resource.
 
 ## Example Usage
 
