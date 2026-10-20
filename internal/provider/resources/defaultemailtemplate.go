@@ -153,6 +153,10 @@ func (r *defaultEmailTemplateResource) Read(ctx context.Context, req resource.Re
 		EmailTemplateType: emailtemplates.TemplateType(state.EmailTemplateType.ValueString()),
 	})
 	if err != nil {
+		if isNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Failed to get default email template", err.Error())
 		return
 	}

@@ -271,6 +271,10 @@ func (r *jwtTemplateResource) Read(ctx context.Context, req resource.ReadRequest
 		JWTTemplateType: jwttemplates.JWTTemplateType(state.TemplateType.ValueString()),
 	})
 	if err != nil {
+		if isNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Failed to read JWT template", err.Error())
 		return
 	}

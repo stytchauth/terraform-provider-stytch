@@ -719,6 +719,10 @@ func (r *emailTemplateResource) Read(ctx context.Context, req resource.ReadReque
 		TemplateID:  state.TemplateID.ValueString(),
 	})
 	if err != nil {
+		if isNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Failed to read email template", err.Error())
 		return
 	}

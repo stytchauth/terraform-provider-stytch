@@ -572,6 +572,10 @@ func (r *eventLogStreamingResource) Read(ctx context.Context, req resource.ReadR
 		DestinationType: eventlogstreaming.DestinationType(state.DestinationType.ValueString()),
 	})
 	if err != nil {
+		if isNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Failed to get event log streaming", err.Error())
 		return
 	}
