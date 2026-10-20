@@ -354,6 +354,10 @@ func (r *redirectURLResource) Read(ctx context.Context, req resource.ReadRequest
 		URL:             state.URL.ValueString(),
 	})
 	if err != nil {
+		if isNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Failed to get redirect URL", err.Error())
 		return
 	}
